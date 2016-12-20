@@ -1,4 +1,6 @@
 var fs = require('fs');
+var gracefulFs = require('graceful-fs');
+gracefulFs.gracefulify(fs);
 var exec = require('child_process').exec;
 
 exports.execCmd = function(cmd, cb, errorCb) {
