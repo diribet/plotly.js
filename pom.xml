@@ -5,10 +5,11 @@
     <packaging>jar</packaging>
     <groupId>org.webjars</groupId>
     <artifactId>plotly.js-chystat</artifactId>
-    <version>1.21.2-SNAPSHOT</version>
+    <version>${plotly.js.chystat.version}</version>
     <url>https://github.com/diribet/plotly.js</url>
 
     <properties>
+    	<plotly.js.chystat.version>1.21.2-SNAPSHOT</plotly.js.chystat.version>
         <project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
         <destDir>${project.build.outputDirectory}/META-INF/resources/webjars/${project.artifactId}/${project.version}</destDir>
     </properties>
