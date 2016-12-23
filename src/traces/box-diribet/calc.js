@@ -12,6 +12,7 @@ var isNumeric = require('fast-isnumeric');
 
 var Lib = require('../../lib');
 var Axes = require('../../plots/cartesian/axes');
+var extendDeep = require('../../lib/extend').extendDeep;
 
 
 // outlier definition based on http://www.physics.csbsju.edu/stats/box2.html
@@ -83,7 +84,8 @@ module.exports = function calc(gd, trace) {
     posDistinct = dv.vals;
     dPos = dv.minDiff / 2;
 
-    cd = trace[valLetter];
+    // copy the data so the changes to cd doesn't affect the trace data
+    cd = extendDeep([], trace[valLetter]);
 
     function calculateWidths(data) {
     	if (!data.length) return [];
