@@ -115,6 +115,43 @@ module.exports = function plot(gd, plotinfo, cdbox) {
                 }
             });
 
+        // specification limits and natural boundaries
+        function plotLimits(cssClass, lslAttr, uslAttr) {
+	        d3.select(this).selectAll('path.' + cssClass)
+	        	.data(function(data) { 
+	        		return data.filter(function(d) { 
+						        	var hasLsl = typeof(d[lslAttr]) !== 'undefined', 
+						        		hasUsl = typeof(d[uslAttr]) !== 'undefined'; 
+						        	return hasLsl || hasUsl; 
+						        });
+		        })
+		        .enter().append('path')
+		        .attr('class', cssClass)
+		        .style('fill', 'none')
+		        .each(function(d) {
+		            var pos0 = posAxis.c2p(d.pos - t.dPos, true),
+		                pos1 = posAxis.c2p(d.pos + t.dPos, true),
+		                hasLsl = typeof(d[lslAttr]) !== 'undefined', 
+		                hasUsl = typeof(d[uslAttr]) !== 'undefined', 
+		                lsl = hasLsl ? valAxis.c2p(d[lslAttr], true) : null,
+		                usl = hasUsl ? valAxis.c2p(d[uslAttr], true) : null;
+		                
+	            	if(trace.orientation === 'h') {
+	            		d3.select(this).attr('d',
+	            				((hasLsl) ? 'M' + lsl + ',' + pos0 + 'V' + pos1 : '') + 
+	            				((hasUsl) ? 'M' + usl + ',' + pos0 + 'V' + pos1 : ''));
+	            	}
+	            	else {
+	            		d3.select(this).attr('d',
+	            				((hasLsl) ? 'M' + pos0 + ',' + lsl + 'H' + pos1 : '') + 
+        						((hasUsl) ? 'M' + pos0 + ',' + usl + 'H' + pos1 : ''));
+	            	}
+		        });
+        };
+        
+        plotLimits.call(this, "specificationlimit", "lsl", "usl");
+        plotLimits.call(this, "naturalboundary", "lnb", "unb");
+        
 //        // draw points, if desired
 //        if(trace.boxpoints) {
 //            d3.select(this).selectAll('g.points')

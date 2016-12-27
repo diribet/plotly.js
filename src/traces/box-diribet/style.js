@@ -31,6 +31,12 @@ module.exports = function style(gd) {
                     'stroke-dasharray': (2 * lineWidth) + 'px,' + lineWidth + 'px'
                 })
                 .call(Color.stroke, trace.line.color);
+            d3.select(this).selectAll('path.specificationlimit')
+	            .style('stroke-width', trace.specificationLimitLine.width + 'px')
+	            .call(Color.stroke, trace.specificationLimitLine.color);
+            d3.select(this).selectAll('path.naturalboundary')
+	            .style('stroke-width', trace.naturalBoundaryLine.width + 'px')
+	            .call(Color.stroke, trace.naturalBoundaryLine.color);
             d3.select(this).selectAll('g.points path')
                 .call(Drawing.pointStyle, trace);
         });

@@ -135,5 +135,33 @@ module.exports = {
             description: 'Sets the width (in px) of line bounding the box(es).'
         }
     },
+    specificationLimitLine: {
+        color: {
+            valType: 'color',
+            role: 'style',
+            description: 'Sets the color of the specification limit line.'
+        },
+        width: {
+            valType: 'number',
+            role: 'style',
+            min: 0,
+            dflt: 2,
+            description: 'Sets the width (in px) of the specification limit line.'
+        }
+    },
+    naturalBoundaryLine: {
+        color: {
+            valType: 'color',
+            role: 'style',
+            description: 'Sets the color of the natural boundary line.'
+        },
+        width: {
+            valType: 'number',
+            role: 'style',
+            min: 0,
+            dflt: 2,
+            description: 'Sets the width (in px) of the natural boundary line.'
+        }
+    },
     fillcolor: scatterAttrs.fillcolor
 };

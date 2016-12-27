@@ -45,8 +45,16 @@ module.exports = function calc(gd, trace) {
     
     for (i = 0; i < boxes.length; ++i) {
     	var box = boxes[i];
-    	minMaxValues[i * 2] = Math.min(box.lw, box.min);
-    	minMaxValues[i * 2 + 1] = Math.max(box.uw, box.max);
+    	minMaxValues[i * 2] = Math.min(
+    								box.lw, 
+    								box.min,
+    								isNaN(box.lsl) ? Infinity : box.lsl, 
+    								isNaN(box.lnb) ? Infinity : box.lnb);
+    	minMaxValues[i * 2 + 1] = Math.max(
+    									box.uw, 
+    									box.max, 
+        								isNaN(box.usl) ? -Infinity : box.usl, 
+        								isNaN(box.unb) ? -Infinity : box.unb);
     }
     
     Axes.expand(valAxis, minMaxValues, {padded: true});
