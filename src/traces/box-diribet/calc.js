@@ -99,10 +99,10 @@ module.exports = function calc(gd, trace) {
     	if (!data.length) return [];
     	
     	var i,    	
-    		counts = data.map(function(d) { return Math.sqrt(d.count); }),
+    		counts = data.map(function(d) { return d.count; }),
     		maxCount = Math.max.apply(null, counts);
     	
-    	return counts.map(function(count) { return count / maxCount; });
+    	return counts.map(function(count) { return Math.sqrt(count / maxCount); });
     }
     
     var widths = calculateWidths(cd);
