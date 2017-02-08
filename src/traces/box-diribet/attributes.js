@@ -163,5 +163,19 @@ module.exports = {
             description: 'Sets the width (in px) of the natural boundary line.'
         }
     },
+    probabilityDensityLine: {
+        color: {
+            valType: 'color',
+            role: 'style',
+            description: 'Sets the color of the probability density line.'
+        },
+        width: {
+            valType: 'number',
+            role: 'style',
+            min: 0,
+            dflt: 2,
+            description: 'Sets the width (in px) of the probability density line.'
+        }
+    },
     fillcolor: scatterAttrs.fillcolor
 };

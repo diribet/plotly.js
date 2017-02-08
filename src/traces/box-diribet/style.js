@@ -21,23 +21,39 @@ module.exports = function style(gd) {
         .each(function(d) {
             var trace = d[0].trace,
                 lineWidth = trace.line.width;
+            
             d3.select(this).selectAll('path.box')
                 .style('stroke-width', lineWidth + 'px')
                 .call(Color.stroke, trace.line.color)
                 .call(Color.fill, trace.fillcolor);
+            
             d3.select(this).selectAll('path.mean')
                 .style({
                     'stroke-width': lineWidth,
                     'stroke-dasharray': (2 * lineWidth) + 'px,' + lineWidth + 'px'
                 })
                 .call(Color.stroke, trace.line.color);
-            d3.select(this).selectAll('path.specificationlimit')
-	            .style('stroke-width', trace.specificationLimitLine.width + 'px')
-	            .call(Color.stroke, trace.specificationLimitLine.color);
-            d3.select(this).selectAll('path.naturalboundary')
-	            .style('stroke-width', trace.naturalBoundaryLine.width + 'px')
-	            .call(Color.stroke, trace.naturalBoundaryLine.color);
+            
+            applyLineStyle(
+            			d3.select(this).selectAll('path.specificationlimit'),
+            			trace.specificationLimitLine);
+
+            applyLineStyle(
+        			d3.select(this).selectAll('path.naturalboundary'),
+        			trace.naturalBoundaryLine);
+
+            applyLineStyle(
+        			d3.select(this).selectAll('g.density path.js-line'),
+        			trace.probabilityDensityLine);
+            
             d3.select(this).selectAll('g.points path')
                 .call(Drawing.pointStyle, trace);
+            
         });
 };
+
+function applyLineStyle(select, lineStyle) {
+	select
+	    .style('stroke-width', lineStyle.width + 'px')
+	    .call(Color.stroke, lineStyle.color);
+}

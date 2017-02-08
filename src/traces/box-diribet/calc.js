@@ -112,12 +112,23 @@ module.exports = function calc(gd, trace) {
 		cd[i].pos = pos[i];
 		cd[i].boxwidth = widths[i];
 	}
-    
-    
-    // remove empty bins
-//    cd = cd.filter(function(cdi) { return cdi.val && cdi.val.length; });
-//    if(!cd.length) return [{t: {emptybox: true}}];
 
+	// transform probability density
+	cd.forEach(function(e) {
+		if (e.probabilityDensity) {
+			var densityX = e.probabilityDensity.x,
+			densityY = e.probabilityDensity.y,
+			densityLength = Math.min(densityX.length, densityY.length),
+			i;
+			
+			var transformedDensity = new Array(densityLength);
+			for (i = 0; i < densityLength; i++) {
+				transformedDensity[i] = {x: densityX[i], y: densityY[i]};
+			}
+			e.probabilityDensity = transformedDensity;
+		}
+	});
+	
     // add numboxes and dPos to cd
     cd[0].t = {boxnum: gd.numboxes, dPos: dPos};
     gd.numboxes++;

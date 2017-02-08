@@ -12,6 +12,7 @@ var d3 = require('d3');
 
 var Lib = require('../../lib');
 var Drawing = require('../../components/drawing');
+var linePoints = require('../scatter/line_points');
 
 
 // repeatable pseudorandom generator
@@ -152,98 +153,111 @@ module.exports = function plot(gd, plotinfo, cdbox) {
         plotLimits.call(this, "specificationlimit", "lsl", "usl");
         plotLimits.call(this, "naturalboundary", "lnb", "unb");
         
-//        // draw points, if desired
-//        if(trace.boxpoints) {
-//            d3.select(this).selectAll('g.points')
-//                // since box plot points get an extra level of nesting, each
-//                // box needs the trace styling info
-//                .data(function(d) {
-//                    d.forEach(function(v) {
-//                        v.t = t;
-//                        v.trace = trace;
-//                    });
-//                    return d;
-//                })
-//                .enter().append('g')
-//                .attr('class', 'points')
-//              .selectAll('path')
-//                .data(function(d) {
-//                    var pts = (trace.boxpoints === 'all') ? d.val :
-//                            d.val.filter(function(v) { return (v < d.lf || v > d.uf); }),
-//                        // normally use IQR, but if this is 0 or too small, use max-min
-//                        typicalSpread = Math.max((d.max - d.min) / 10, d.q3 - d.q1),
-//                        minSpread = typicalSpread * 1e-9,
-//                        spreadLimit = typicalSpread * JITTERSPREAD,
-//                        jitterFactors = [],
-//                        maxJitterFactor = 0,
-//                        i,
-//                        i0, i1,
-//                        pmin,
-//                        pmax,
-//                        jitterFactor,
-//                        newJitter;
-//
-//                    // dynamic jitter
-//                    if(trace.jitter) {
-//                        if(typicalSpread === 0) {
-//                            // edge case of no spread at all: fall back to max jitter
-//                            maxJitterFactor = 1;
-//                            jitterFactors = new Array(pts.length);
-//                            for(i = 0; i < pts.length; i++) {
-//                                jitterFactors[i] = 1;
-//                            }
-//                        }
-//                        else {
-//                            for(i = 0; i < pts.length; i++) {
-//                                i0 = Math.max(0, i - JITTERCOUNT);
-//                                pmin = pts[i0];
-//                                i1 = Math.min(pts.length - 1, i + JITTERCOUNT);
-//                                pmax = pts[i1];
-//
-//                                if(trace.boxpoints !== 'all') {
-//                                    if(pts[i] < d.lf) pmax = Math.min(pmax, d.lf);
-//                                    else pmin = Math.max(pmin, d.uf);
-//                                }
-//
-//                                jitterFactor = Math.sqrt(spreadLimit * (i1 - i0) / (pmax - pmin + minSpread)) || 0;
-//                                jitterFactor = Lib.constrain(Math.abs(jitterFactor), 0, 1);
-//
-//                                jitterFactors.push(jitterFactor);
-//                                maxJitterFactor = Math.max(jitterFactor, maxJitterFactor);
-//                            }
-//                        }
-//                        newJitter = trace.jitter * 2 / maxJitterFactor;
-//                    }
-//
-//                    return pts.map(function(v, i) {
-//                        var posOffset = trace.pointpos,
-//                            p;
-//                        if(trace.jitter) {
-//                            posOffset += newJitter * jitterFactors[i] * (rand() - 0.5);
-//                        }
-//
-//                        if(trace.orientation === 'h') {
-//                            p = {
-//                                y: d.pos + posOffset * bdPos + bPos,
-//                                x: v
-//                            };
-//                        } else {
-//                            p = {
-//                                x: d.pos + posOffset * bdPos + bPos,
-//                                y: v
-//                            };
-//                        }
-//
-//                        // tag suspected outliers
-//                        if(trace.boxpoints === 'suspectedoutliers' && v < d.uo && v > d.lo) {
-//                            p.so = true;
-//                        }
-//                        return p;
-//                    });
-//                })
-//                .enter().append('path')
-//                .call(Drawing.translatePoints, xa, ya);
-//        }
+        // draw points, if desired
+        d3.select(this).selectAll('g.points')
+            // since box plot points get an extra level of nesting, each
+            // box needs the trace styling info
+            .data(function(d) {
+                d.forEach(function(v) {
+                    v.t = t;
+                    v.trace = trace;
+                });
+                return d;
+            })
+            .enter().append('g')
+            .attr('class', 'points')
+          .selectAll('path')
+            .data(function(d) {
+            	if (!d.points) return [];
+            	
+                return d.points.map(function(v, i) {
+                    if(trace.orientation === 'h') {
+                        return {
+                            y: d.pos + bPos,
+                            x: v
+                        };
+                    } else {
+                        return {
+                            x: d.pos + bPos,
+                            y: v
+                        };
+                    }
+                });
+            })
+            .enter().append('path')
+            .call(Drawing.translatePoints, xa, ya);
+        
+        // draw probability density
+        var densityGroup = d3.select(this).selectAll('g.density')
+				            // since box plot points get an extra level of nesting, each
+				            // box needs the trace styling info
+				            .data(function(d) {
+				                d.forEach(function(v) {
+				                    v.t = t;
+				                    v.trace = trace;
+				                });
+				                return d;
+				            })
+				            .enter().append('g')
+				            .attr('class', 'density');
+        
+        var densitySegments = function(d, side) {
+        	if (!d.probabilityDensity) return [];
+        	
+        	var boxOffset = d.pos + bPos,
+        		densityPoints = d.probabilityDensity.map(function(v, i) {
+	                if(trace.orientation === 'h') {
+	            		return { 
+	            			x: v.x, 
+	            			y: v.y * side + boxOffset
+	            		};
+	        		} else {
+	            		return { 
+	            			x: v.x * side + boxOffset, 
+	            			y: v.y
+	            		};
+	        		}
+	        	}),
+	        	segments = linePoints(densityPoints, {
+	                xaxis: xa,
+	                yaxis: ya,
+	                connectGaps: false,
+	                linear: false,
+	                simplify: false
+	            });
+
+        	// set line style to data
+        	segments.forEach(function(segment) { segment[0].trace = { line: d.probabilityDensity.line } });
+        	
+        	return segments.filter(function(s) {
+                return s.length > 1;
+            });
+        };
+        
+        var drawDensity = function(leftSide) {
+        	var sideClass = leftSide ? "left" : "right";
+        	
+        	densityGroup
+	        	.selectAll('path.' + sideClass)
+	            .data(function(d) {
+	            	return densitySegments(d, leftSide ? -1 : 1);
+	            })
+	            .enter().append('path')
+	            .classed('js-line ' + sideClass, true)
+		        .style('vector-effect', 'non-scaling-stroke')
+		        .call(Drawing.lineGroupStyle)
+		        .each(function(d) {
+		        	var smoothing = 1,
+		        		path = Drawing.smoothopen(d, smoothing);
+		        	
+	        		d3.select(this)
+	        			.attr('d', path)
+	        			.call(Drawing.lineGroupStyle);
+		        });
+        };
+        drawDensity(true);
+        drawDensity(false);
+        
         // draw mean (and stdev diamond) if desired
         if(trace.boxmean) {
             d3.select(this).selectAll('path.mean')
