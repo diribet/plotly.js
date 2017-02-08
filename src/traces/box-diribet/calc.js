@@ -110,7 +110,7 @@ module.exports = function calc(gd, trace) {
     // set positions and widths to stats
 	for(var i = 0; i < pos.length; ++i) {
 		cd[i].pos = pos[i];
-		cd[i].width = widths[i];
+		cd[i].boxwidth = widths[i];
 	}
     
     

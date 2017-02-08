@@ -85,7 +85,7 @@ module.exports = function plot(gd, plotinfo, cdbox) {
             .attr('class', 'box')
             .each(function(d) {
                 var posc = posAxis.c2p(d.pos + bPos, true),
-                	boxHalfWidth = bdPos * d.width,
+                	boxHalfWidth = bdPos * d.boxwidth,
                     pos0 = posAxis.c2p(d.pos + bPos - boxHalfWidth, true),
                     pos1 = posAxis.c2p(d.pos + bPos + boxHalfWidth, true),
                     posw0 = posAxis.c2p(d.pos + bPos - wdPos, true),
@@ -253,7 +253,7 @@ module.exports = function plot(gd, plotinfo, cdbox) {
                 .style('fill', 'none')
                 .each(function(d) {
                     var posc = posAxis.c2p(d.pos + bPos, true),
-                    	boxHalfWidth = bdPos * d.width,
+                    	boxHalfWidth = bdPos * d.boxwidth,
                         pos0 = posAxis.c2p(d.pos + bPos - boxHalfWidth, true),
                         pos1 = posAxis.c2p(d.pos + bPos + boxHalfWidth, true),
                         m = valAxis.c2p(d.mean, true),
