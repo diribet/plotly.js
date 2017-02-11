@@ -258,34 +258,21 @@ module.exports = function plot(gd, plotinfo, cdbox) {
         drawDensity(true);
         drawDensity(false);
         
-        // draw mean (and stdev diamond) if desired
-        if(trace.boxmean) {
-            d3.select(this).selectAll('path.mean')
-                .data(Lib.identity)
-                .enter().append('path')
-                .attr('class', 'mean')
-                .style('fill', 'none')
-                .each(function(d) {
-                    var posc = posAxis.c2p(d.pos + bPos, true),
-                    	boxHalfWidth = bdPos * d.boxwidth,
-                        pos0 = posAxis.c2p(d.pos + bPos - boxHalfWidth, true),
-                        pos1 = posAxis.c2p(d.pos + bPos + boxHalfWidth, true),
-                        m = valAxis.c2p(d.mean, true),
-                        sl = valAxis.c2p(d.mean - d.sd, true),
-                        sh = valAxis.c2p(d.mean + d.sd, true);
-                    if(trace.orientation === 'h') {
-                        d3.select(this).attr('d',
-                            'M' + m + ',' + pos0 + 'V' + pos1 +
-                            ((trace.boxmean !== 'sd') ? '' :
-                                'm0,0L' + sl + ',' + posc + 'L' + m + ',' + pos0 + 'L' + sh + ',' + posc + 'Z'));
-                    }
-                    else {
-                        d3.select(this).attr('d',
-                            'M' + pos0 + ',' + m + 'H' + pos1 +
-                            ((trace.boxmean !== 'sd') ? '' :
-                                'm0,0L' + posc + ',' + sl + 'L' + pos0 + ',' + m + 'L' + posc + ',' + sh + 'Z'));
-                    }
-                });
-        }
+        // draw mean
+        d3.select(this).selectAll('path.mean')
+            .data(Lib.identity)
+            .enter().append('path')
+            .attr('class', 'mean')
+            .style('fill', 'none')
+            .each(function(d) {
+                var posc = posAxis.c2p(d.pos + bPos, true),
+                	avg = valAxis.c2p(d.avg, true);
+                
+                if(trace.orientation === 'h') {
+                	d3.select(this).attr('transform', 'translate(' + avg + ',' + posc + ')');
+                } else {
+                	d3.select(this).attr('transform', 'translate(' + posc + ',' + avg + ')');
+                }
+            });
     });
 };

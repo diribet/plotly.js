@@ -48,7 +48,6 @@ module.exports = function supplyDefaults(traceIn, traceOut, defaultColor, layout
     coerce('fillcolor', Color.addOpacity(traceOut.line.color, 0.5));
 
     coerce('whiskerwidth');
-    coerce('boxmean');
 
     coerce('specificationLimitLine.color');
     coerce('specificationLimitLine.width');
@@ -57,15 +56,17 @@ module.exports = function supplyDefaults(traceIn, traceOut, defaultColor, layout
     coerce('probabilityDensityLine.color');
     coerce('probabilityDensityLine.width');
     
-    var outlierColorDflt = Lib.coerce2(traceIn, traceOut, attributes, 'marker.outliercolor'),
-        lineoutliercolor = coerce('marker.line.outliercolor');
-
     coerce('marker.symbol');
     coerce('marker.opacity');
     coerce('marker.size');
     coerce('marker.color', traceOut.line.color);
     coerce('marker.line.color');
     coerce('marker.line.width');
-    coerce('marker.line.outliercolor', traceOut.marker.color);
-    coerce('marker.line.outlierwidth');
+
+    coerce('avgmarker.symbol');
+    coerce('avgmarker.opacity');
+    coerce('avgmarker.size');
+    coerce('avgmarker.color');
+    coerce('avgmarker.line.color');
+    coerce('avgmarker.line.width');
 };

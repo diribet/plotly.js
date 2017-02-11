@@ -61,17 +61,6 @@ module.exports = {
             'For example, with 1, the whiskers are as wide as the box(es).'
         ].join(' ')
     },
-    boxmean: {
-        valType: 'enumerated',
-        values: [true, 'sd', false],
-        dflt: false,
-        role: 'style',
-        description: [
-            'If *true*, the mean of the box(es)\' underlying distribution is',
-            'drawn as a dashed line inside the box(es).',
-            'If *sd* the standard deviation is also drawn.'
-        ].join(' ')
-    },
     orientation: {
         valType: 'enumerated',
         values: ['v', 'h'],
@@ -83,12 +72,6 @@ module.exports = {
         ].join(' ')
     },
     marker: {
-        outliercolor: {
-            valType: 'color',
-            dflt: 'rgba(0, 0, 0, 0)',
-            role: 'style',
-            description: 'Sets the color of the outlier sample points.'
-        },
         symbol: extendFlat({}, scatterMarkerAttrs.symbol,
             {arrayOk: false}),
         opacity: extendFlat({}, scatterMarkerAttrs.opacity,
@@ -101,24 +84,23 @@ module.exports = {
             color: extendFlat({}, scatterMarkerLineAttrs.color,
                 {arrayOk: false, dflt: colorAttrs.defaultLine}),
             width: extendFlat({}, scatterMarkerLineAttrs.width,
-                {arrayOk: false, dflt: 0}),
-            outliercolor: {
-                valType: 'color',
-                role: 'style',
-                description: [
-                    'Sets the border line color of the outlier sample points.',
-                    'Defaults to marker.color'
-                ].join(' ')
-            },
-            outlierwidth: {
-                valType: 'number',
-                min: 0,
-                dflt: 1,
-                role: 'style',
-                description: [
-                    'Sets the border line width (in px) of the outlier sample points.'
-                ].join(' ')
-            }
+                {arrayOk: false, dflt: 0})
+        }
+    },
+    avgmarker: {
+        symbol: extendFlat({}, scatterMarkerAttrs.symbol,
+            {arrayOk: false, dflt: 'diamond'}),
+        opacity: extendFlat({}, scatterMarkerAttrs.opacity,
+            {arrayOk: false, dflt: 1}),
+        size: extendFlat({}, scatterMarkerAttrs.size,
+            {arrayOk: false, dflt: 10}),
+        color: extendFlat({}, scatterMarkerAttrs.color,
+            {arrayOk: false, dflt: '#568ed5'}),
+        line: {
+            color: extendFlat({}, scatterMarkerLineAttrs.color,
+                {arrayOk: false, dflt: colorAttrs.defaultLine}),
+            width: extendFlat({}, scatterMarkerLineAttrs.width,
+                {arrayOk: false, dflt: 0})
         }
     },
     line: {

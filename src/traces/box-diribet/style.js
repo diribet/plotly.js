@@ -27,12 +27,12 @@ module.exports = function style(gd) {
                 .call(Color.stroke, trace.line.color)
                 .call(Color.fill, trace.fillcolor);
             
+    		var avgTrace = {
+            		type: 'scatter',
+            		marker: trace.avgmarker
+            	};
             d3.select(this).selectAll('path.mean')
-                .style({
-                    'stroke-width': lineWidth,
-                    'stroke-dasharray': (2 * lineWidth) + 'px,' + lineWidth + 'px'
-                })
-                .call(Color.stroke, trace.line.color);
+            	.call(Drawing.pointStyle, avgTrace);
             
             applyLineStyle(
             			d3.select(this).selectAll('path.specificationlimit'),
