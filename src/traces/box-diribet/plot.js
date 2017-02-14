@@ -14,28 +14,6 @@ var Lib = require('../../lib');
 var Drawing = require('../../components/drawing');
 var linePoints = require('../scatter/line_points');
 
-
-// repeatable pseudorandom generator
-var randSeed = 2000000000;
-
-function seed() {
-    randSeed = 2000000000;
-}
-
-function rand() {
-    var lastVal = randSeed;
-    randSeed = (69069 * randSeed + 1) % 4294967296;
-    // don't let consecutive vals be too close together
-    // gets away from really trying to be random, in favor of better local uniformity
-    if(Math.abs(randSeed - lastVal) < 429496729) return rand();
-    return randSeed / 4294967296;
-}
-
-// constants for dynamic jitter (ie less jitter for sparser points)
-var JITTERCOUNT = 5, // points either side of this to include
-    JITTERSPREAD = 0.01; // fraction of IQR to count as "dense"
-
-
 module.exports = function plot(gd, plotinfo, cdbox) {
     var fullLayout = gd._fullLayout,
         xa = plotinfo.xaxis,
@@ -75,9 +53,6 @@ module.exports = function plot(gd, plotinfo, cdbox) {
         // save the box size and box position for use by hover
         t.bPos = bPos;
         t.bdPos = bdPos;
-
-        // repeatable pseudorandom number generator
-        seed();
 
         function validBoxes(data) {
         	if (trace.normalize) {
