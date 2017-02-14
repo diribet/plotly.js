@@ -79,9 +79,25 @@ module.exports = function plot(gd, plotinfo, cdbox) {
         // repeatable pseudorandom number generator
         seed();
 
+        function validBoxes(data) {
+        	if (trace.normalize) {
+        		return data.filter(function(d) { return !d.normalizationFailed; });
+        	} else {
+        		return data;
+        	}
+        }
+        
+        function invalidBoxes(data) {
+        	if (trace.normalize) {
+        		return data.filter(function(d) { return d.normalizationFailed; });
+        	} else {
+        		return [];
+        	}
+        }
+        
         // boxes and whiskers
         d3.select(this).selectAll('path.box')
-            .data(Lib.identity)
+            .data(validBoxes)
             .enter().append('path')
             .attr('class', 'box')
             .each(function(d) {
@@ -120,9 +136,10 @@ module.exports = function plot(gd, plotinfo, cdbox) {
         function plotLimits(cssClass, lslAttr, uslAttr) {
 	        d3.select(this).selectAll('path.' + cssClass)
 	        	.data(function(data) { 
+	        		data = validBoxes(data);
 	        		return data.filter(function(d) { 
-						        	var hasLsl = typeof(d[lslAttr]) !== 'undefined', 
-						        		hasUsl = typeof(d[uslAttr]) !== 'undefined'; 
+						        	var hasLsl = d[lslAttr] != null, 
+						        		hasUsl = d[uslAttr] != null; 
 						        	return hasLsl || hasUsl; 
 						        });
 		        })
@@ -132,8 +149,8 @@ module.exports = function plot(gd, plotinfo, cdbox) {
 		        .each(function(d) {
 		            var pos0 = posAxis.c2p(d.pos - t.dPos, true),
 		                pos1 = posAxis.c2p(d.pos + t.dPos, true),
-		                hasLsl = typeof(d[lslAttr]) !== 'undefined', 
-		                hasUsl = typeof(d[uslAttr]) !== 'undefined', 
+		                hasLsl = d[lslAttr] != null, 
+		                hasUsl = d[uslAttr] != null, 
 		                lsl = hasLsl ? valAxis.c2p(d[lslAttr], true) : null,
 		                usl = hasUsl ? valAxis.c2p(d[uslAttr], true) : null;
 		                
@@ -157,19 +174,19 @@ module.exports = function plot(gd, plotinfo, cdbox) {
         d3.select(this).selectAll('g.points')
             // since box plot points get an extra level of nesting, each
             // box needs the trace styling info
-            .data(function(d) {
-                d.forEach(function(v) {
+            .data(function(data) {
+        		data = validBoxes(data);
+        		data = data.filter(function(d) { return d.points && d.points.length > 0; });
+                data.forEach(function(v) {
                     v.t = t;
                     v.trace = trace;
                 });
-                return d;
+                return data;
             })
             .enter().append('g')
             .attr('class', 'points')
           .selectAll('path')
             .data(function(d) {
-            	if (!d.points) return [];
-            	
                 return d.points.map(function(v, i) {
                     if(trace.orientation === 'h') {
                         return {
@@ -191,12 +208,13 @@ module.exports = function plot(gd, plotinfo, cdbox) {
         var densityGroup = d3.select(this).selectAll('g.density')
 				            // since box plot points get an extra level of nesting, each
 				            // box needs the trace styling info
-				            .data(function(d) {
-				                d.forEach(function(v) {
+				            .data(function(data) {
+				        		data = validBoxes(data);
+				                data.forEach(function(v) {
 				                    v.t = t;
 				                    v.trace = trace;
 				                });
-				                return d;
+				                return data;
 				            })
 				            .enter().append('g')
 				            .attr('class', 'density');
@@ -260,7 +278,7 @@ module.exports = function plot(gd, plotinfo, cdbox) {
         
         // draw mean
         d3.select(this).selectAll('path.mean')
-            .data(Lib.identity)
+            .data(validBoxes)
             .enter().append('path')
             .attr('class', 'mean')
             .style('fill', 'none')
@@ -274,5 +292,20 @@ module.exports = function plot(gd, plotinfo, cdbox) {
                 	d3.select(this).attr('transform', 'translate(' + posc + ',' + avg + ')');
                 }
             });
+        
+        // draw invalid (not normalizable boxes)
+        d3.select(this).selectAll('g.invalid-box')
+            .data(invalidBoxes)
+            .enter().append('g')
+            .attr('class', 'invalid-box')
+          .selectAll('path')
+            .data(function(d) {
+                return [{
+                    x: d.pos + bPos,
+                    y: 0
+                }];
+            })
+            .enter().append('path')
+            .call(Drawing.translatePoints, xa, ya);
     });
 };

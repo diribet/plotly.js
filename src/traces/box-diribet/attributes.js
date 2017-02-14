@@ -103,6 +103,22 @@ module.exports = {
                 {arrayOk: false, dflt: 0})
         }
     },
+    invalidmarker: {
+        symbol: extendFlat({}, scatterMarkerAttrs.symbol,
+            {arrayOk: false, dflt: 'diamond'}),
+        opacity: extendFlat({}, scatterMarkerAttrs.opacity,
+            {arrayOk: false, dflt: 1}),
+        size: extendFlat({}, scatterMarkerAttrs.size,
+            {arrayOk: false, dflt: 20}),
+        color: extendFlat({}, scatterMarkerAttrs.color,
+            {arrayOk: false, dflt: '#ff8888'}),
+        line: {
+            color: extendFlat({}, scatterMarkerLineAttrs.color,
+                {arrayOk: false, dflt: colorAttrs.defaultLine}),
+            width: extendFlat({}, scatterMarkerLineAttrs.width,
+                {arrayOk: false, dflt: 0})
+        }
+    },
     line: {
         color: {
             valType: 'color',
@@ -159,5 +175,10 @@ module.exports = {
             description: 'Sets the width (in px) of the probability density line.'
         }
     },
-    fillcolor: scatterAttrs.fillcolor
+    fillcolor: scatterAttrs.fillcolor,
+    normalize: {
+        valType: 'boolean',
+        dflt: true,
+        description: 'Whether boxes should be normalized so all boxes and boundaries are plotted on [-1, 1] scale.'
+    }
 };

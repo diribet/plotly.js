@@ -37,28 +37,6 @@ module.exports = function calc(gd, trace) {
         posLetter = 'x';
     }
 
-    // size autorange based on min and max values of boxes
-    // position happens afterward when we know all the pos
-    var boxes = trace[valLetter],
-    	minMaxValues = [],
-    	i;
-    
-    for (i = 0; i < boxes.length; ++i) {
-    	var box = boxes[i];
-    	minMaxValues[i * 2] = Math.min(
-    								box.lw, 
-    								box.min,
-    								isNaN(box.lsl) ? Infinity : box.lsl, 
-    								isNaN(box.lnb) ? Infinity : box.lnb);
-    	minMaxValues[i * 2 + 1] = Math.max(
-    									box.uw, 
-    									box.max, 
-        								isNaN(box.usl) ? -Infinity : box.usl, 
-        								isNaN(box.unb) ? -Infinity : box.unb);
-    }
-    
-    Axes.expand(valAxis, minMaxValues, {padded: true});
-
     // In vertical (horizontal) box plots:
     // if no x (y) data, use x0 (y0), or name
     // so if you want one box
@@ -95,11 +73,37 @@ module.exports = function calc(gd, trace) {
     // copy the data so the changes to cd doesn't affect the trace data
     cd = extendDeep([], trace[valLetter]);
 
+    // normalization
+    if (trace.normalize) {
+    	cd = cd.map(normalizeBox);
+    }
+    
+    // size autorange based on min and max values of boxes
+    var minMaxValues = [],
+    	i;
+    
+    for (i = 0; i < cd.length; ++i) {
+    	var box = cd[i];
+    	minMaxValues[i * 2] = Math.min(
+    								box.lw, 
+    								box.min,
+    								isNaN(box.lsl) ? Infinity : box.lsl, 
+    								isNaN(box.lnb) ? Infinity : box.lnb);
+    	minMaxValues[i * 2 + 1] = Math.max(
+    									box.uw, 
+    									box.max, 
+        								isNaN(box.usl) ? -Infinity : box.usl, 
+        								isNaN(box.unb) ? -Infinity : box.unb);
+    }
+    
+    Axes.expand(valAxis, minMaxValues, {padded: true});
+
+    
     function calculateWidths(data) {
     	if (!data.length) return [];
     	
     	var i,    	
-    		counts = data.map(function(d) { return d.count; }),
+    		counts = data.map(function(d) { return d.count == null ? 0 : d.count; }),
     		maxCount = Math.max.apply(null, counts);
     	
     	return counts.map(function(count) { return Math.sqrt(count / maxCount); });
@@ -134,3 +138,50 @@ module.exports = function calc(gd, trace) {
     gd.numboxes++;
     return cd;
 };
+
+function normalizeBox(box) {
+	var lsl = box.lsl == null ? box.lnb : box.lsl, 
+		usl = box.usl == null ? box.unb : box.usl;
+	
+	if (lsl == null || usl == null) {
+		return {
+			normalizationFailed: true,
+			_origBox: box
+		};
+	}
+	
+	var target = (lsl + usl) / 2,
+		origBox = extendDeep({}, box);
+	
+	box._origBox = origBox;
+	
+	function normalize(v) {
+		if (v == null) return null;
+		
+		if (Array.isArray(v)) {
+			return v.map(normalize);
+		}
+		
+		if (v >= target) {
+			return (v - target) / (usl - target);
+		} else {
+			return (v - target) / (target - lsl);
+		}
+	}
+	
+	box.med = normalize(box.med);
+	box.avg = normalize(box.avg);
+	box.q1 = normalize(box.q1);
+	box.q3 = normalize(box.q3);
+	box.lw = normalize(box.lw);
+	box.uw = normalize(box.uw);
+	box.min = normalize(box.min);
+	box.max = normalize(box.max);
+	box.lsl = normalize(box.lsl);
+	box.usl = normalize(box.usl);
+	box.lnb = normalize(box.lnb);
+	box.unb = normalize(box.unb);
+	box.points = normalize(box.points);
+	box.probabilityDensity.y = normalize(box.probabilityDensity.y);
+	return box;
+}

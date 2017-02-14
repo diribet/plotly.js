@@ -34,6 +34,13 @@ module.exports = function style(gd) {
             d3.select(this).selectAll('path.mean')
             	.call(Drawing.pointStyle, avgTrace);
             
+    		var invalidBoxTrace = {
+            		type: 'scatter',
+            		marker: trace.invalidmarker
+            	};
+            d3.select(this).selectAll('g.invalid-box path')
+            	.call(Drawing.pointStyle, invalidBoxTrace);
+            
             applyLineStyle(
             			d3.select(this).selectAll('path.specificationlimit'),
             			trace.specificationLimitLine);

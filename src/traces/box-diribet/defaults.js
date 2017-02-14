@@ -42,6 +42,7 @@ module.exports = function supplyDefaults(traceIn, traceOut, defaultColor, layout
     handleCalendarDefaults(traceIn, traceOut, ['x', 'y'], layout);
 
     coerce('orientation', defaultOrientation);
+    coerce('normalize');
 
     coerce('line.color', (traceIn.marker || {}).color || defaultColor);
     coerce('line.width', 2);
@@ -69,4 +70,12 @@ module.exports = function supplyDefaults(traceIn, traceOut, defaultColor, layout
     coerce('avgmarker.color');
     coerce('avgmarker.line.color');
     coerce('avgmarker.line.width');
+    
+    coerce('invalidmarker.symbol');
+    coerce('invalidmarker.opacity');
+    coerce('invalidmarker.size');
+    coerce('invalidmarker.color');
+    coerce('invalidmarker.line.color');
+    coerce('invalidmarker.line.width');
+
 };
