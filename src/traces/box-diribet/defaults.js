@@ -43,6 +43,7 @@ module.exports = function supplyDefaults(traceIn, traceOut, defaultColor, layout
 
     coerce('orientation', defaultOrientation);
     coerce('normalize');
+    coerce('normalizationFailedText');
 
     coerce('line.color', (traceIn.marker || {}).color || defaultColor);
     coerce('line.width', 2);

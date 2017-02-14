@@ -180,5 +180,10 @@ module.exports = {
         valType: 'boolean',
         dflt: true,
         description: 'Whether boxes should be normalized so all boxes and boundaries are plotted on [-1, 1] scale.'
+    },
+    normalizationFailedText: {
+        valType: 'string',
+        dflt: 'Box normalization failed because of missing specification limits.',
+        description: 'Text that is displayed on hover over non-normalized box.'
     }
 };

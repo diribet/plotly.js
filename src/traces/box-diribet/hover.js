@@ -70,38 +70,58 @@ module.exports = function hoverPoints(pointData, xval, yval, hovermode) {
     else if(Color.opacity(mc) && trace.boxpoints) pointData.color = mc;
     else pointData.color = trace.fillcolor;
 
-    pointData[posLetter + '0'] = posAxis.c2p(di.pos + t.bPos - t.bdPos, true);
-    pointData[posLetter + '1'] = posAxis.c2p(di.pos + t.bPos + t.bdPos, true);
-
     Axes.tickText(posAxis, posAxis.c2l(di.pos), 'hover').text;
     pointData[posLetter + 'LabelVal'] = di.pos;
 
-    // box plots: each "point" gets many labels
-    var usedVals = {},
-        attrs = ['med', 'min', 'lw', 'q1', 'q3', 'max', 'uw'],
-        attr,
-        pointData2;
-    if(trace.boxmean) attrs.push('mean');
-    if(trace.boxpoints) [].push.apply(attrs, ['lf', 'uf']);
+    if (di.normalizationFailed) {
+    	// tooltip is placed in center of box
+    	pointData[posLetter + '0'] = pointData[posLetter + '1'] = posAxis.c2p(di.pos + t.bPos, true);
+    	
+    	// show normalization failed tooltip
+		pointData2 = Lib.extendFlat({}, pointData);
+		pointData2[valLetter + '0'] = pointData2[valLetter + '1'] = valAxis.c2p(0, true);
+		pointData2.text = trace.normalizationFailedText;
+		pointData2.attr = 'normalizationFailed';
+		closeData.push(pointData2);
+    	
+    } else {
+    	// box plots: each "point" gets many labels
+    	var usedVals = {},
+	    	attrs = ['med', 'min', 'lw', 'q1', 'q3', 'max', 'uw'],
+	    	attr,
+	    	label,
+	    	pointData2,
+	    	boxHalfWidth = t.bdPos * di.boxwidth;
 
-    for(var i = 0; i < attrs.length; i++) {
-        attr = attrs[i];
+    	// tooltip is placed on a box side
+        pointData[posLetter + '0'] = posAxis.c2p(di.pos + t.bPos - boxHalfWidth, true);
+        pointData[posLetter + '1'] = posAxis.c2p(di.pos + t.bPos + boxHalfWidth, true);
 
-        if(!(attr in di) || (di[attr] in usedVals)) continue;
-        usedVals[di[attr]] = true;
-
-        // copy out to a new object for each value to label
-        val = valAxis.c2p(di[attr], true);
-        pointData2 = Lib.extendFlat({}, pointData);
-        pointData2[valLetter + '0'] = pointData2[valLetter + '1'] = val;
-        pointData2[valLetter + 'LabelVal'] = di[attr];
-        pointData2.attr = attr;
-
-        if(attr === 'mean' && ('sd' in di) && trace.boxmean === 'sd') {
-            pointData2[valLetter + 'err'] = di.sd;
-        }
-        pointData.name = ''; // only keep name on the first item (median)
-        closeData.push(pointData2);
+    	
+    	for(var i = 0; i < attrs.length; i++) {
+    		attr = attrs[i];
+    		
+    		if(!(attr in di) || (di[attr] in usedVals)) continue;
+    		usedVals[di[attr]] = true;
+    		
+    		// copy out to a new object for each value to label
+    		val = valAxis.c2p(di[attr], true);
+    		pointData2 = Lib.extendFlat({}, pointData);
+    		pointData2[valLetter + '0'] = pointData2[valLetter + '1'] = val;
+    		
+    		// if the box is normalized, use non-normalized value as a label
+    		if (trace.normalize) {
+    			label = di._origBox[attr];
+    		} else {
+    			label = di[attr];
+    		}
+    		pointData2[valLetter + 'LabelVal'] = label;
+    		pointData2.attr = attr;
+    		
+    		pointData.name = ''; // only keep name on the first item (median)
+    		closeData.push(pointData2);
+    	}
     }
+    
     return closeData;
 };
