@@ -120,14 +120,16 @@ module.exports = function calc(gd, trace) {
 	// transform probability density
 	cd.forEach(function(e) {
 		if (e.probabilityDensity) {
-			var densityX = e.probabilityDensity.x,
-			densityY = e.probabilityDensity.y,
-			densityLength = Math.min(densityX.length, densityY.length),
-			i;
+			var density = e.probabilityDensity.density,
+				scale = e.probabilityDensity.scale,
+				densityLength = Math.min(density.length, scale.length),
+				i;
 			
 			var transformedDensity = new Array(densityLength);
 			for (i = 0; i < densityLength; i++) {
-				transformedDensity[i] = {x: densityX[i], y: densityY[i]};
+				transformedDensity[i] = {};
+				transformedDensity[i][posLetter] = density[i]; 
+				transformedDensity[i][valLetter] = scale[i]; 
 			}
 			e.probabilityDensity = transformedDensity;
 		}
@@ -182,6 +184,6 @@ function normalizeBox(box) {
 	box.lnb = normalize(box.lnb);
 	box.unb = normalize(box.unb);
 	box.points = normalize(box.points);
-	box.probabilityDensity.y = normalize(box.probabilityDensity.y);
+	box.probabilityDensity.scale = normalize(box.probabilityDensity.scale);
 	return box;
 }
