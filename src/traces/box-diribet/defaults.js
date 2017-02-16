@@ -58,8 +58,6 @@ module.exports = function supplyDefaults(traceIn, traceOut, defaultColor, layout
     coerce('probabilityDensityLine.color');
     coerce('probabilityDensityLine.width');
 
-    coerce('showProbabilityDensity');
-    
     coerce('marker.symbol');
     coerce('marker.opacity');
     coerce('marker.size');

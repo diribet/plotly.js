@@ -184,8 +184,8 @@ module.exports = function plot(gd, plotinfo, cdbox) {
             .call(Drawing.translatePoints, xa, ya);
         
         // draw probability density
-        if (trace.showProbabilityDensity) {
-        	var showDensityOnHover = trace.showProbabilityDensity === 'hover',
+        if (fullLayout.showProbabilityDensity != 'never') {
+        	var showDensityOnHover = fullLayout.showProbabilityDensity === 'hover',
         		transition = d3.transition().duration(500);
         	
 	        var densityGroupJoin = boxGroups.selectAll('g.density')
@@ -205,9 +205,9 @@ module.exports = function plot(gd, plotinfo, cdbox) {
 	        densityGroupJoin.exit()
 			            	.remove();
 	        
+	        gd.removeListener('plotly_hover', showDensity);
+	        gd.removeListener('plotly_unhover', hideDensity);
         	if (showDensityOnHover) {
-        		gd.removeListener('plotly_hover', showDensity);
-        		gd.removeListener('plotly_unhover', hideDensity);
         		gd.on('plotly_hover', showDensity);
         		gd.on('plotly_unhover', hideDensity);
         	}

@@ -45,5 +45,12 @@ module.exports = {
             'Sets the gap (in plot fraction) between boxes of',
             'the same location coordinate.'
         ].join(' ')
+    },
+    showProbabilityDensity: {
+        valType: 'enumerated',
+        values: ['always', 'hover', 'never'],
+        dflt: 'hover',
+        role: 'style',
+        description: 'Whether probability density line is always shown (true), shown on hover (\'hover\') or never shown (false).'
     }
 };
