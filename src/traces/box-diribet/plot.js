@@ -320,7 +320,7 @@ function hideDensity(event) {
 function setHoverIndex(event, setIndex) {
 	var point = event.points[0],
 		traceNumber = point.curveNumber,
-		pointNumber = point.pointNumber
+		pointNumber = point.pointNumber,
 		gd = point.xaxis._gd;
 	
 	gd.data[traceNumber].hoverindex = setIndex ? pointNumber : null;
