@@ -57,6 +57,8 @@ module.exports = function supplyDefaults(traceIn, traceOut, defaultColor, layout
     coerce('naturalBoundaryLine.width');
     coerce('probabilityDensityLine.color');
     coerce('probabilityDensityLine.width');
+
+    coerce('showProbabilityDensity');
     
     coerce('marker.symbol');
     coerce('marker.opacity');
@@ -79,4 +81,5 @@ module.exports = function supplyDefaults(traceIn, traceOut, defaultColor, layout
     coerce('invalidmarker.line.color');
     coerce('invalidmarker.line.width');
 
+    coerce('hoverindex');
 };

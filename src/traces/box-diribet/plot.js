@@ -23,8 +23,8 @@ module.exports = function plot(gd, plotinfo, cdbox) {
     var boxtraces = plotinfo.plot.select('.boxlayer')
         .selectAll('g.trace.boxes')
             .data(cdbox)
-      .enter().append('g')
-        .attr('class', 'trace boxes');
+            .enter().append('g')
+            .classed('trace boxes', true);
 
     boxtraces.each(function(d) {
         var t = d[0].t,
@@ -69,12 +69,18 @@ module.exports = function plot(gd, plotinfo, cdbox) {
         		return [];
         	}
         }
+
+        // box groups
+        var boxGroups =
+        	d3.select(this).selectAll('g.box')
+	            .data(validBoxes)
+	            .enter().append('g')
+	            .classed('box', true);
         
+	            
         // boxes and whiskers
-        d3.select(this).selectAll('path.box')
-            .data(validBoxes)
-            .enter().append('path')
-            .attr('class', 'box')
+        boxGroups.append('path')
+            .classed('box', true)
             .each(function(d) {
                 var posc = posAxis.c2p(d.pos + bPos, true),
                 	boxHalfWidth = bdPos * d.boxwidth,
@@ -109,17 +115,19 @@ module.exports = function plot(gd, plotinfo, cdbox) {
 
         // specification limits and natural boundaries
         function plotLimits(cssClass, lslAttr, uslAttr) {
-	        d3.select(this).selectAll('path.' + cssClass)
-	        	.data(function(data) { 
-	        		data = validBoxes(data);
-	        		return data.filter(function(d) { 
-						        	var hasLsl = d[lslAttr] != null, 
-						        		hasUsl = d[uslAttr] != null; 
-						        	return hasLsl || hasUsl; 
-						        });
+        	boxGroups.selectAll('path.' + cssClass)
+	        	.data(function(d) { 
+		        	var hasLsl = d[lslAttr] != null, 
+		        		hasUsl = d[uslAttr] != null; 
+		        	
+		        	if (hasLsl || hasUsl) {
+		        		return [d];
+		        	} else {
+		        		return [];
+		        	}
 		        })
 		        .enter().append('path')
-		        .attr('class', cssClass)
+		        .classed(cssClass, true)
 		        .style('fill', 'none')
 		        .each(function(d) {
 		            var pos0 = posAxis.c2p(d.pos - t.dPos, true),
@@ -146,20 +154,16 @@ module.exports = function plot(gd, plotinfo, cdbox) {
         plotLimits.call(this, "naturalboundary", "lnb", "unb");
         
         // draw points, if desired
-        d3.select(this).selectAll('g.points')
-            // since box plot points get an extra level of nesting, each
-            // box needs the trace styling info
-            .data(function(data) {
-        		data = validBoxes(data);
-        		data = data.filter(function(d) { return d.points && d.points.length > 0; });
-                data.forEach(function(v) {
-                    v.t = t;
-                    v.trace = trace;
-                });
-                return data;
+        boxGroups.selectAll('g.points')
+            .data(function(d) {
+        		if (d.points && d.points.length > 0) {
+        			return [d];
+        		} else {
+        			return [];
+        		}
             })
             .enter().append('g')
-            .attr('class', 'points')
+            .classed('points', true)
           .selectAll('path')
             .data(function(d) {
                 return d.points.map(function(v, i) {
@@ -180,82 +184,95 @@ module.exports = function plot(gd, plotinfo, cdbox) {
             .call(Drawing.translatePoints, xa, ya);
         
         // draw probability density
-        var densityGroup = d3.select(this).selectAll('g.density')
-				            // since box plot points get an extra level of nesting, each
-				            // box needs the trace styling info
-				            .data(function(data) {
-				        		data = validBoxes(data);
-				                data.forEach(function(v) {
-				                    v.t = t;
-				                    v.trace = trace;
-				                });
-				                return data;
-				            })
-				            .enter().append('g')
-				            .attr('class', 'density');
-        
-        var densitySegments = function(d, side) {
-        	if (!d.probabilityDensity) return [];
+        if (trace.showProbabilityDensity) {
+        	var showDensityOnHover = trace.showProbabilityDensity === 'hover',
+        		transition = d3.transition().duration(500);
         	
-        	var boxOffset = d.pos + bPos,
-        		densityPoints = d.probabilityDensity.map(function(v, i) {
-	                if(trace.orientation === 'h') {
-	            		return { 
-	            			x: v.x, 
-	            			y: v.y * side + boxOffset
-	            		};
-	        		} else {
-	            		return { 
-	            			x: v.x * side + boxOffset, 
-	            			y: v.y
-	            		};
-	        		}
-	        	}),
-	        	segments = linePoints(densityPoints, {
-	                xaxis: xa,
-	                yaxis: ya,
-	                connectGaps: false,
-	                linear: false,
-	                simplify: false
+	        var densityGroupJoin = boxGroups.selectAll('g.density')
+	        								.data(function(d) {
+								        		if (showDensityOnHover && !d.hover) {
+								        			return [];
+								        		} else {
+								        			return [d];
+								        		}
+								            });
+	        
+	        var densityGroup = densityGroupJoin.enter()
+								            	.append('g')
+						            			.classed('density', true);
+	        densityGroup.style('opacity', 0).transition(transition).style('opacity', 1);
+	        
+	        densityGroupJoin.exit()
+			            	.remove();
+	        
+        	if (showDensityOnHover) {
+        		gd.removeListener('plotly_hover', showDensity);
+        		gd.removeListener('plotly_unhover', hideDensity);
+        		gd.on('plotly_hover', showDensity);
+        		gd.on('plotly_unhover', hideDensity);
+        	}
+        	
+	        var densitySegments = function(d, side) {
+	        	if (!d.probabilityDensity) return [];
+	        	
+	        	var boxOffset = d.pos + bPos,
+	        		densityPoints = d.probabilityDensity.map(function(v, i) {
+		                if(trace.orientation === 'h') {
+		            		return { 
+		            			x: v.x, 
+		            			y: v.y * side + boxOffset
+		            		};
+		        		} else {
+		            		return { 
+		            			x: v.x * side + boxOffset, 
+		            			y: v.y
+		            		};
+		        		}
+		        	}),
+		        	segments = linePoints(densityPoints, {
+		                xaxis: xa,
+		                yaxis: ya,
+		                connectGaps: false,
+		                linear: false,
+		                simplify: false
+		            });
+	
+	        	// set line style to data
+	        	segments.forEach(function(segment) { segment[0].trace = { line: d.probabilityDensity.line } });
+	        	
+	        	return segments.filter(function(s) {
+	                return s.length > 1;
 	            });
-
-        	// set line style to data
-        	segments.forEach(function(segment) { segment[0].trace = { line: d.probabilityDensity.line } });
-        	
-        	return segments.filter(function(s) {
-                return s.length > 1;
-            });
-        };
-        
-        var drawDensity = function(leftSide) {
-        	var sideClass = leftSide ? "left" : "right";
-        	
-        	densityGroup
-	        	.selectAll('path.' + sideClass)
-	            .data(function(d) {
-	            	return densitySegments(d, leftSide ? -1 : 1);
-	            })
-	            .enter().append('path')
-	            .classed('js-line ' + sideClass, true)
-		        .style('vector-effect', 'non-scaling-stroke')
-		        .call(Drawing.lineGroupStyle)
-		        .each(function(d) {
-		        	var smoothing = 1,
-		        		path = Drawing.smoothopen(d, smoothing);
-		        	
-	        		d3.select(this)
-	        			.attr('d', path)
-	        			.call(Drawing.lineGroupStyle);
-		        });
-        };
-        drawDensity(true);
-        drawDensity(false);
+	        };
+	        
+	        var drawDensity = function(leftSide) {
+	        	var sideClass = leftSide ? "left" : "right";
+	        	
+	        	densityGroup
+		        	.selectAll('path.' + sideClass)
+		            .data(function(d) {
+		            	return densitySegments(d, leftSide ? -1 : 1);
+		            })
+		            .enter().append('path')
+		            .classed('js-line ' + sideClass, true)
+			        .style('vector-effect', 'non-scaling-stroke')
+			        .call(Drawing.lineGroupStyle)
+			        .each(function(d) {
+			        	var smoothing = 1,
+			        		path = Drawing.smoothopen(d, smoothing);
+			        	
+		        		d3.select(this)
+		        			.attr('d', path)
+		        			.call(Drawing.lineGroupStyle);
+			        });
+	        };
+	        drawDensity(true);
+	        drawDensity(false);
+        }
         
         // draw mean
-        d3.select(this).selectAll('path.mean')
-            .data(validBoxes)
-            .enter().append('path')
-            .attr('class', 'mean')
+        boxGroups.append('path')
+            .classed('mean', true)
             .style('fill', 'none')
             .each(function(d) {
                 var posc = posAxis.c2p(d.pos + bPos, true),
@@ -272,15 +289,40 @@ module.exports = function plot(gd, plotinfo, cdbox) {
         d3.select(this).selectAll('g.invalid-box')
             .data(invalidBoxes)
             .enter().append('g')
-            .attr('class', 'invalid-box')
+            .classed('invalid-box', true)
           .selectAll('path')
             .data(function(d) {
-                return [{
-                    x: d.pos + bPos,
-                    y: 0
-                }];
+                if(trace.orientation === 'h') {
+	                return [{
+	                	x: 0,
+	                    y: d.pos + bPos
+	                }];
+                } else {
+	                return [{
+	                    x: d.pos + bPos,
+	                    y: 0
+	                }];
+                }
             })
             .enter().append('path')
             .call(Drawing.translatePoints, xa, ya);
     });
 };
+
+function showDensity(event) {
+	setHoverIndex(event, true);
+}
+
+function hideDensity(event) {
+	setHoverIndex(event, false);
+}
+
+function setHoverIndex(event, setIndex) {
+	var point = event.points[0],
+		traceNumber = point.curveNumber,
+		pointNumber = point.pointNumber
+		gd = point.xaxis._gd;
+	
+	gd.data[traceNumber].hoverindex = setIndex ? pointNumber : null;
+	Plotly.redraw(gd);
+}

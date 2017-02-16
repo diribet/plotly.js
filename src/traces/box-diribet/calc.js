@@ -115,6 +115,12 @@ module.exports = function calc(gd, trace) {
 	for(var i = 0; i < pos.length; ++i) {
 		cd[i].pos = pos[i];
 		cd[i].boxwidth = widths[i];
+		
+		if (trace.hoverindex != null) {
+			if (i == trace.hoverindex) {
+				cd[i].hover = true;
+			}
+		}
 	}
 
 	// transform probability density

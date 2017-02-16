@@ -175,6 +175,13 @@ module.exports = {
             description: 'Sets the width (in px) of the probability density line.'
         }
     },
+    showProbabilityDensity: {
+        valType: 'enumerated',
+        values: [true, 'hover', false],
+        dflt: 'hover',
+        role: 'style',
+        description: 'Whether probability density line is always shown (true), shown on hover (\'hover\') or never shown (false).'
+    },
     fillcolor: scatterAttrs.fillcolor,
     normalize: {
         valType: 'boolean',
@@ -185,5 +192,9 @@ module.exports = {
         valType: 'string',
         dflt: 'Box normalization failed because of missing specification limits.',
         description: 'Text that is displayed on hover over non-normalized box.'
+    },
+    hoverindex: {
+        valType: 'number',
+        description: 'Index of currently hovered box.'
     }
 };
