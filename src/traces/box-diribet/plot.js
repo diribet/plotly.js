@@ -79,8 +79,15 @@ module.exports = function plot(gd, plotinfo, cdbox) {
         
 	            
         // boxes and whiskers
-        boxGroups.append('path')
-            .classed('box', true)
+        boxGroups.selectAll('path.box')
+        	.data(function(d) {
+        		if (d.med != null && d.q1 != null && d.q3 != null) {
+        			return [d];
+        		} else {
+        			return [];
+        		}
+        	})
+        	.enter().append('path').classed('box', true)
             .each(function(d) {
                 var posc = posAxis.c2p(d.pos + bPos, true),
                 	boxHalfWidth = bdPos * d.boxwidth,
