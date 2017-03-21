@@ -190,6 +190,8 @@ function normalizeBox(box) {
 	box.lnb = normalize(box.lnb);
 	box.unb = normalize(box.unb);
 	box.points = normalize(box.points);
-	box.probabilityDensity.scale = normalize(box.probabilityDensity.scale);
+	if (box.probabilityDensity != null) {
+		box.probabilityDensity.scale = normalize(box.probabilityDensity.scale);
+	}
 	return box;
 }
