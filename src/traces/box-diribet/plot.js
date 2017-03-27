@@ -19,7 +19,7 @@ module.exports = function plot(gd, plotinfo, cdbox) {
         xa = plotinfo.xaxis,
         ya = plotinfo.yaxis,
         posAxis, valAxis;
-
+    
     var boxtraces = plotinfo.plot.select('.boxlayer')
         .selectAll('g.trace.boxes')
             .data(cdbox)
@@ -224,14 +224,15 @@ module.exports = function plot(gd, plotinfo, cdbox) {
 	        	
 	        	var boxOffset = d.pos + bPos,
 	        		densityPoints = d.probabilityDensity.map(function(v, i) {
+	        			var scale = bdPos * (1 - fullLayout.probabilityDensityMargin);
 		                if(trace.orientation === 'h') {
 		            		return { 
 		            			x: v.x, 
-		            			y: v.y * side + boxOffset
+		            			y: v.y * scale * side + boxOffset
 		            		};
 		        		} else {
 		            		return { 
-		            			x: v.x * side + boxOffset, 
+		            			x: v.x * scale * side + boxOffset, 
 		            			y: v.y
 		            		};
 		        		}

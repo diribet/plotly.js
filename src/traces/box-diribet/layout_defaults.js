@@ -30,4 +30,5 @@ module.exports = function supplyLayoutDefaults(layoutIn, layoutOut, fullData) {
     coerce('boxgap');
     coerce('boxgroupgap');
     coerce('showProbabilityDensity');
+    coerce('probabilityDensityMargin');
 };

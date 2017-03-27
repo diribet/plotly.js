@@ -52,5 +52,13 @@ module.exports = {
         dflt: 'hover',
         role: 'style',
         description: 'Whether probability density line is always shown (true), shown on hover (\'hover\') or never shown (false).'
+    },
+    probabilityDensityMargin: {
+        valType: 'number',
+        min: 0,
+        max: 1,
+        dflt: 0.1,
+        role: 'style',
+        description: 'Margin between probability density line and box boundary.'
     }
 };
