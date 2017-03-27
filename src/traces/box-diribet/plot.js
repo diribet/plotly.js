@@ -35,7 +35,9 @@ module.exports = function plot(gd, plotinfo, cdbox) {
             // box center offset
             bPos = group ? 2 * t.dPos * (-0.5 + (t.boxnum + 0.5) / gd.numboxes) * (1 - fullLayout.boxgap) : 0,
             // whisker width
-            wdPos = bdPos * trace.whiskerwidth;
+            wdPos = bdPos * trace.whiskerwidth,
+            // specification limit width (box width without gaps)
+            limitWidth = t.dPos * (group ? (1 - fullLayout.boxgap) : 1) / (group ? gd.numboxes : 1);
         if(trace.visible !== true || t.emptybox) {
             d3.select(this).remove();
             return;
@@ -137,8 +139,8 @@ module.exports = function plot(gd, plotinfo, cdbox) {
 		        .classed(cssClass, true)
 		        .style('fill', 'none')
 		        .each(function(d) {
-		            var pos0 = posAxis.c2p(d.pos - t.dPos, true),
-		                pos1 = posAxis.c2p(d.pos + t.dPos, true),
+		            var pos0 = posAxis.c2p(d.pos + bPos - limitWidth, true),
+		                pos1 = posAxis.c2p(d.pos + bPos + limitWidth, true),
 		                hasLsl = d[lslAttr] != null, 
 		                hasUsl = d[uslAttr] != null, 
 		                lsl = hasLsl ? valAxis.c2p(d[lslAttr], true) : null,
