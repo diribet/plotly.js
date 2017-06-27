@@ -20,7 +20,8 @@ module.exports = function calc(gd, trace) {
     var xa = Axes.getFromId(gd, trace.xaxis || 'x'),
         ya = Axes.getFromId(gd, trace.yaxis || 'y'),
         orientation = trace.orientation,
-        cd = [],
+        fullLayout = gd._fullLayout,
+        cd = [], box,
         valAxis, valLetter, val, valBinned,
         posAxis, posLetter, pos, posDistinct, dPos;
 
@@ -73,6 +74,27 @@ module.exports = function calc(gd, trace) {
     // copy the data so the changes to cd doesn't affect the trace data
     cd = extendDeep([], trace[valLetter]);
 
+    // calculate outlier counts
+    var hasOutliers = false;
+    for (i = 0; i < cd.length; i++) {
+    	box = cd[i];
+    	
+    	box.loc = 0; // lower outliers count
+    	box.uoc = 0; // upper outliers count
+    	if (box.points != null) {
+    		if (box.lw != null) {
+    			box.loc = box.points.filter(function(e) { return e < box.lw; }).length;
+    		}
+    		if (box.uw != null) {
+    			box.uoc = box.points.filter(function(e) { return e > box.uw; }).length;
+    		}
+    	}
+    	
+    	if (box.loc > 0 || box.uoc > 0) {
+    		hasOutliers = true;
+    	}
+    }
+    
     // normalization
     if (trace.normalize) {
     	cd = cd.map(normalizeBox);
@@ -83,20 +105,25 @@ module.exports = function calc(gd, trace) {
     	i;
     
     for (i = 0; i < cd.length; ++i) {
-    	var box = cd[i];
+    	box = cd[i];
     	minMaxValues[i * 2] = Math.min(
     								box.lw, 
-    								box.min,
+    								fullLayout.scaleIgnoresOutliers ? Infinity : box.min,
     								isNaN(box.lsl) ? Infinity : box.lsl, 
     								isNaN(box.lnb) ? Infinity : box.lnb);
     	minMaxValues[i * 2 + 1] = Math.max(
     									box.uw, 
-    									box.max, 
+    									fullLayout.scaleIgnoresOutliers ? -Infinity : box.max, 
         								isNaN(box.usl) ? -Infinity : box.usl, 
         								isNaN(box.unb) ? -Infinity : box.unb);
     }
     
-    Axes.expand(valAxis, minMaxValues, {padded: true});
+    var paddingOptions = { padded: true };
+    if (fullLayout.scaleIgnoresOutliers && hasOutliers) {
+    	// additional padding for outliers out of scale markers
+    	paddingOptions.ppad = 16;
+    }
+    Axes.expand(valAxis, minMaxValues, paddingOptions);
 
     
     function calculateWidths(data) {

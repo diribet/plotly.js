@@ -56,6 +56,13 @@ module.exports = function style(gd) {
             d3.select(this).selectAll('g.points path')
                 .call(Drawing.pointStyle, trace);
             
+            d3.select(this).selectAll('g.outlierMark text')
+	            .call(Color.stroke, "#555555");
+            
+            d3.select(this).selectAll('g.outlierMark rect')
+                .style('stroke-width', '1px')
+                .call(Color.fill, "rgba(255, 0, 0, 0.3)")
+            	.call(Color.stroke, "#ff0000");
         });
 };
 

@@ -60,5 +60,11 @@ module.exports = {
         dflt: 0.1,
         role: 'style',
         description: 'Margin between probability density line and box boundary.'
+    },
+    scaleIgnoresOutliers: {
+        valType: 'boolean',
+        dflt: true,
+        role: 'style',
+        description: 'Whether the scale of the axis should contain outliers or not.'
     }
 };

@@ -19,6 +19,7 @@ BoxDiribet.setPositions = require('./set_positions');
 BoxDiribet.plot = require('./plot');
 BoxDiribet.style = require('./style');
 BoxDiribet.hoverPoints = require('./hover');
+BoxDiribet.eventData = require('./event_data');
 
 BoxDiribet.moduleType = 'trace';
 BoxDiribet.name = 'box-diribet';

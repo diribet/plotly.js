@@ -21,6 +21,7 @@ module.exports = function hoverPoints(pointData, xval, yval, hovermode) {
         xa = pointData.xa,
         ya = pointData.ya,
         closeData = [],
+        fullLayout = xa._gd._fullLayout,
         dx, dy, distfn, boxDelta,
         posLetter, posAxis,
         val, valLetter, valAxis;
@@ -40,6 +41,7 @@ module.exports = function hoverPoints(pointData, xval, yval, hovermode) {
         posAxis = ya;
         valLetter = 'x';
         valAxis = xa;
+        val = xval;
     } else {
         dx = function(di) {
             var pos = di.pos + t.bPos - xval;
@@ -52,6 +54,7 @@ module.exports = function hoverPoints(pointData, xval, yval, hovermode) {
         posAxis = xa;
         valLetter = 'y';
         valAxis = ya;
+        val = yval;
     }
 
     distfn = Fx.getDistanceFunction(hovermode, dx, dy);
@@ -78,21 +81,37 @@ module.exports = function hoverPoints(pointData, xval, yval, hovermode) {
     	pointData[posLetter + '0'] = pointData[posLetter + '1'] = posAxis.c2p(di.pos + t.bPos, true);
     	
     	// show normalization failed tooltip
-		pointData2 = Lib.extendFlat({}, pointData);
-		pointData2[valLetter + '0'] = pointData2[valLetter + '1'] = valAxis.c2p(0, true);
-		pointData2.text = trace.normalizationFailedText;
-		pointData2.attr = 'normalizationFailed';
-		closeData.push(pointData2);
+		pointData[valLetter + '0'] = pointData[valLetter + '1'] = valAxis.c2p(0, true);
+		pointData.text = trace.normalizationFailedText;
+		pointData.attr = 'normalizationFailed';
+		closeData.push(pointData);
+    	
+    } else if (hoverOutliersMark(xval, yval, di, trace.orientation, fullLayout)) {
+    	
+    	// tooltip is placed in center of box
+    	pointData[posLetter + '0'] = pointData[posLetter + '1'] = posAxis.c2p(di.pos + t.bPos, true);
+    	
+    	// show outliers tooltip
+		pointData[valLetter + '0'] = pointData[valLetter + '1'] = valAxis.c2p(val, true);
+		pointData.text = 'Show outliers';
+		pointData.attr = 'outliersMark';
+		pointData.outliersMark = true;
+		pointData.color = 'rgba(255, 0, 0, 0.3)';
+		closeData.push(pointData);
     	
     } else {
     	// box plots: each "point" gets many labels
     	var usedVals = {},
-	    	attrs = ['med', 'min', 'lw', 'q1', 'q3', 'max', 'uw'],
+	    	attrs = ['med', 'lw', 'q1', 'q3', 'uw'],
 	    	attr,
 	    	label,
 	    	pointData2,
 	    	boxHalfWidth = t.bdPos * di.boxwidth;
 
+    	if (!fullLayout.scaleIgnoresOutliers) {
+    		attrs.push('min', 'max');
+    	}
+    	
     	// tooltip is placed on a box side
         pointData[posLetter + '0'] = posAxis.c2p(di.pos + t.bPos - boxHalfWidth, true);
         pointData[posLetter + '1'] = posAxis.c2p(di.pos + t.bPos + boxHalfWidth, true);
@@ -125,3 +144,12 @@ module.exports = function hoverPoints(pointData, xval, yval, hovermode) {
     
     return closeData;
 };
+
+function hoverOutliersMark(xval, yval, dataPoint, orientation, layout) {
+	if (!layout.scaleIgnoresOutliers) { 
+		return false;
+	}
+	
+	var val = orientation === 'h' ? xval : yval;
+	return val < dataPoint.lw || val > dataPoint.uw;
+}

@@ -191,7 +191,7 @@ module.exports = function plot(gd, plotinfo, cdbox) {
             })
             .enter().append('path')
             .call(Drawing.translatePoints, xa, ya);
-        
+
         // draw probability density
         if (fullLayout.showProbabilityDensity != 'never') {
         	var showDensityOnHover = fullLayout.showProbabilityDensity === 'hover',
@@ -295,6 +295,72 @@ module.exports = function plot(gd, plotinfo, cdbox) {
                 }
             });
         
+        // draw marks for outliers out of scale
+        if (fullLayout.scaleIgnoresOutliers) {
+        	var lowerMarkPos = valAxis.c2p(valAxis.range[0], true),
+	    		upperMarkPos = valAxis.c2p(valAxis.range[1], true),
+	    		rectPadding = 4,
+	    		lowerTextAnchor, upperTextAnchor;
+
+        	if (trace.orientation === 'h') {
+        		lowerTextAnchor = 'start';
+        		upperTextAnchor = 'end';
+        		lowerMarkPos = lowerMarkPos + 4;
+        		upperMarkPos = upperMarkPos - 4;
+        	} else {
+        		lowerTextAnchor = upperTextAnchor = 'middle';
+        		lowerMarkPos = lowerMarkPos - 8;
+        		upperMarkPos = upperMarkPos + 16;
+        	}
+        	function plotOutliersMark(outliersCountAttr, markPosition, textAnchor) {
+                var outlierMark = 
+                	boxGroups
+                		.selectAll('g.outlierMark.' + outliersCountAttr)
+    		            .data(function(d) {
+    		        		return d[outliersCountAttr] > 0 ? [d] : [];
+    		            })
+    		            .enter().append('g')
+    		            .classed('outlierMark', true)
+    		            .classed(outliersCountAttr, true)
+    		            .each(function(d) {
+    		                var pos = posAxis.c2p(d.pos + bPos, true);
+    		                
+    		                var outlierMark = d3.select(this),
+    		                	transformAttr;
+    		                
+    		                if (trace.orientation === 'h') {
+    		                	transformAttr = 'translate(' + markPosition + ',' + pos + ')';
+    		                } else {
+    		                	transformAttr = 'translate(' + pos + ',' + markPosition + ')';
+    		                }
+		                	outlierMark.attr('transform', transformAttr);
+    		                
+    		                var text = 
+    		                	outlierMark
+    		                		.append('text')
+    		        				.attr('text-anchor', textAnchor)
+    		        				.style('font-size', '12px') // font size has to be applied here to calculate bounding box
+    		                		.text(function(d) { return d[outliersCountAttr]; });
+    		                
+    		                var boundingBox = text.node().getBBox();
+    		                outlierMark
+    		        				.append('rect')
+    		        				.attr('x', boundingBox.x - rectPadding / 2)
+    		        				.attr('y', boundingBox.y - rectPadding / 2)
+    		        				.attr('width', boundingBox.width + rectPadding)
+    		        				.attr('height', boundingBox.height + rectPadding)
+    		        				.attr('rx', 3)
+    		        				.attr('ry', 3);
+    		            });
+        	}
+        	
+        	plotOutliersMark('loc', lowerMarkPos, lowerTextAnchor);
+        	plotOutliersMark('uoc', upperMarkPos, upperTextAnchor);
+        	
+            gd.removeListener('plotly_click', showOutliers);
+            gd.on('plotly_click', showOutliers)
+        }
+        
         // draw invalid (not normalizable boxes)
         d3.select(this).selectAll('g.invalid-box')
             .data(invalidBoxes)
@@ -335,4 +401,15 @@ function setHoverIndex(event, setIndex) {
 	
 	gd.data[traceNumber].hoverindex = setIndex ? pointNumber : null;
 	Plotly.redraw(gd);
+}
+
+function showOutliers(event) {
+	if (event.points && event.points.length > 0) {
+		var hoverPoint = event.points[0];
+		if (hoverPoint.outliersMark) {
+			var gd = hoverPoint.xaxis._gd,
+				update = { 'scaleIgnoresOutliers': false };
+			Plotly.relayout(gd, update);
+		}
+	}
 }
