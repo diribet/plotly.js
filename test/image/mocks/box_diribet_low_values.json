@@ -1,0 +1,62 @@
+{
+  "data": [
+    {
+      "y": [
+        {
+			"avg": 1.2,
+			"min": 1.1,
+			"max": 1.3,
+			"count": 2,
+			"lsl": 0.6,
+			"usl": 4,
+			"points": [1.1, 1.3]
+		},{
+			"avg": 2.2,
+			"min": 2.1,
+			"max": 2.3,
+			"count": 2,
+			"lsl": 0.6,
+			"usl": 4,
+			"points": [2.1, 2.3]
+		}
+      ],
+      "x": [
+        "Box 1",
+        "Box 2"
+      ],
+	  "specificationLimitLine": {
+		"color": "#ff0000",
+		"width": 1
+	  },
+	  "naturalBoundaryLine": {
+		"color": "#00ffff",
+		"width": 2
+	  },
+	  "probabilityDensityLine": {
+		"color": "#568ed5",
+		"width": 1
+	  },
+	  "marker": {
+	    "color": "#ff0000",
+		"symbol": "x"
+	  },
+	  "line": {
+	    "color": "#3838fc",
+		"width": 2
+	  },
+	  "fillcolor": "#cacafc",
+      "type": "box-diribet"
+	}
+  ],
+  "layout": {
+	"boxgap": 0,
+	"boxgroupgap": 0,
+	"showProbabilityDensity": "hover",
+	"xaxis": {
+		"zeroline": false
+	},
+	"yaxis": {
+		"zeroline": false
+	}
+  }
+}

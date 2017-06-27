@@ -1,0 +1,82 @@
+{
+  "data": [
+    {
+      "y": [
+        {
+			"med": 2,
+			"avg": 2,
+			"q1": 1,
+			"q3": 3,
+			"lw": 0.1,
+			"uw": 6.5,
+			"min": -150,
+			"max": 501,
+			"count": 40,
+			"lsl": 0.6,
+			"usl": 4,
+			"points": [-150, -125, 500, 501],
+			"probabilityDensity": {
+			  "density": [0.02, 0.05, 0.1, 0.3, 0.29, 0.27, 0.1, 0.02, 0.02],
+			  "scale": [0, 1, 2, 3, 4, 5, 6, 7, 10]
+			}
+		},{
+			"med": 2,
+			"avg": 2,
+			"q1": 1,
+			"q3": 3,
+			"lw": 0.1,
+			"uw": 6.5,
+			"min": -20,
+			"max": 55,
+			"count": 40,
+			"lsl": 0.6,
+			"usl": 4,
+			"points": [-20, -15, 40, 55],
+			"probabilityDensity": {
+			  "density": [0.02, 0.05, 0.1, 0.3, 0.29, 0.27, 0.1, 0.02, 0.02],
+			  "scale": [0, 1, 2, 3, 4, 5, 6, 7, 10]
+			}
+		}
+      ],
+      "x": [
+        "Box 1",
+        "Box 2"
+      ],
+	  "specificationLimitLine": {
+		"color": "#ff0000",
+		"width": 1
+	  },
+	  "naturalBoundaryLine": {
+		"color": "#00ffff",
+		"width": 2
+	  },
+	  "probabilityDensityLine": {
+		"color": "#568ed5",
+		"width": 1
+	  },
+	  "marker": {
+	    "color": "#ff0000",
+		"symbol": "x"
+	  },
+	  "line": {
+	    "color": "#3838fc",
+		"width": 2
+	  },
+	  "fillcolor": "#cacafc",
+	  "normalize": false,
+      "type": "box-diribet"
+	}
+  ],
+  "layout": {
+    "scaleIgnoresOutliers": true,
+	"boxgap": 0,
+	"boxgroupgap": 0,
+	"showProbabilityDensity": "hover",
+	"xaxis": {
+		"zeroline": false
+	},
+	"yaxis": {
+		"zeroline": false
+	}
+  }
+}

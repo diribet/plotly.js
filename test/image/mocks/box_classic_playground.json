@@ -1,0 +1,40 @@
+{
+  "data": [
+    {
+      "y": [
+        0,
+        1,
+        1,
+        2,
+        3,
+        5,
+        8,
+        13,
+        21
+      ],
+      "x": [
+        "Znak 1",
+        "Znak 1",
+        "Znak 1",
+        "Znak 1",
+        "Znak 1",
+        "Znak 2",
+        "Znak 2",
+        "Znak 2",
+        "Znak 2"
+      ],
+	  "boxes": [
+		{
+			"med": 2,
+			"q1": 1,
+			"q3": 3
+		}
+	  ],
+	  "orientation": "v",
+      "boxpoints": "all",
+      "jitter": 0,
+      "pointpos": 0,
+      "type": "box"
+    }
+  ]
+}
