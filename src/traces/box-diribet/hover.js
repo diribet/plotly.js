@@ -86,7 +86,7 @@ module.exports = function hoverPoints(pointData, xval, yval, hovermode) {
 		pointData.attr = 'normalizationFailed';
 		closeData.push(pointData);
     	
-    } else if (hoverOutliersMark(xval, yval, di, trace.orientation, fullLayout)) {
+    } else if (hoverOutliersMark(xval, yval, di, trace.orientation, fullLayout) && valAxis.autorange == true) {
     	
     	// tooltip is placed in center of box
     	pointData[posLetter + '0'] = pointData[posLetter + '1'] = posAxis.c2p(di.pos + t.bPos, true);

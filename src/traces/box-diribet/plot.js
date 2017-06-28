@@ -296,7 +296,7 @@ module.exports = function plot(gd, plotinfo, cdbox) {
             });
         
         // draw marks for outliers out of scale
-        if (fullLayout.scaleIgnoresOutliers) {
+        if (fullLayout.scaleIgnoresOutliers && valAxis.autorange == true) {
         	var lowerMarkPos = valAxis.c2p(valAxis.range[0], true),
 	    		upperMarkPos = valAxis.c2p(valAxis.range[1], true),
 	    		rectPadding = 4,
