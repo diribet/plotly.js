@@ -93,7 +93,7 @@ module.exports = function hoverPoints(pointData, xval, yval, hovermode) {
     	
     	// show outliers tooltip
 		pointData[valLetter + '0'] = pointData[valLetter + '1'] = valAxis.c2p(val, true);
-		pointData.text = 'Show outliers';
+		pointData.text = fullLayout.showOutliersText;
 		pointData.attr = 'outliersMark';
 		pointData.outliersMark = true;
 		pointData.color = 'rgba(255, 0, 0, 0.3)';

@@ -32,4 +32,5 @@ module.exports = function supplyLayoutDefaults(layoutIn, layoutOut, fullData) {
     coerce('showProbabilityDensity');
     coerce('probabilityDensityMargin');
     coerce('scaleIgnoresOutliers');
+    coerce('showOutliersText');
 };

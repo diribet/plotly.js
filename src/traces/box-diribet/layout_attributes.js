@@ -66,5 +66,10 @@ module.exports = {
         dflt: true,
         role: 'style',
         description: 'Whether the scale of the axis should contain outliers or not.'
-    }
+    },
+    showOutliersText: {
+        valType: 'string',
+        dflt: 'Show outliers.',
+        description: 'Text that is displayed on hover over outliers marker.'
+    }    
 };
