@@ -151,5 +151,5 @@ function hoverOutliersMark(xval, yval, dataPoint, orientation, layout) {
 	}
 	
 	var val = orientation === 'h' ? xval : yval;
-	return val < dataPoint.lw || val > dataPoint.uw;
+	return (dataPoint.loc > 0 && val < dataPoint.lw) || (dataPoint.uoc > 0 && val > dataPoint.uw);
 }
