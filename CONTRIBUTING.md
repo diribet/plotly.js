@@ -91,6 +91,19 @@ Three additional helpers exist that are refreshed every second:
 There is also a search bar in the top right of the dashboard. This fuzzy-searches
 image mocks based on their file name and trace type.
 
+#### Diribet gotchas
+
+Use this script for the boxplot development:
+ 
+```
+Tabs.fresh('boxplot');
+Tabs.plotMock('box_diribet_basic', 'boxplot');
+Tabs.onReload = function () { Tabs.plotMock('box_diribet_basic', 'boxplot'); };
+```
+
+Name of the mock data in the `Tabs.plotMock()` method is the name of the file in the `test/image/mocks` directory. 
+Change this name to use different data. 
+
 #### Other npm scripts
 
 - `npm run preprocess`: pre-processes the css and svg source file in js. This
