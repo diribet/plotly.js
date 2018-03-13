@@ -14,3 +14,6 @@ npm-debug.log*
 !.eslintrc
 !.eslintignore
 /target
+
+**/.idea
+**/*.iml
