@@ -1,5 +1,5 @@
 /**
-* Copyright 2012-2016, Plotly, Inc.
+* Copyright 2012-2018, Plotly, Inc.
 * All rights reserved.
 *
 * This source code is licensed under the MIT license found in the
@@ -10,11 +10,13 @@
 'use strict';
 
 var isNumeric = require('fast-isnumeric');
+var isArrayOrTypedArray = require('../../lib').isArrayOrTypedArray;
 
 var Axes = require('../../plots/cartesian/axes');
 var hasColorscale = require('../../components/colorscale/has_colorscale');
 var colorscaleCalc = require('../../components/colorscale/calc');
-
+var arraysToCalcdata = require('./arrays_to_calcdata');
+var calcSelection = require('../scatter/calc_selection');
 
 module.exports = function calc(gd, trace) {
     // depending on bar direction, set position and size axes
@@ -46,18 +48,15 @@ module.exports = function calc(gd, trace) {
     }
 
     // create the "calculated data" to plot
-    var serieslen = Math.min(pos.length, size.length),
-        cd = [];
+    var serieslen = Math.min(pos.length, size.length);
+    var cd = new Array(serieslen);
 
-    // set position
+    // set position and size
     for(i = 0; i < serieslen; i++) {
+        cd[i] = { p: pos[i], s: size[i] };
 
-        // add bars with non-numeric sizes to calcdata
-        // so that ensure that traces with gaps are
-        // plotted in the correct order
-
-        if(isNumeric(pos[i])) {
-            cd.push({p: pos[i]});
+        if(trace.ids) {
+            cd[i].id = String(trace.ids[i]);
         }
     }
 
@@ -65,10 +64,14 @@ module.exports = function calc(gd, trace) {
     var base = trace.base,
         b;
 
-    if(Array.isArray(base)) {
+    if(isArrayOrTypedArray(base)) {
         for(i = 0; i < Math.min(base.length, cd.length); i++) {
             b = sa.d2c(base[i], 0, scalendar);
-            cd[i].b = (isNumeric(b)) ? b : 0;
+            if(isNumeric(b)) {
+                cd[i].b = +b;
+                cd[i].hasB = 1;
+            }
+            else cd[i].b = 0;
         }
         for(; i < cd.length; i++) {
             cd[i].b = 0;
@@ -76,16 +79,11 @@ module.exports = function calc(gd, trace) {
     }
     else {
         b = sa.d2c(base, 0, scalendar);
-        b = (isNumeric(b)) ? b : 0;
+        var hasBase = isNumeric(b);
+        b = hasBase ? b : 0;
         for(i = 0; i < cd.length; i++) {
             cd[i].b = b;
-        }
-    }
-
-    // set size
-    for(i = 0; i < cd.length; i++) {
-        if(isNumeric(size[i])) {
-            cd[i].s = size[i];
+            if(hasBase) cd[i].hasB = 1;
         }
     }
 
@@ -96,6 +94,9 @@ module.exports = function calc(gd, trace) {
     if(hasColorscale(trace, 'marker.line')) {
         colorscaleCalc(trace, trace.marker.line.color, 'marker.line', 'c');
     }
+
+    arraysToCalcdata(cd, trace);
+    calcSelection(cd, trace);
 
     return cd;
 };

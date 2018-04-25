@@ -1,5 +1,5 @@
 /**
-* Copyright 2012-2016, Plotly, Inc.
+* Copyright 2012-2018, Plotly, Inc.
 * All rights reserved.
 *
 * This source code is licensed under the MIT license found in the
@@ -34,12 +34,14 @@ Histogram.setPositions = require('../bar/set_positions');
 Histogram.plot = require('../bar/plot');
 Histogram.style = require('../bar/style');
 Histogram.colorbar = require('../scatter/colorbar');
-Histogram.hoverPoints = require('../bar/hover');
+Histogram.hoverPoints = require('./hover');
+Histogram.selectPoints = require('../bar/select');
+Histogram.eventData = require('./event_data');
 
 Histogram.moduleType = 'trace';
 Histogram.name = 'histogram';
 Histogram.basePlotModule = require('../../plots/cartesian');
-Histogram.categories = ['cartesian', 'bar', 'histogram', 'oriented', 'errorBarsOK', 'showLegend'];
+Histogram.categories = ['cartesian', 'svg', 'bar', 'histogram', 'oriented', 'errorBarsOK', 'showLegend'];
 Histogram.meta = {
     description: [
         'The sample data from which statistics are computed is set in `x`',

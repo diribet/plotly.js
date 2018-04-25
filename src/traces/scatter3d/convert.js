@@ -1,5 +1,5 @@
 /**
-* Copyright 2012-2016, Plotly, Inc.
+* Copyright 2012-2018, Plotly, Inc.
 * All rights reserved.
 *
 * This source code is licensed under the MIT license found in the
@@ -20,7 +20,7 @@ var str2RgbaArray = require('../../lib/str2rgbarray');
 var formatColor = require('../../lib/gl_format_color');
 var makeBubbleSizeFn = require('../scatter/make_bubble_size_func');
 var DASH_PATTERNS = require('../../constants/gl3d_dashes');
-var MARKER_SYMBOLS = require('../../constants/gl_markers');
+var MARKER_SYMBOLS = require('../../constants/gl3d_markers');
 
 var calculateError = require('./calc_errors');
 
@@ -58,12 +58,16 @@ proto.handlePick = function(selection) {
             selection.object = this.scatterPlot;
             this.scatterPlot.highlight(selection.data);
         }
-        if(this.textLabels && this.textLabels[selection.data.index] !== undefined) {
-            selection.textLabel = this.textLabels[selection.data.index];
+        if(this.textLabels) {
+            if(this.textLabels[selection.data.index] !== undefined) {
+                selection.textLabel = this.textLabels[selection.data.index];
+            } else {
+                selection.textLabel = this.textLabels;
+            }
         }
         else selection.textLabel = '';
 
-        var selectIndex = selection.data.index;
+        var selectIndex = selection.index = selection.data.index;
         selection.traceCoordinate = [
             this.data.x[selectIndex],
             this.data.y[selectIndex],
@@ -148,7 +152,7 @@ function calculateSymbol(symbolIn) {
 function formatParam(paramIn, len, calculate, dflt, extraFn) {
     var paramOut = null;
 
-    if(Array.isArray(paramIn)) {
+    if(Lib.isArrayOrTypedArray(paramIn)) {
         paramOut = [];
 
         for(var i = 0; i < len; i++) {
@@ -314,6 +318,7 @@ proto.update = function(data) {
         if(this.linePlot) this.linePlot.update(lineOptions);
         else {
             this.linePlot = createLinePlot(lineOptions);
+            this.linePlot._trace = this;
             this.scene.glplot.add(this.linePlot);
         }
     } else if(this.linePlot) {
@@ -345,6 +350,7 @@ proto.update = function(data) {
         if(this.scatterPlot) this.scatterPlot.update(scatterOptions);
         else {
             this.scatterPlot = createScatterPlot(scatterOptions);
+            this.scatterPlot._trace = this;
             this.scatterPlot.highlightScale = 1;
             this.scene.glplot.add(this.scatterPlot);
         }
@@ -369,12 +375,13 @@ proto.update = function(data) {
         opacity: data.opacity
     };
 
-    this.textLabels = options.text;
+    this.textLabels = data.hovertext || data.text;
 
     if(this.mode.indexOf('text') !== -1) {
         if(this.textMarkers) this.textMarkers.update(textOptions);
         else {
             this.textMarkers = createScatterPlot(textOptions);
+            this.textMarkers._trace = this;
             this.textMarkers.highlightScale = 1;
             this.scene.glplot.add(this.textMarkers);
         }
@@ -403,6 +410,7 @@ proto.update = function(data) {
         }
     } else if(options.errorBounds) {
         this.errorBars = createErrorBars(errorOptions);
+        this.errorBars._trace = this;
         this.scene.glplot.add(this.errorBars);
     }
 
@@ -419,6 +427,7 @@ proto.update = function(data) {
         } else {
             delaunayOptions.gl = gl;
             this.delaunayMesh = createMesh(delaunayOptions);
+            this.delaunayMesh._trace = this;
             this.scene.glplot.add(this.delaunayMesh);
         }
     } else if(this.delaunayMesh) {

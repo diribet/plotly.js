@@ -1,5 +1,5 @@
 /**
-* Copyright 2012-2016, Plotly, Inc.
+* Copyright 2012-2018, Plotly, Inc.
 * All rights reserved.
 *
 * This source code is licensed under the MIT license found in the
@@ -11,39 +11,23 @@
 
 var Lib = require('../../lib');
 var defaultLine = require('../../components/color').defaultLine;
+var domainAttrs = require('../domain').attributes;
 var fontAttrs = require('../font_attributes');
 var textposition = require('../../traces/scatter/attributes').textposition;
+var overrideAll = require('../../plot_api/edit_types').overrideAll;
 
+var fontAttr = fontAttrs({
+    description: [
+        'Sets the icon text font.',
+        'Has an effect only when `type` is set to *symbol*.'
+    ].join(' ')
+});
+fontAttr.family.dflt = 'Open Sans Regular, Arial Unicode MS Regular';
 
-module.exports = {
-    domain: {
-        x: {
-            valType: 'info_array',
-            role: 'info',
-            items: [
-                {valType: 'number', min: 0, max: 1},
-                {valType: 'number', min: 0, max: 1}
-            ],
-            dflt: [0, 1],
-            description: [
-                'Sets the horizontal domain of this subplot',
-                '(in plot fraction).'
-            ].join(' ')
-        },
-        y: {
-            valType: 'info_array',
-            role: 'info',
-            items: [
-                {valType: 'number', min: 0, max: 1},
-                {valType: 'number', min: 0, max: 1}
-            ],
-            dflt: [0, 1],
-            description: [
-                'Sets the vertical domain of this subplot',
-                '(in plot fraction).'
-            ].join(' ')
-        }
-    },
+module.exports = overrideAll({
+    _arrayAttrRegexps: [Lib.counterRegex('mapbox', '.layers', true)],
+
+    domain: domainAttrs({name: 'mapbox'}),
 
     accesstoken: {
         valType: 'string',
@@ -249,17 +233,8 @@ module.exports = {
                     'Sets the symbol text.'
                 ].join(' ')
             },
-            textfont: Lib.extendDeep({}, fontAttrs, {
-                description: [
-                    'Sets the icon text font.',
-                    'Has an effect only when `type` is set to *symbol*.'
-                ].join(' '),
-                family: {
-                    dflt: 'Open Sans Regular, Arial Unicode MS Regular'
-                }
-            }),
+            textfont: fontAttr,
             textposition: Lib.extendFlat({}, textposition, { arrayOk: false })
         }
     }
-
-};
+}, 'plot', 'from-root');

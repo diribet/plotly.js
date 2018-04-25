@@ -1,5 +1,5 @@
 /**
-* Copyright 2012-2016, Plotly, Inc.
+* Copyright 2012-2018, Plotly, Inc.
 * All rights reserved.
 *
 * This source code is licensed under the MIT license found in the
@@ -9,8 +9,9 @@
 
 'use strict';
 
+var Registry = require('../../registry');
 var Axes = require('../../plots/cartesian/axes');
-var Fx = require('../../plots/cartesian/graph_interact');
+var Fx = require('../../components/fx');
 
 var createPlot2D = require('gl-plot2d');
 var createSpikes = require('gl-spikes2d');
@@ -21,9 +22,15 @@ var createOptions = require('./convert');
 var createCamera = require('./camera');
 var convertHTMLToUnicode = require('../../lib/html2unicode');
 var showNoWebGlMsg = require('../../lib/show_no_webgl_msg');
+var axisConstraints = require('../cartesian/constraints');
+var enforceAxisConstraints = axisConstraints.enforce;
+var cleanAxisConstraints = axisConstraints.clean;
+var doAutoRange = require('../cartesian/autorange').doAutoRange;
 
 var AXES = ['xaxis', 'yaxis'];
 var STATIC_CANVAS, STATIC_CONTEXT;
+
+var SUBPLOT_PATTERN = require('../cartesian/constants').SUBPLOT_PATTERN;
 
 
 function Scene2D(options, fullLayout) {
@@ -32,10 +39,10 @@ function Scene2D(options, fullLayout) {
     this.pixelRatio = options.plotGlPixelRatio || window.devicePixelRatio;
     this.id = options.id;
     this.staticPlot = !!options.staticPlot;
+    this.scrollZoom = this.graphDiv._context.scrollZoom;
 
-    this.fullLayout = fullLayout;
     this.fullData = null;
-    this.updateAxes(fullLayout);
+    this.updateRefs(fullLayout);
 
     this.makeFramework();
 
@@ -51,7 +58,6 @@ function Scene2D(options, fullLayout) {
 
     // trace set
     this.traces = {};
-    this._inputs = {};
 
     // create axes spikes
     this.spikes = createSpikes(this.glplot);
@@ -67,7 +73,10 @@ function Scene2D(options, fullLayout) {
     // last pick result
     this.pickResult = null;
 
-    this.bounds = [Infinity, Infinity, -Infinity, -Infinity];
+    // is the mouse over the plot?
+    // it's OK if this says true when it's not, so long as
+    // when we get a mouseout we set it to false before handling
+    this.isMouseOver = true;
 
     // flag to stop render loop
     this.stopped = false;
@@ -104,10 +113,11 @@ proto.makeFramework = function() {
         this.gl = STATIC_CONTEXT;
     }
     else {
-        var liveCanvas = document.createElement('canvas');
+        var liveCanvas = this.container.querySelector('.gl-canvas-focus');
 
         var gl = getContext({
             canvas: liveCanvas,
+            preserveDrawingBuffer: true,
             premultipliedAlpha: true
         });
 
@@ -132,7 +142,7 @@ proto.makeFramework = function() {
     // disabling user select on the canvas
     // sanitizes double-clicks interactions
     // ref: https://github.com/plotly/plotly.js/issues/744
-    canvas.className += 'user-select-none';
+    canvas.className += ' user-select-none';
 
     // create SVG container for hover text
     var svgContainer = this.svgContainer = document.createElementNS(
@@ -147,31 +157,47 @@ proto.makeFramework = function() {
     // create div to catch the mouse event
     var mouseContainer = this.mouseContainer = document.createElement('div');
     mouseContainer.style.position = 'absolute';
+    mouseContainer.style['pointer-events'] = 'auto';
+
+    this.pickCanvas = this.container.querySelector('.gl-canvas-pick');
+
 
     // append canvas, hover svg and mouse div to container
     var container = this.container;
-    container.appendChild(canvas);
     container.appendChild(svgContainer);
     container.appendChild(mouseContainer);
+
+    var self = this;
+    mouseContainer.addEventListener('mouseout', function() {
+        self.isMouseOver = false;
+        self.unhover();
+    });
+    mouseContainer.addEventListener('mouseover', function() {
+        self.isMouseOver = true;
+    });
 };
 
 proto.toImage = function(format) {
     if(!format) format = 'png';
 
     this.stopped = true;
+
     if(this.staticPlot) this.container.appendChild(STATIC_CANVAS);
 
     // update canvas size
     this.updateSize(this.canvas);
 
-    // force redraw
-    this.glplot.setDirty();
-    this.glplot.draw();
 
     // grab context and yank out pixels
     var gl = this.glplot.gl,
         w = gl.drawingBufferWidth,
         h = gl.drawingBufferHeight;
+
+    // force redraw
+    gl.clearColor(1, 1, 1, 0);
+    gl.clear(gl.COLOR_BUFFER_BIT | gl.DEPTH_BUFFER_BIT);
+    this.glplot.setDirty();
+    this.glplot.draw();
 
     gl.bindFramebuffer(gl.FRAMEBUFFER, null);
 
@@ -237,10 +263,8 @@ proto.updateSize = function(canvas) {
 };
 
 proto.computeTickMarks = function() {
-    this.xaxis._length =
-        this.glplot.viewBox[2] - this.glplot.viewBox[0];
-    this.yaxis._length =
-        this.glplot.viewBox[3] - this.glplot.viewBox[1];
+    this.xaxis.setScale();
+    this.yaxis.setScale();
 
     var nextTicks = [
         Axes.calcTicks(this.xaxis),
@@ -272,41 +296,40 @@ function compareTicks(a, b) {
     return false;
 }
 
-proto.updateAxes = function(options) {
-    var spmatch = Axes.subplotMatch,
-        xaxisName = 'xaxis' + this.id.match(spmatch)[1],
-        yaxisName = 'yaxis' + this.id.match(spmatch)[2];
+proto.updateRefs = function(newFullLayout) {
+    this.fullLayout = newFullLayout;
 
-    this.xaxis = options[xaxisName];
-    this.yaxis = options[yaxisName];
+    var spmatch = this.id.match(SUBPLOT_PATTERN);
+    var xaxisName = 'xaxis' + spmatch[1];
+    var yaxisName = 'yaxis' + spmatch[2];
+
+    this.xaxis = this.fullLayout[xaxisName];
+    this.yaxis = this.fullLayout[yaxisName];
 };
 
-proto.updateFx = function(options) {
-    var fullLayout = this.fullLayout;
+proto.relayoutCallback = function() {
+    var graphDiv = this.graphDiv,
+        xaxis = this.xaxis,
+        yaxis = this.yaxis,
+        layout = graphDiv.layout;
 
-    fullLayout.dragmode = options.dragmode;
-    fullLayout.hovermode = options.hovermode;
-};
+    // update user layout
+    layout.xaxis.autorange = xaxis.autorange;
+    layout.xaxis.range = xaxis.range.slice(0);
+    layout.yaxis.autorange = yaxis.autorange;
+    layout.yaxis.range = yaxis.range.slice(0);
 
-var relayoutCallback = function(scene) {
-
-    var xrange = scene.xaxis.range,
-        yrange = scene.yaxis.range;
-
-    // Update the layout on the DIV
-    scene.graphDiv.layout.xaxis.autorange = scene.xaxis.autorange;
-    scene.graphDiv.layout.xaxis.range = xrange.slice(0);
-    scene.graphDiv.layout.yaxis.autorange = scene.yaxis.autorange;
-    scene.graphDiv.layout.yaxis.range = yrange.slice(0);
-
-    // Make a meaningful value to be passed on to the possible 'plotly_relayout' subscriber(s)
-    var update = { // scene.camera has no many useful projection or scale information
-        lastInputTime: scene.camera.lastInputTime // helps determine which one is the latest input (if async)
+    // make a meaningful value to be passed on to the possible 'plotly_relayout' subscriber(s)
+    // scene.camera has no many useful projection or scale information
+    // helps determine which one is the latest input (if async)
+    var update = {
+        lastInputTime: this.camera.lastInputTime
     };
-    update[scene.xaxis._name] = xrange.slice();
-    update[scene.yaxis._name] = yrange.slice();
 
-    scene.graphDiv.emit('plotly_relayout', update);
+    update[xaxis._name] = xaxis.range.slice(0);
+    update[yaxis._name] = yaxis.range.slice(0);
+
+    graphDiv.emit('plotly_relayout', update);
 };
 
 proto.cameraChanged = function() {
@@ -321,11 +344,26 @@ proto.cameraChanged = function() {
         this.glplotOptions.ticks = nextTicks;
         this.glplotOptions.dataBox = camera.dataBox;
         this.glplot.update(this.glplotOptions);
-        relayoutCallback(this);
+        this.handleAnnotations();
+    }
+};
+
+proto.handleAnnotations = function() {
+    var gd = this.graphDiv,
+        annotations = this.fullLayout.annotations;
+
+    for(var i = 0; i < annotations.length; i++) {
+        var ann = annotations[i];
+
+        if(ann.xref === this.xaxis._id && ann.yref === this.yaxis._id) {
+            Registry.getComponentMethod('annotations', 'drawOne')(gd, i);
+        }
     }
 };
 
 proto.destroy = function() {
+    if(!this.glplot) return;
+
     var traces = this.traces;
 
     if(traces) {
@@ -337,22 +375,25 @@ proto.destroy = function() {
 
     this.glplot.dispose();
 
-    if(!this.staticPlot) this.container.removeChild(this.canvas);
     this.container.removeChild(this.svgContainer);
     this.container.removeChild(this.mouseContainer);
 
     this.fullData = null;
-    this._inputs = null;
     this.glplot = null;
     this.stopped = true;
+    this.camera.mouseListener.enabled = false;
+    this.mouseContainer.removeEventListener('wheel', this.camera.wheelListener);
+    this.camera = null;
 };
 
 proto.plot = function(fullData, calcData, fullLayout) {
     var glplot = this.glplot;
 
-    this.fullLayout = fullLayout;
-    this.updateAxes(fullLayout);
+    this.updateRefs(fullLayout);
+    this.xaxis.clearCalc();
+    this.yaxis.clearCalc();
     this.updateTraces(fullData, calcData);
+    this.updateFx(fullLayout.dragmode);
 
     var width = fullLayout.width,
         height = fullLayout.height;
@@ -362,6 +403,15 @@ proto.plot = function(fullData, calcData, fullLayout) {
     var options = this.glplotOptions;
     options.merge(fullLayout);
     options.screenBox = [0, 0, width, height];
+
+    var mockGraphDiv = {_fullLayout: {
+        _axisConstraintGroups: this.graphDiv._fullLayout._axisConstraintGroups,
+        xaxis: this.xaxis,
+        yaxis: this.yaxis
+    }};
+
+    cleanAxisConstraints(mockGraphDiv, this.xaxis);
+    cleanAxisConstraints(mockGraphDiv, this.yaxis);
 
     var size = fullLayout._size,
         domainX = this.xaxis.domain,
@@ -380,33 +430,17 @@ proto.plot = function(fullData, calcData, fullLayout) {
     this.mouseContainer.style.left = size.l + domainX[0] * size.w + 'px';
     this.mouseContainer.style.top = size.t + (1 - domainY[1]) * size.h + 'px';
 
-    var bounds = this.bounds;
-    bounds[0] = bounds[1] = Infinity;
-    bounds[2] = bounds[3] = -Infinity;
-
-    var traceIds = Object.keys(this.traces);
     var ax, i;
 
-    for(i = 0; i < traceIds.length; ++i) {
-        var traceObj = this.traces[traceIds[i]];
-
-        for(var k = 0; k < 2; ++k) {
-            bounds[k] = Math.min(bounds[k], traceObj.bounds[k]);
-            bounds[k + 2] = Math.max(bounds[k + 2], traceObj.bounds[k + 2]);
-        }
-    }
-
     for(i = 0; i < 2; ++i) {
-        if(bounds[i] > bounds[i + 2]) {
-            bounds[i] = -1;
-            bounds[i + 2] = 1;
-        }
-
         ax = this[AXES[i]];
         ax._length = options.viewBox[i + 2] - options.viewBox[i];
 
-        Axes.doAutoRange(ax);
+        doAutoRange(ax);
+        ax.setScale();
     }
+
+    enforceAxisConstraints(mockGraphDiv);
 
     options.ticks = this.computeTickMarks();
 
@@ -467,7 +501,6 @@ proto.updateTraces = function(fullData, calcData) {
     // update / create trace objects
     for(i = 0; i < fullData.length; i++) {
         fullTrace = fullData[i];
-        this._inputs[fullTrace.uid] = i;
         var calcTrace = calcData[i],
             traceObj = this.traces[fullTrace.uid];
 
@@ -477,24 +510,60 @@ proto.updateTraces = function(fullData, calcData) {
             this.traces[fullTrace.uid] = traceObj;
         }
     }
+
+    // order object per traces
+    this.glplot.objects.sort(function(a, b) {
+        return a._trace.index - b._trace.index;
+    });
+};
+
+proto.updateFx = function(dragmode) {
+    // switch to svg interactions in lasso/select mode
+    if(dragmode === 'lasso' || dragmode === 'select') {
+        this.pickCanvas.style['pointer-events'] = 'none';
+        this.mouseContainer.style['pointer-events'] = 'none';
+    } else {
+        this.pickCanvas.style['pointer-events'] = 'auto';
+        this.mouseContainer.style['pointer-events'] = 'auto';
+    }
+
+    // set proper cursor
+    if(dragmode === 'pan') {
+        this.mouseContainer.style.cursor = 'move';
+    }
+    else if(dragmode === 'zoom') {
+        this.mouseContainer.style.cursor = 'crosshair';
+    }
+    else {
+        this.mouseContainer.style.cursor = null;
+    }
 };
 
 proto.emitPointAction = function(nextSelection, eventType) {
+    var uid = nextSelection.trace.uid;
+    var ptNumber = nextSelection.pointIndex;
+    var trace;
 
-    var curveIndex = this._inputs[nextSelection.trace.uid];
+    for(var i = 0; i < this.fullData.length; i++) {
+        if(this.fullData[i].uid === uid) {
+            trace = this.fullData[i];
+        }
+    }
 
-    this.graphDiv.emit(eventType, {
-        points: [{
-            x: nextSelection.traceCoord[0],
-            y: nextSelection.traceCoord[1],
-            curveNumber: curveIndex,
-            pointNumber: nextSelection.pointIndex,
-            data: this.fullData[curveIndex]._input,
-            fullData: this.fullData,
-            xaxis: this.xaxis,
-            yaxis: this.yaxis
-        }]
-    });
+    var pointData = {
+        x: nextSelection.traceCoord[0],
+        y: nextSelection.traceCoord[1],
+        curveNumber: trace.index,
+        pointNumber: ptNumber,
+        data: trace._input,
+        fullData: this.fullData,
+        xaxis: this.xaxis,
+        yaxis: this.yaxis
+    };
+
+    Fx.appendArrayPointValue(pointData, trace, ptNumber);
+
+    this.graphDiv.emit(eventType, {points: [pointData]});
 };
 
 proto.draw = function() {
@@ -515,26 +584,36 @@ proto.draw = function() {
     var x = mouseListener.x * glplot.pixelRatio;
     var y = this.canvas.height - glplot.pixelRatio * mouseListener.y;
 
+    var result;
+
     if(camera.boxEnabled && fullLayout.dragmode === 'zoom') {
         this.selectBox.enabled = true;
 
-        this.selectBox.selectBox = [
+        var selectBox = this.selectBox.selectBox = [
             Math.min(camera.boxStart[0], camera.boxEnd[0]),
             Math.min(camera.boxStart[1], camera.boxEnd[1]),
             Math.max(camera.boxStart[0], camera.boxEnd[0]),
             Math.max(camera.boxStart[1], camera.boxEnd[1])
         ];
 
+        // 1D zoom
+        for(var i = 0; i < 2; i++) {
+            if(camera.boxStart[i] === camera.boxEnd[i]) {
+                selectBox[i] = glplot.dataBox[i];
+                selectBox[i + 2] = glplot.dataBox[i + 2];
+            }
+        }
+
         glplot.setDirty();
     }
-    else {
+    else if(!camera.panning && this.isMouseOver) {
         this.selectBox.enabled = false;
 
         var size = fullLayout._size,
             domainX = this.xaxis.domain,
             domainY = this.yaxis.domain;
 
-        var result = glplot.pick(
+        result = glplot.pick(
             (x / glplot.pixelRatio) + size.l + domainX[0] * size.w,
             (y / glplot.pixelRatio) - (size.t + (1 - domainY[1]) * size.h)
         );
@@ -576,8 +655,11 @@ proto.draw = function() {
                 // also it's important to copy, otherwise data is lost by the time event data is read
                 this.emitPointAction(nextSelection, 'plotly_hover');
 
-                var hoverinfo = selection.hoverinfo;
-                if(hoverinfo !== 'all') {
+                var trace = this.fullData[selection.trace.index] || {};
+                var ptNumber = selection.pointIndex;
+                var hoverinfo = Fx.castHoverinfo(trace, fullLayout, ptNumber);
+
+                if(hoverinfo && hoverinfo !== 'all') {
                     var parts = hoverinfo.split('+');
                     if(parts.indexOf('x') === -1) selection.traceCoord[0] = undefined;
                     if(parts.indexOf('y') === -1) selection.traceCoord[1] = undefined;
@@ -594,21 +676,35 @@ proto.draw = function() {
                     zLabel: selection.traceCoord[2],
                     text: selection.textLabel,
                     name: selection.name,
-                    color: selection.color
+                    color: Fx.castHoverOption(trace, ptNumber, 'bgcolor') || selection.color,
+                    borderColor: Fx.castHoverOption(trace, ptNumber, 'bordercolor'),
+                    fontFamily: Fx.castHoverOption(trace, ptNumber, 'font.family'),
+                    fontSize: Fx.castHoverOption(trace, ptNumber, 'font.size'),
+                    fontColor: Fx.castHoverOption(trace, ptNumber, 'font.color')
                 }, {
-                    container: this.svgContainer
+                    container: this.svgContainer,
+                    gd: this.graphDiv
                 });
             }
         }
-        else if(!result && this.lastPickResult) {
-            this.spikes.update({});
-            this.lastPickResult = null;
-            this.graphDiv.emit('plotly_unhover');
-            Fx.loneUnhover(this.svgContainer);
-        }
+    }
+
+    // Remove hover effects if we're not over a point OR
+    // if we're zooming or panning (in which case result is not set)
+    if(!result) {
+        this.unhover();
     }
 
     glplot.draw();
+};
+
+proto.unhover = function() {
+    if(this.lastPickResult) {
+        this.spikes.update({});
+        this.lastPickResult = null;
+        this.graphDiv.emit('plotly_unhover');
+        Fx.loneUnhover(this.svgContainer);
+    }
 };
 
 proto.hoverFormatter = function(axisName, val) {

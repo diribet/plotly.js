@@ -1,5 +1,5 @@
 /**
-* Copyright 2012-2016, Plotly, Inc.
+* Copyright 2012-2018, Plotly, Inc.
 * All rights reserved.
 *
 * This source code is licensed under the MIT license found in the
@@ -12,15 +12,22 @@
 var d3 = require('d3');
 var isNumeric = require('fast-isnumeric');
 
-var Plotly = require('../plotly');
 var Registry = require('../registry');
+var PlotSchema = require('../plot_api/plot_schema');
 var Lib = require('../lib');
 var Color = require('../components/color');
+var BADNUM = require('../constants/numerical').BADNUM;
 
-var plots = module.exports = {};
+var axisIDs = require('../plots/cartesian/axis_ids');
+var sortBasePlotModules = require('./sort_modules').sortBasePlotModules;
 
 var animationAttrs = require('./animation_attributes');
 var frameAttrs = require('./frame_attributes');
+
+var relinkPrivateKeys = Lib.relinkPrivateKeys;
+var _ = Lib._;
+
+var plots = module.exports = {};
 
 // Expose registry methods on Plots for backward-compatibility
 Lib.extendFlat(plots, Registry);
@@ -33,10 +40,7 @@ plots.layoutAttributes = require('./layout_attributes');
 // TODO make this a plot attribute?
 plots.fontWeight = 'normal';
 
-var subplotsRegistry = plots.subplotsRegistry;
 var transformsRegistry = plots.transformsRegistry;
-
-var ErrorBars = require('../components/errorbars');
 
 var commandModule = require('./command');
 plots.executeAPICommand = commandModule.executeAPICommand;
@@ -44,123 +48,11 @@ plots.computeAPICommandBindings = commandModule.computeAPICommandBindings;
 plots.manageCommandObserver = commandModule.manageCommandObserver;
 plots.hasSimpleAPICommandBindings = commandModule.hasSimpleAPICommandBindings;
 
-/**
- * Find subplot ids in data.
- * Meant to be used in the defaults step.
- *
- * Use plots.getSubplotIds to grab the current
- * subplot ids later on in Plotly.plot.
- *
- * @param {array} data plotly data array
- *      (intended to be _fullData, but does not have to be).
- * @param {string} type subplot type to look for.
- *
- * @return {array} list of subplot ids (strings).
- *      N.B. these ids possibly un-ordered.
- *
- * TODO incorporate cartesian/gl2d axis finders in this paradigm.
- */
-plots.findSubplotIds = function findSubplotIds(data, type) {
-    var subplotIds = [];
-
-    if(plots.subplotsRegistry[type] === undefined) return subplotIds;
-
-    var attr = plots.subplotsRegistry[type].attr;
-
-    for(var i = 0; i < data.length; i++) {
-        var trace = data[i];
-
-        if(plots.traceIs(trace, type) && subplotIds.indexOf(trace[attr]) === -1) {
-            subplotIds.push(trace[attr]);
-        }
-    }
-
-    return subplotIds;
-};
-
-/**
- * Get the ids of the current subplots.
- *
- * @param {object} layout plotly full layout object.
- * @param {string} type subplot type to look for.
- *
- * @return {array} list of ordered subplot ids (strings).
- *
- */
-plots.getSubplotIds = function getSubplotIds(layout, type) {
-    var _module = plots.subplotsRegistry[type];
-
-    if(_module === undefined) return [];
-
-    // layout must be 'fullLayout' here
-    if(type === 'cartesian' && (!layout._has || !layout._has('cartesian'))) return [];
-    if(type === 'gl2d' && (!layout._has || !layout._has('gl2d'))) return [];
-    if(type === 'cartesian' || type === 'gl2d') {
-        return Object.keys(layout._plots || {});
-    }
-
-    var idRegex = _module.idRegex,
-        layoutKeys = Object.keys(layout),
-        subplotIds = [];
-
-    for(var i = 0; i < layoutKeys.length; i++) {
-        var layoutKey = layoutKeys[i];
-
-        if(idRegex.test(layoutKey)) subplotIds.push(layoutKey);
-    }
-
-    // order the ids
-    var idLen = _module.idRoot.length;
-    subplotIds.sort(function(a, b) {
-        var aNum = +(a.substr(idLen) || 1),
-            bNum = +(b.substr(idLen) || 1);
-        return aNum - bNum;
-    });
-
-    return subplotIds;
-};
-
-/**
- * Get the data trace(s) associated with a given subplot.
- *
- * @param {array} data  plotly full data array.
- * @param {object} layout plotly full layout object.
- * @param {string} subplotId subplot ids to look for.
- *
- * @return {array} list of trace objects.
- *
- */
-plots.getSubplotData = function getSubplotData(data, type, subplotId) {
-    if(plots.subplotsRegistry[type] === undefined) return [];
-
-    var attr = plots.subplotsRegistry[type].attr,
-        subplotData = [],
-        trace;
-
-    for(var i = 0; i < data.length; i++) {
-        trace = data[i];
-
-        if(type === 'gl2d' && plots.traceIs(trace, 'gl2d')) {
-            var spmatch = Plotly.Axes.subplotMatch,
-                subplotX = 'x' + subplotId.match(spmatch)[1],
-                subplotY = 'y' + subplotId.match(spmatch)[2];
-
-            if(trace[attr[0]] === subplotX && trace[attr[1]] === subplotY) {
-                subplotData.push(trace);
-            }
-        }
-        else {
-            if(trace[attr] === subplotId) subplotData.push(trace);
-        }
-    }
-
-    return subplotData;
-};
-
 // in some cases the browser doesn't seem to know how big
 // the text is at first, so it needs to draw it,
 // then wait a little, then draw it again
 plots.redrawText = function(gd) {
+    gd = Lib.getGraphDiv(gd);
 
     // do not work if polar is present
     if((gd.data && gd.data[0] && gd.data[0].r)) return;
@@ -181,10 +73,17 @@ plots.redrawText = function(gd) {
 
 // resize plot about the container size
 plots.resize = function(gd) {
+    gd = Lib.getGraphDiv(gd);
+
     return new Promise(function(resolve, reject) {
 
-        if(!gd || d3.select(gd).style('display') === 'none') {
-            reject(new Error('Resize must be passed a plot div element.'));
+        function isHidden(gd) {
+            var display = window.getComputedStyle(gd).display;
+            return !display || display === 'none';
+        }
+
+        if(!gd || isHidden(gd)) {
+            reject(new Error('Resize must be passed a displayed plot div element.'));
         }
 
         if(gd._redrawTimer) clearTimeout(gd._redrawTimer);
@@ -205,7 +104,7 @@ plots.resize = function(gd) {
             // nor should it be included in the undo queue
             gd.autoplay = true;
 
-            Plotly.relayout(gd, { autosize: true }).then(function() {
+            Registry.call('relayout', gd, {autosize: true}).then(function() {
                 gd.changed = oldchanged;
                 resolve(gd);
             });
@@ -230,14 +129,13 @@ plots.previousPromises = function(gd) {
  * Add source links to your graph inside the 'showSources' config argument.
  */
 plots.addLinks = function(gd) {
+    // Do not do anything if showLink and showSources are not set to true in config
+    if(!gd._context.showLink && !gd._context.showSources) return;
+
     var fullLayout = gd._fullLayout;
 
-    var linkContainer = fullLayout._paper
-        .selectAll('text.js-plot-link-container').data([0]);
-
-    linkContainer.enter().append('text')
-        .classed('js-plot-link-container', true)
-        .style({
+    var linkContainer = Lib.ensureSingle(fullLayout._paper, 'text', 'js-plot-link-container', function(s) {
+        s.style({
             'font-family': '"Open Sans", Arial, sans-serif',
             'font-size': '12px',
             'fill': Color.defaultLine,
@@ -249,12 +147,11 @@ plots.addLinks = function(gd) {
             links.append('tspan').classed('js-link-spacer', true);
             links.append('tspan').classed('js-sourcelinks', true);
         });
+    });
 
     // The text node inside svg
-    var text = linkContainer.node(),
-        attrs = {
-            y: fullLayout._paper.attr('height') - 9
-        };
+    var text = linkContainer.node();
+    var attrs = {y: fullLayout._paper.attr('height') - 9};
 
     // If text's width is bigger than the layout
     // Check that text is a child node or document.body
@@ -347,6 +244,16 @@ plots.sendDataToCloud = function(gd) {
     return false;
 };
 
+var d3FormatKeys = [
+    'days', 'shortDays', 'months', 'shortMonths', 'periods',
+    'dateTime', 'date', 'time',
+    'decimal', 'thousands', 'grouping', 'currency'
+];
+
+var extraFormatKeys = [
+    'year', 'month', 'dayMonth', 'dayMonthYear'
+];
+
 // Fill in default values:
 //
 // gd.data, gd.layout:
@@ -368,29 +275,63 @@ plots.sendDataToCloud = function(gd) {
 //   is a list of all the transform modules invoked.
 //
 plots.supplyDefaults = function(gd) {
-    var oldFullLayout = gd._fullLayout || {},
-        newFullLayout = gd._fullLayout = {},
-        newLayout = gd.layout || {};
+    var oldFullLayout = gd._fullLayout || {};
 
-    var oldFullData = gd._fullData || [],
-        newFullData = gd._fullData = [],
-        newData = gd.data || [];
+    if(oldFullLayout._skipDefaults) {
+        delete oldFullLayout._skipDefaults;
+        return;
+    }
+
+    var newFullLayout = gd._fullLayout = {};
+    var newLayout = gd.layout || {};
+
+    var oldFullData = gd._fullData || [];
+    var newFullData = gd._fullData = [];
+    var newData = gd.data || [];
+
+    var oldCalcdata = gd.calcdata || [];
+
+    var context = gd._context || {};
 
     var i;
 
     // Create all the storage space for frames, but only if doesn't already exist
     if(!gd._transitionData) plots.createTransitionData(gd);
 
+    // So we only need to do this once (and since we have gd here)
+    // get the translated placeholder titles.
+    // These ones get used as default values so need to be known at supplyDefaults
+    // others keep their blank defaults but render the placeholder as desired later
+    // TODO: make these work the same way, only inserting the placeholder text at draw time?
+    // The challenge is that this has slightly different behavior right now in editable mode:
+    // using the placeholder as default makes this text permanently (but lightly) visible,
+    // but explicit '' for these titles gives you a placeholder that's hidden until you mouse
+    // over it - so you're not distracted by it if you really don't want a title, but if you do
+    // and you're new to plotly you may not be able to find it.
+    // When editable=false the two behave the same, no title is drawn.
+    newFullLayout._dfltTitle = {
+        plot: _(gd, 'Click to enter Plot title'),
+        x: _(gd, 'Click to enter X axis title'),
+        y: _(gd, 'Click to enter Y axis title'),
+        colorbar: _(gd, 'Click to enter Colorscale title'),
+        annotation: _(gd, 'new text')
+    };
+    newFullLayout._traceWord = _(gd, 'trace');
+
+    var formatObj = getFormatObj(gd, d3FormatKeys);
+
+    // stash the token from context so mapbox subplots can use it as default
+    newFullLayout._mapboxAccessToken = context.mapboxAccessToken;
+
     // first fill in what we can of layout without looking at data
     // because fullData needs a few things from layout
-
     if(oldFullLayout._initialAutoSizeIsDone) {
 
         // coerce the updated layout while preserving width and height
         var oldWidth = oldFullLayout.width,
             oldHeight = oldFullLayout.height;
 
-        plots.supplyLayoutGlobalDefaults(newLayout, newFullLayout);
+        plots.supplyLayoutGlobalDefaults(newLayout, newFullLayout, formatObj);
 
         if(!newLayout.width) newFullLayout.width = oldWidth;
         if(!newLayout.height) newFullLayout.height = oldHeight;
@@ -398,11 +339,11 @@ plots.supplyDefaults = function(gd) {
     else {
 
         // coerce the updated layout and autosize if needed
-        plots.supplyLayoutGlobalDefaults(newLayout, newFullLayout);
+        plots.supplyLayoutGlobalDefaults(newLayout, newFullLayout, formatObj);
 
         var missingWidthOrHeight = (!newLayout.width || !newLayout.height),
             autosize = newFullLayout.autosize,
-            autosizable = gd._context && gd._context.autosizable,
+            autosizable = context.autosizable,
             initialAutoSize = missingWidthOrHeight && (autosize || autosizable);
 
         if(initialAutoSize) plots.plotAutoSize(gd, newLayout, newFullLayout);
@@ -415,14 +356,48 @@ plots.supplyDefaults = function(gd) {
         }
     }
 
+    newFullLayout._d3locale = getFormatter(formatObj, newFullLayout.separators);
+    newFullLayout._extraFormat = getFormatObj(gd, extraFormatKeys);
+
     newFullLayout._initialAutoSizeIsDone = true;
 
     // keep track of how many traces are inputted
     newFullLayout._dataLength = newData.length;
 
+    // clear the lists of trace and baseplot modules, and subplots
+    newFullLayout._modules = [];
+    newFullLayout._basePlotModules = [];
+    var subplots = newFullLayout._subplots = emptySubplotLists();
+
+    // initialize axis and subplot hash objects for splom-generated grids
+    var splomAxes = newFullLayout._splomAxes = {x: {}, y: {}};
+    var splomSubplots = newFullLayout._splomSubplots = {};
+
+    // for traces to request a default rangeslider on their x axes
+    // eg set `_requestRangeslider.x2 = true` for xaxis2
+    newFullLayout._requestRangeslider = {};
+
     // then do the data
     newFullLayout._globalTransforms = (gd._context || {}).globalTransforms;
     plots.supplyDataDefaults(newData, newFullData, newLayout, newFullLayout);
+
+    // redo grid size defaults with info about splom x/y axes,
+    // and fill in generated cartesian axes and subplots
+    var splomXa = Object.keys(splomAxes.x);
+    var splomYa = Object.keys(splomAxes.y);
+    if(splomXa.length > 1 && splomYa.length > 1) {
+        Registry.getComponentMethod('grid', 'sizeDefaults')(newLayout, newFullLayout);
+
+        for(i = 0; i < splomXa.length; i++) {
+            Lib.pushUnique(subplots.xaxis, splomXa[i]);
+        }
+        for(i = 0; i < splomYa.length; i++) {
+            Lib.pushUnique(subplots.yaxis, splomYa[i]);
+        }
+        for(var k in splomSubplots) {
+            Lib.pushUnique(subplots.cartesian, k);
+        }
+    }
 
     // attach helper method to check whether a plot type is present on graph
     newFullLayout._has = plots._hasPlotType.bind(newFullLayout);
@@ -434,7 +409,7 @@ plots.supplyDefaults = function(gd) {
         if(_module.cleanData) _module.cleanData(newFullData);
     }
 
-    if(oldFullData.length === newData.length) {
+    if(oldFullData.length === newFullData.length) {
         for(i = 0; i < newFullData.length; i++) {
             relinkPrivateKeys(newFullData[i], oldFullData[i]);
         }
@@ -442,6 +417,17 @@ plots.supplyDefaults = function(gd) {
 
     // finally, fill in the pieces of layout that may need to look at data
     plots.supplyLayoutModuleDefaults(newLayout, newFullLayout, newFullData, gd._transitionData);
+
+    // turn on flag to optimize large splom-only graphs
+    // mostly by omitting SVG layers during Cartesian.drawFramework
+    newFullLayout._hasOnlyLargeSploms = (
+        newFullLayout._basePlotModules.length === 1 &&
+        newFullLayout._basePlotModules[0].name === 'splom' &&
+        splomXa.length > 15 &&
+        splomYa.length > 15 &&
+        newFullLayout.shapes.length === 0 &&
+        newFullLayout.images.length === 0
+    );
 
     // TODO remove in v2.0.0
     // add has-plot-type refs to fullLayout for backward compatibility
@@ -453,7 +439,7 @@ plots.supplyDefaults = function(gd) {
     newFullLayout._hasPie = newFullLayout._has('pie');
 
     // clean subplots and other artifacts from previous plot calls
-    plots.cleanPlot(newFullData, newFullLayout, oldFullData, oldFullLayout);
+    plots.cleanPlot(newFullData, newFullLayout, oldFullData, oldFullLayout, oldCalcdata);
 
     // relink / initialize subplot axis objects
     plots.linkSubplots(newFullData, newFullLayout, oldFullData, oldFullLayout);
@@ -464,23 +450,166 @@ plots.supplyDefaults = function(gd) {
     // TODO may return a promise
     plots.doAutoMargin(gd);
 
-    // can't quite figure out how to get rid of this... each axis needs
-    // a reference back to the DOM object for just a few purposes
-    var axList = Plotly.Axes.list(gd);
+    // set scale after auto margin routine
+    var axList = axisIDs.list(gd);
     for(i = 0; i < axList.length; i++) {
         var ax = axList[i];
-        ax._gd = gd;
         ax.setScale();
     }
 
     // update object references in calcdata
-    if((gd.calcdata || []).length === newFullData.length) {
+    if(oldCalcdata.length === newFullData.length) {
         for(i = 0; i < newFullData.length; i++) {
-            var trace = newFullData[i];
-            (gd.calcdata[i][0] || {}).trace = trace;
+            var newTrace = newFullData[i];
+            var cd0 = oldCalcdata[i][0];
+            if(cd0 && cd0.trace) {
+                if(cd0.trace._hasCalcTransform) {
+                    remapTransformedArrays(cd0, newTrace);
+                } else {
+                    cd0.trace = newTrace;
+                }
+            }
         }
     }
+
+    // sort base plot modules for consistent ordering
+    newFullLayout._basePlotModules.sort(sortBasePlotModules);
 };
+
+/**
+ * Make a container for collecting subplots we need to display.
+ *
+ * Finds all subplot types we need to enumerate once and caches it,
+ * but makes a new output object each time.
+ * Single-trace subplots (which have no `id`) such as pie, table, etc
+ * do not need to be collected because we just draw all visible traces.
+ */
+var collectableSubplotTypes;
+function emptySubplotLists() {
+    var out = {};
+    var i, j;
+
+    if(!collectableSubplotTypes) {
+        collectableSubplotTypes = [];
+
+        var subplotsRegistry = Registry.subplotsRegistry;
+
+        for(var subplotType in subplotsRegistry) {
+            var subplotModule = subplotsRegistry[subplotType];
+            var subplotAttr = subplotModule.attr;
+
+            if(subplotAttr) {
+                collectableSubplotTypes.push(subplotType);
+
+                // special case, currently just for cartesian:
+                // we need to enumerate axes, not just subplots
+                if(Array.isArray(subplotAttr)) {
+                    for(j = 0; j < subplotAttr.length; j++) {
+                        Lib.pushUnique(collectableSubplotTypes, subplotAttr[j]);
+                    }
+                }
+            }
+        }
+    }
+
+    for(i = 0; i < collectableSubplotTypes.length; i++) {
+        out[collectableSubplotTypes[i]] = [];
+    }
+    return out;
+}
+
+function remapTransformedArrays(cd0, newTrace) {
+    var oldTrace = cd0.trace;
+    var arrayAttrs = oldTrace._arrayAttrs;
+    var transformedArrayHash = {};
+    var i, astr;
+
+    for(i = 0; i < arrayAttrs.length; i++) {
+        astr = arrayAttrs[i];
+        transformedArrayHash[astr] = Lib.nestedProperty(oldTrace, astr).get().slice();
+    }
+
+    cd0.trace = newTrace;
+
+    for(i = 0; i < arrayAttrs.length; i++) {
+        astr = arrayAttrs[i];
+        Lib.nestedProperty(cd0.trace, astr).set(transformedArrayHash[astr]);
+    }
+}
+
+/**
+ * getFormatObj: use _context to get the format object from locale.
+ * Used to get d3.locale argument object and extraFormat argument object
+ *
+ * Regarding d3.locale argument :
+ * decimal and thousands can be overridden later by layout.separators
+ * grouping and currency are not presently used by our automatic number
+ * formatting system but can be used by custom formats.
+ *
+ * @returns {object} d3.locale format object
+ */
+function getFormatObj(gd, formatKeys) {
+    var locale = gd._context.locale;
+    if(!locale) locale === 'en-US';
+
+    var formatDone = false;
+    var formatObj = {};
+
+    function includeFormat(newFormat) {
+        var formatFinished = true;
+        for(var i = 0; i < formatKeys.length; i++) {
+            var formatKey = formatKeys[i];
+            if(!formatObj[formatKey]) {
+                if(newFormat[formatKey]) {
+                    formatObj[formatKey] = newFormat[formatKey];
+                }
+                else formatFinished = false;
+            }
+        }
+        if(formatFinished) formatDone = true;
+    }
+
+    // same as localize, look for format parts in each format spec in the chain
+    for(var i = 0; i < 2; i++) {
+        var locales = gd._context.locales;
+        for(var j = 0; j < 2; j++) {
+            var formatj = (locales[locale] || {}).format;
+            if(formatj) {
+                includeFormat(formatj);
+                if(formatDone) break;
+            }
+            locales = Registry.localeRegistry;
+        }
+
+        var baseLocale = locale.split('-')[0];
+        if(formatDone || baseLocale === locale) break;
+        locale = baseLocale;
+    }
+
+    // lastly pick out defaults from english (non-US, as DMY is so much more common)
+    if(!formatDone) includeFormat(Registry.localeRegistry.en.format);
+
+    return formatObj;
+}
+
+/**
+ * getFormatter: combine the final separators with the locale formatting object
+ * we pulled earlier to generate number and time formatters
+ * TODO: remove separators in v2, only use locale, so we don't need this step?
+ *
+ * @param {object} formatObj: d3.locale format object
+ * @param {string} separators: length-2 string to override decimal and thousands
+ *   separators in number formatting
+ *
+ * @returns {object} {numberFormat, timeFormat} d3 formatter factory functions
+ *   for numbers and time
+ */
+function getFormatter(formatObj, separators) {
+    formatObj.decimal = separators.charAt(0);
+    formatObj.thousands = separators.charAt(1);
+
+    return d3.locale(formatObj);
+}
 
 // Create storage for all of the data related to frames and transitions:
 plots.createTransitionData = function(gd) {
@@ -508,19 +637,30 @@ plots.createTransitionData = function(gd) {
 
 // helper function to be bound to fullLayout to check
 // whether a certain plot type is present on plot
+// or trace has a category
 plots._hasPlotType = function(category) {
+    var i;
+
+    // check base plot modules
     var basePlotModules = this._basePlotModules || [];
+    for(i = 0; i < basePlotModules.length; i++) {
+        if(basePlotModules[i].name === category) return true;
+    }
 
-    for(var i = 0; i < basePlotModules.length; i++) {
-        var _module = basePlotModules[i];
-
-        if(_module.name === category) return true;
+    // check trace modules
+    var modules = this._modules || [];
+    for(i = 0; i < modules.length; i++) {
+        var name = modules[i].name;
+        if(name === category) return true;
+        // N.B. this is modules[i] along with 'categories' as a hash object
+        var _module = Registry.modules[name];
+        if(_module && _module.categories[category]) return true;
     }
 
     return false;
 };
 
-plots.cleanPlot = function(newFullData, newFullLayout, oldFullData, oldFullLayout) {
+plots.cleanPlot = function(newFullData, newFullLayout, oldFullData, oldFullLayout, oldCalcdata) {
     var i, j;
 
     var basePlotModules = oldFullLayout._basePlotModules || [];
@@ -528,12 +668,21 @@ plots.cleanPlot = function(newFullData, newFullLayout, oldFullData, oldFullLayou
         var _module = basePlotModules[i];
 
         if(_module.clean) {
-            _module.clean(newFullData, newFullLayout, oldFullData, oldFullLayout);
+            _module.clean(newFullData, newFullLayout, oldFullData, oldFullLayout, oldCalcdata);
         }
     }
 
     var hasPaper = !!oldFullLayout._paper;
     var hasInfoLayer = !!oldFullLayout._infolayer;
+    var hadGl = oldFullLayout._has && oldFullLayout._has('gl');
+    var hasGl = newFullLayout._has && newFullLayout._has('gl');
+
+    if(hadGl && !hasGl) {
+        if(oldFullLayout._glcontainer !== undefined) {
+            oldFullLayout._glcontainer.selectAll('.gl-canvas').remove();
+            oldFullLayout._glcanvas = null;
+        }
+    }
 
     oldLoop:
     for(i = 0; i < oldFullData.length; i++) {
@@ -546,105 +695,218 @@ plots.cleanPlot = function(newFullData, newFullLayout, oldFullData, oldFullLayou
             if(oldUid === newTrace.uid) continue oldLoop;
         }
 
-        // clean old heatmap, contour, and scatter traces
-        //
-        // Note: This is also how scatter traces (cartesian and scatterternary) get
-        // removed since otherwise the scatter module is not called (and so the join
-        // doesn't register the removal) if scatter traces disappear entirely.
+        var query = (
+            '.hm' + oldUid +
+            ',.contour' + oldUid +
+            ',.carpet' + oldUid +
+            ',#clip' + oldUid +
+            ',.trace' + oldUid
+        );
+
+        // clean old heatmap, contour traces and clip paths
+        // that rely on uid identifiers
         if(hasPaper) {
-            oldFullLayout._paper.selectAll(
-                '.hm' + oldUid +
-                ',.contour' + oldUid +
-                ',#clip' + oldUid +
-                ',.trace' + oldUid
-            ).remove();
+            oldFullLayout._paper.selectAll(query).remove();
         }
 
-        // clean old colorbars
+        // clean old colorbars and range slider plot
         if(hasInfoLayer) {
             oldFullLayout._infolayer.selectAll('.cb' + oldUid).remove();
+
+            oldFullLayout._infolayer.selectAll('g.rangeslider-container')
+                .selectAll(query).remove();
         }
+    }
+
+    if(oldFullLayout._zoomlayer) {
+        oldFullLayout._zoomlayer.selectAll('.select-outline').remove();
     }
 };
 
-/**
- * Relink private _keys and keys with a function value from one container
- * to the new container.
- * Relink means copying if object is pass-by-value and adding a reference
- * if object is pass-by-ref.
- * This prevents deepCopying massive structures like a webgl context.
- */
-function relinkPrivateKeys(toContainer, fromContainer) {
-    var isPlainObject = Lib.isPlainObject,
-        isArray = Array.isArray;
-
-    var keys = Object.keys(fromContainer || {});
-
-    for(var i = 0; i < keys.length; i++) {
-        var k = keys[i],
-            fromVal = fromContainer[k],
-            toVal = toContainer[k];
-
-        if(k.charAt(0) === '_' || typeof fromVal === 'function') {
-
-            // if it already exists at this point, it's something
-            // that we recreate each time around, so ignore it
-            if(k in toContainer) continue;
-
-            toContainer[k] = fromVal;
-        }
-        else if(isArray(fromVal) && isArray(toVal) && isPlainObject(fromVal[0])) {
-
-            // recurse into arrays containers
-            for(var j = 0; j < fromVal.length; j++) {
-                if(isPlainObject(fromVal[j]) && isPlainObject(toVal[j])) {
-                    relinkPrivateKeys(toVal[j], fromVal[j]);
-                }
-            }
-        }
-        else if(isPlainObject(fromVal) && isPlainObject(toVal)) {
-
-            // recurse into objects, but only if they still exist
-            relinkPrivateKeys(toVal, fromVal);
-
-            if(!Object.keys(toVal).length) delete toContainer[k];
-        }
-    }
-}
-
 plots.linkSubplots = function(newFullData, newFullLayout, oldFullData, oldFullLayout) {
-    var oldSubplots = oldFullLayout._plots || {},
-        newSubplots = newFullLayout._plots = {};
+    var oldSubplots = oldFullLayout._plots || {};
+    var newSubplots = newFullLayout._plots = {};
+    var newSubplotList = newFullLayout._subplots;
 
     var mockGd = {
         _fullData: newFullData,
         _fullLayout: newFullLayout
     };
 
-    var ids = Plotly.Axes.getSubplots(mockGd);
+    var ids = newSubplotList.cartesian.concat(newSubplotList.gl2d || []);
 
-    for(var i = 0; i < ids.length; i++) {
-        var id = ids[i],
-            oldSubplot = oldSubplots[id],
-            plotinfo;
+    var i, j, id, ax;
+
+    for(i = 0; i < ids.length; i++) {
+        id = ids[i];
+        var oldSubplot = oldSubplots[id];
+        var xaxis = axisIDs.getFromId(mockGd, id, 'x');
+        var yaxis = axisIDs.getFromId(mockGd, id, 'y');
+        var plotinfo;
 
         if(oldSubplot) {
             plotinfo = newSubplots[id] = oldSubplot;
-        }
-        else {
+
+            if(plotinfo.xaxis.layer !== xaxis.layer) {
+                plotinfo.xlines.attr('d', null);
+                plotinfo.xaxislayer.selectAll('*').remove();
+            }
+
+            if(plotinfo.yaxis.layer !== yaxis.layer) {
+                plotinfo.ylines.attr('d', null);
+                plotinfo.yaxislayer.selectAll('*').remove();
+            }
+        } else {
             plotinfo = newSubplots[id] = {};
             plotinfo.id = id;
         }
 
-        plotinfo.xaxis = Plotly.Axes.getFromId(mockGd, id, 'x');
-        plotinfo.yaxis = Plotly.Axes.getFromId(mockGd, id, 'y');
+        plotinfo.xaxis = xaxis;
+        plotinfo.yaxis = yaxis;
+
+        // By default, we clip at the subplot level,
+        // but if one trace on a given subplot has *cliponaxis* set to false,
+        // we need to clip at the trace module layer level;
+        // find this out here, once of for all.
+        plotinfo._hasClipOnAxisFalse = false;
+
+        for(j = 0; j < newFullData.length; j++) {
+            var trace = newFullData[j];
+
+            if(
+                trace.xaxis === plotinfo.xaxis._id &&
+                trace.yaxis === plotinfo.yaxis._id &&
+                trace.cliponaxis === false
+            ) {
+                plotinfo._hasClipOnAxisFalse = true;
+                break;
+            }
+        }
+    }
+
+    // while we're at it, link overlaying axes to their main axes and
+    // anchored axes to the axes they're anchored to
+    var axList = axisIDs.list(mockGd, null, true);
+    for(i = 0; i < axList.length; i++) {
+        ax = axList[i];
+        var mainAx = null;
+
+        if(ax.overlaying) {
+            mainAx = axisIDs.getFromId(mockGd, ax.overlaying);
+
+            // you cannot overlay an axis that's already overlaying another
+            if(mainAx && mainAx.overlaying) {
+                ax.overlaying = false;
+                mainAx = null;
+            }
+        }
+        ax._mainAxis = mainAx || ax;
+
+        /*
+         * For now force overlays to overlay completely... so they
+         * can drag together correctly and share backgrounds.
+         * Later perhaps we make separate axis domain and
+         * tick/line domain or something, so they can still share
+         * the (possibly larger) dragger and background but don't
+         * have to both be drawn over that whole domain
+         */
+        if(mainAx) ax.domain = mainAx.domain.slice();
+
+        ax._anchorAxis = ax.anchor === 'free' ?
+            null :
+            axisIDs.getFromId(mockGd, ax.anchor);
+    }
+
+    for(i = 0; i < axList.length; i++) {
+        // Figure out which subplot to draw ticks, labels, & axis lines on
+        // do this as a separate loop so we already have all the
+        // _mainAxis and _anchorAxis links set
+        ax = axList[i];
+        var isX = ax._id.charAt(0) === 'x';
+        var anchorAx = ax._mainAxis._anchorAxis;
+        var mainSubplotID = '';
+        var nextBestMainSubplotID = '';
+        var anchorID = '';
+        // First try the main ID with the anchor
+        if(anchorAx) {
+            anchorID = anchorAx._mainAxis._id;
+            mainSubplotID = isX ? (ax._id + anchorID) : (anchorID + ax._id);
+        }
+        // Then look for a subplot with the counteraxis overlaying the anchor
+        // If that fails just use the first subplot including this axis
+        if(!mainSubplotID || ids.indexOf(mainSubplotID) === -1) {
+            mainSubplotID = '';
+            for(j = 0; j < ids.length; j++) {
+                id = ids[j];
+                var yIndex = id.indexOf('y');
+                var idPart = isX ? id.substr(0, yIndex) : id.substr(yIndex);
+                var counterPart = isX ? id.substr(yIndex) : id.substr(0, yIndex);
+                if(idPart === ax._id) {
+                    if(!nextBestMainSubplotID) nextBestMainSubplotID = id;
+                    var counterAx = axisIDs.getFromId(mockGd, counterPart);
+                    if(anchorID && counterAx.overlaying === anchorID) {
+                        mainSubplotID = id;
+                        break;
+                    }
+                }
+            }
+        }
+        ax._mainSubplot = mainSubplotID || nextBestMainSubplotID;
     }
 };
 
+// This function clears any trace attributes with valType: color and
+// no set dflt filed in the plot schema. This is needed because groupby (which
+// is the only transform for which this currently applies) supplies parent
+// trace defaults, then expanded trace defaults. The result is that `null`
+// colors are default-supplied and inherited as a color instead of a null.
+// The result is that expanded trace default colors have no effect, with
+// the final result that groups are indistinguishable. This function clears
+// those colors so that individual groupby groups get unique colors.
+plots.clearExpandedTraceDefaultColors = function(trace) {
+    var colorAttrs, path, i;
+
+    // This uses weird closure state in order to satisfy the linter rule
+    // that we can't create functions in a loop.
+    function locateColorAttrs(attr, attrName, attrs, level) {
+        path[level] = attrName;
+        path.length = level + 1;
+        if(attr.valType === 'color' && attr.dflt === undefined) {
+            colorAttrs.push(path.join('.'));
+        }
+    }
+
+    path = [];
+
+    // Get the cached colorAttrs:
+    colorAttrs = trace._module._colorAttrs;
+
+    // Or else compute and cache the colorAttrs on the module:
+    if(!colorAttrs) {
+        trace._module._colorAttrs = colorAttrs = [];
+        PlotSchema.crawl(
+            trace._module.attributes,
+            locateColorAttrs
+        );
+    }
+
+    for(i = 0; i < colorAttrs.length; i++) {
+        var origprop = Lib.nestedProperty(trace, '_input.' + colorAttrs[i]);
+
+        if(!origprop.get()) {
+            Lib.nestedProperty(trace, colorAttrs[i]).set(null);
+        }
+    }
+};
+
+
 plots.supplyDataDefaults = function(dataIn, dataOut, layout, fullLayout) {
-    var modules = fullLayout._modules = [],
-        basePlotModules = fullLayout._basePlotModules = [],
-        cnt = 0;
+    var modules = fullLayout._modules;
+    var basePlotModules = fullLayout._basePlotModules;
+    var cnt = 0;
+    var colorCnt = 0;
+
+    var i, fullTrace, trace;
 
     fullLayout._transformModules = [];
 
@@ -654,15 +916,27 @@ plots.supplyDataDefaults = function(dataIn, dataOut, layout, fullLayout) {
         var _module = fullTrace._module;
         if(!_module) return;
 
-        Lib.pushUnique(modules, _module);
+        if(fullTrace.visible === true) Lib.pushUnique(modules, _module);
         Lib.pushUnique(basePlotModules, fullTrace._module.basePlotModule);
 
         cnt++;
+
+        // TODO: do we really want color not to increment for explicitly invisible traces?
+        // This logic is weird, but matches previous behavior: traces that you explicitly
+        // set to visible:false do not increment the color, but traces WE determine to be
+        // empty or invalid (and thus set to visible:false) DO increment color.
+        // I kind of think we should just let all traces increment color, visible or not.
+        // see mock: axes-autotype-empty vs. a test of restyling visible: false that
+        // I can't find right now...
+        if(fullTrace._input.visible !== false) colorCnt++;
     }
 
-    for(var i = 0; i < dataIn.length; i++) {
-        var trace = dataIn[i],
-            fullTrace = plots.supplyTraceDefaults(trace, cnt, fullLayout, i);
+    var carpetIndex = {};
+    var carpetDependents = [];
+
+    for(i = 0; i < dataIn.length; i++) {
+        trace = dataIn[i];
+        fullTrace = plots.supplyTraceDefaults(trace, colorCnt, fullLayout, i);
 
         fullTrace.index = i;
         fullTrace._input = trace;
@@ -672,8 +946,12 @@ plots.supplyDataDefaults = function(dataIn, dataOut, layout, fullLayout) {
             var expandedTraces = applyTransforms(fullTrace, dataOut, layout, fullLayout);
 
             for(var j = 0; j < expandedTraces.length; j++) {
-                var expandedTrace = expandedTraces[j],
-                    fullExpandedTrace = plots.supplyTraceDefaults(expandedTrace, cnt, fullLayout, i);
+                var expandedTrace = expandedTraces[j];
+                var fullExpandedTrace = plots.supplyTraceDefaults(expandedTrace, cnt, fullLayout, i);
+
+                // relink private (i.e. underscore) keys expanded trace to full expanded trace so
+                // that transform supply-default methods can set _ keys for future use.
+                relinkPrivateKeys(fullExpandedTrace, expandedTrace);
 
                 // mutate uid here using parent uid and expanded index
                 // to promote consistency between update calls
@@ -692,13 +970,37 @@ plots.supplyDataDefaults = function(dataIn, dataOut, layout, fullLayout) {
             }
         }
         else {
-
             // add identify refs for consistency with transformed traces
             fullTrace._fullInput = fullTrace;
             fullTrace._expandedInput = fullTrace;
 
             pushModule(fullTrace);
         }
+
+        if(Registry.traceIs(fullTrace, 'carpetAxis')) {
+            carpetIndex[fullTrace.carpet] = fullTrace;
+        }
+
+        if(Registry.traceIs(fullTrace, 'carpetDependent')) {
+            carpetDependents.push(i);
+        }
+    }
+
+    for(i = 0; i < carpetDependents.length; i++) {
+        fullTrace = dataOut[carpetDependents[i]];
+
+        if(!fullTrace.visible) continue;
+
+        var carpetAxis = carpetIndex[fullTrace.carpet];
+        fullTrace._carpet = carpetAxis;
+
+        if(!carpetAxis || !carpetAxis.visible) {
+            fullTrace.visible = false;
+            continue;
+        }
+
+        fullTrace.xaxis = carpetAxis.xaxis;
+        fullTrace.yaxis = carpetAxis.yaxis;
     }
 };
 
@@ -779,73 +1081,101 @@ plots.supplyFrameDefaults = function(frameIn) {
     return frameOut;
 };
 
-plots.supplyTraceDefaults = function(traceIn, traceOutIndex, layout, traceInIndex) {
+plots.supplyTraceDefaults = function(traceIn, colorIndex, layout, traceInIndex) {
+    var colorway = layout.colorway || Color.defaults;
     var traceOut = {},
-        defaultColor = Color.defaults[traceOutIndex % Color.defaults.length];
+        defaultColor = colorway[colorIndex % colorway.length];
+
+    var i;
 
     function coerce(attr, dflt) {
         return Lib.coerce(traceIn, traceOut, plots.attributes, attr, dflt);
-    }
-
-    function coerceSubplotAttr(subplotType, subplotAttr) {
-        if(!plots.traceIs(traceOut, subplotType)) return;
-
-        return Lib.coerce(traceIn, traceOut,
-            plots.subplotsRegistry[subplotType].attributes, subplotAttr);
     }
 
     var visible = coerce('visible');
 
     coerce('type');
     coerce('uid');
-    coerce('name', 'trace ' + traceInIndex);
+    coerce('name', layout._traceWord + ' ' + traceInIndex);
 
-    // coerce subplot attributes of all registered subplot types
-    var subplotTypes = Object.keys(subplotsRegistry);
-    for(var i = 0; i < subplotTypes.length; i++) {
-        var subplotType = subplotTypes[i];
+    // we want even invisible traces to make their would-be subplots visible
+    // so coerce the subplot id(s) now no matter what
+    var _module = plots.getModule(traceOut);
+    traceOut._module = _module;
+    if(_module) {
+        var basePlotModule = _module.basePlotModule;
+        var subplotAttr = basePlotModule.attr;
+        var subplotAttrs = basePlotModule.attributes;
+        if(subplotAttr && subplotAttrs) {
+            var subplots = layout._subplots;
+            var subplotId = '';
 
-        // done below (only when visible is true)
-        // TODO unified this pattern
-        if(['cartesian', 'gl2d'].indexOf(subplotType) !== -1) continue;
+            // TODO - currently if we draw an empty gl2d subplot, it draws
+            // nothing then gets stuck and you can't get it back without newPlot
+            // sort this out in the regl refactor? but for now just drop empty gl2d subplots
+            if(basePlotModule.name !== 'gl2d' || visible) {
+                if(Array.isArray(subplotAttr)) {
+                    for(i = 0; i < subplotAttr.length; i++) {
+                        var attri = subplotAttr[i];
+                        var vali = Lib.coerce(traceIn, traceOut, subplotAttrs, attri);
 
-        var attr = subplotsRegistry[subplotType].attr;
+                        if(subplots[attri]) Lib.pushUnique(subplots[attri], vali);
+                        subplotId += vali;
+                    }
+                }
+                else {
+                    subplotId = Lib.coerce(traceIn, traceOut, subplotAttrs, subplotAttr);
+                }
 
-        if(attr) coerceSubplotAttr(subplotType, attr);
+                if(subplots[basePlotModule.name]) {
+                    Lib.pushUnique(subplots[basePlotModule.name], subplotId);
+                }
+            }
+        }
     }
 
     if(visible) {
-        var _module = plots.getModule(traceOut);
-        traceOut._module = _module;
+        coerce('customdata');
+        coerce('ids');
 
-        // gets overwritten in pie, geo and ternary modules
-        coerce('hoverinfo', (layout._dataLength === 1) ? 'x+y+z+text' : undefined);
-
-        // TODO add per-base-plot-module trace defaults step
-
-        if(_module) _module.supplyDefaults(traceIn, traceOut, defaultColor, layout);
-
-        if(!plots.traceIs(traceOut, 'noOpacity')) coerce('opacity');
-
-        coerceSubplotAttr('cartesian', 'xaxis');
-        coerceSubplotAttr('cartesian', 'yaxis');
-
-        coerceSubplotAttr('gl2d', 'xaxis');
-        coerceSubplotAttr('gl2d', 'yaxis');
-
-        if(plots.traceIs(traceOut, 'showLegend')) {
+        if(Registry.traceIs(traceOut, 'showLegend')) {
             coerce('showlegend');
             coerce('legendgroup');
         }
 
-        supplyTransformDefaults(traceIn, traceOut, layout);
+        Registry.getComponentMethod(
+            'fx',
+            'supplyDefaults'
+        )(traceIn, traceOut, defaultColor, layout);
+
+        // TODO add per-base-plot-module trace defaults step
+
+        if(_module) {
+            _module.supplyDefaults(traceIn, traceOut, defaultColor, layout);
+            Lib.coerceHoverinfo(traceIn, traceOut, layout);
+        }
+
+        if(!Registry.traceIs(traceOut, 'noOpacity')) coerce('opacity');
+
+        if(Registry.traceIs(traceOut, 'notLegendIsolatable')) {
+            // This clears out the legendonly state for traces like carpet that
+            // cannot be isolated in the legend
+            traceOut.visible = !!traceOut.visible;
+        }
+
+        if(_module && _module.selectPoints) {
+            coerce('selectedpoints');
+        }
+
+        plots.supplyTransformDefaults(traceIn, traceOut, layout);
     }
 
     return traceOut;
 };
 
-function supplyTransformDefaults(traceIn, traceOut, layout) {
+plots.supplyTransformDefaults = function(traceIn, traceOut, layout) {
     var globalTransforms = layout._globalTransforms || [];
+    var transformModules = layout._transformModules || [];
 
     if(!Array.isArray(traceIn.transforms) && globalTransforms.length === 0) return;
 
@@ -859,14 +1189,26 @@ function supplyTransformDefaults(traceIn, traceOut, layout) {
             _module = transformsRegistry[type],
             transformOut;
 
+        /*
+         * Supply defaults may run twice. First pass runs all supply defaults steps
+         * and adds the _module to any output transforms.
+         * If transforms exist another pass is run so that any generated traces also
+         * go through supply defaults. This has the effect of rerunning
+         * supplyTransformDefaults. If the transform does not have a `transform`
+         * function it could not have generated any new traces and the second stage
+         * is unnecessary. We detect this case with the following variables.
+         */
+        var isFirstStage = !(transformIn._module && transformIn._module === _module),
+            doLaterStages = _module && typeof _module.transform === 'function';
+
         if(!_module) Lib.warn('Unrecognized transform type ' + type + '.');
 
-        if(_module && _module.supplyDefaults) {
+        if(_module && _module.supplyDefaults && (isFirstStage || doLaterStages)) {
             transformOut = _module.supplyDefaults(transformIn, traceOut, layout, traceIn);
             transformOut.type = type;
             transformOut._module = _module;
 
-            Lib.pushUnique(layout._transformModules, _module);
+            Lib.pushUnique(transformModules, _module);
         }
         else {
             transformOut = Lib.extendFlat({}, transformIn);
@@ -874,7 +1216,7 @@ function supplyTransformDefaults(traceIn, traceOut, layout) {
 
         containerOut.push(transformOut);
     }
-}
+};
 
 function applyTransforms(fullTrace, fullData, layout, fullLayout) {
     var container = fullTrace.transforms,
@@ -899,14 +1241,14 @@ function applyTransforms(fullTrace, fullData, layout, fullLayout) {
     return dataOut;
 }
 
-plots.supplyLayoutGlobalDefaults = function(layoutIn, layoutOut) {
+plots.supplyLayoutGlobalDefaults = function(layoutIn, layoutOut, formatObj) {
     function coerce(attr, dflt) {
         return Lib.coerce(layoutIn, layoutOut, plots.layoutAttributes, attr, dflt);
     }
 
     var globalFont = Lib.coerceFont(coerce, 'font');
 
-    coerce('title');
+    coerce('title', layoutOut._dfltTitle.plot);
 
     Lib.coerceFont(coerce, 'titlefont', {
         family: globalFont.family,
@@ -936,14 +1278,26 @@ plots.supplyLayoutGlobalDefaults = function(layoutIn, layoutOut) {
 
     if(layoutIn.width && layoutIn.height) plots.sanitizeMargins(layoutOut);
 
+    Registry.getComponentMethod('grid', 'sizeDefaults')(layoutIn, layoutOut);
+
     coerce('paper_bgcolor');
 
-    coerce('separators');
+    coerce('separators', formatObj.decimal + formatObj.thousands);
     coerce('hidesources');
-    coerce('smith');
 
-    var handleCalendarDefaults = Registry.getComponentMethod('calendars', 'handleDefaults');
-    handleCalendarDefaults(layoutIn, layoutOut, 'calendar');
+    coerce('colorway');
+
+    coerce('datarevision');
+
+    Registry.getComponentMethod(
+        'calendars',
+        'handleDefaults'
+    )(layoutIn, layoutOut, 'calendar');
+
+    Registry.getComponentMethod(
+        'fx',
+        'supplyLayoutGlobalDefaults'
+    )(layoutIn, layoutOut, coerce);
 };
 
 plots.plotAutoSize = function plotAutoSize(gd, layout, fullLayout) {
@@ -1040,21 +1394,43 @@ function calculateReservedMargins(margins) {
 }
 
 plots.supplyLayoutModuleDefaults = function(layoutIn, layoutOut, fullData, transitionData) {
-    var i, _module;
+    var componentsRegistry = Registry.componentsRegistry;
+    var basePlotModules = layoutOut._basePlotModules;
+    var component, i, _module;
 
-    // can't be be part of basePlotModules loop
-    // in order to handle the orphan axes case
-    Plotly.Axes.supplyLayoutDefaults(layoutIn, layoutOut, fullData);
+    var Cartesian = Registry.subplotsRegistry.cartesian;
+
+    // check if any components need to add more base plot modules
+    // that weren't captured by traces
+    for(component in componentsRegistry) {
+        _module = componentsRegistry[component];
+
+        if(_module.includeBasePlot) {
+            _module.includeBasePlot(layoutIn, layoutOut);
+        }
+    }
+
+    // make sure we *at least* have some cartesian axes
+    if(!basePlotModules.length) {
+        basePlotModules.push(Cartesian);
+    }
+
+    // ensure all cartesian axes have at least one subplot
+    if(layoutOut._has('cartesian')) {
+        Registry.getComponentMethod('grid', 'contentDefaults')(layoutIn, layoutOut);
+        Cartesian.finalizeSubplots(layoutIn, layoutOut);
+    }
+
+    // sort subplot lists
+    for(var subplotType in layoutOut._subplots) {
+        layoutOut._subplots[subplotType].sort(Lib.subplotSort);
+    }
 
     // base plot module layout defaults
-    var basePlotModules = layoutOut._basePlotModules;
     for(i = 0; i < basePlotModules.length; i++) {
         _module = basePlotModules[i];
 
-        // done above already
-        if(_module.name === 'cartesian') continue;
-
-        // e.g. gl2d does not have a layout-defaults step
+        // e.g. pie does not have a layout-defaults step
         if(_module.supplyLayoutDefaults) {
             _module.supplyLayoutDefaults(layoutIn, layoutOut, fullData);
         }
@@ -1080,12 +1456,8 @@ plots.supplyLayoutModuleDefaults = function(layoutIn, layoutOut, fullData, trans
         }
     }
 
-    // should FX be a component?
-    Plotly.Fx.supplyLayoutDefaults(layoutIn, layoutOut, fullData);
-
-    var components = Object.keys(Registry.componentsRegistry);
-    for(i = 0; i < components.length; i++) {
-        _module = Registry.componentsRegistry[components[i]];
+    for(component in componentsRegistry) {
+        _module = componentsRegistry[component];
 
         if(_module.supplyLayoutDefaults) {
             _module.supplyLayoutDefaults(layoutIn, layoutOut, fullData);
@@ -1096,12 +1468,15 @@ plots.supplyLayoutModuleDefaults = function(layoutIn, layoutOut, fullData, trans
 // Remove all plotly attributes from a div so it can be replotted fresh
 // TODO: these really need to be encapsulated into a much smaller set...
 plots.purge = function(gd) {
-
     // note: we DO NOT remove _context because it doesn't change when we insert
     // a new plot, and may have been set outside of our scope.
 
     var fullLayout = gd._fullLayout || {};
-    if(fullLayout._glcontainer !== undefined) fullLayout._glcontainer.remove();
+    if(fullLayout._glcontainer !== undefined) {
+        fullLayout._glcontainer.selectAll('.gl-canvas').remove();
+        fullLayout._glcontainer.remove();
+        fullLayout._glcanvas = null;
+    }
     if(fullLayout._geocontainer !== undefined) fullLayout._geocontainer.remove();
 
     // remove modebar
@@ -1118,6 +1493,9 @@ plots.purge = function(gd) {
             window.cancelAnimationFrame(gd._transitionData._animationRaf);
         }
     }
+
+    // remove any planned throttles
+    Lib.clearThrottle();
 
     // data and layout
     delete gd.data;
@@ -1137,20 +1515,26 @@ plots.purge = function(gd) {
 
     // these get recreated on Plotly.plot anyway, but just to be safe
     // (and to have a record of them...)
-    delete gd._tester;
-    delete gd._testref;
     delete gd._promises;
     delete gd._redrawTimer;
-    delete gd._replotting;
     delete gd.firstscatter;
-    delete gd.hmlumcount;
-    delete gd.hmpixcount;
-    delete gd.numboxes;
-    delete gd._hoverTimer;
-    delete gd._lastHoverTime;
+    delete gd._hmlumcount;
+    delete gd._hmpixcount;
     delete gd._transitionData;
     delete gd._transitioning;
     delete gd._initialAutoSize;
+    delete gd._transitioningWithDuration;
+
+    // created during certain events, that *should* clean them up
+    // themselves, but may not if there was an error
+    delete gd._dragging;
+    delete gd._dragged;
+    delete gd._hoverdata;
+    delete gd._snapshotInProgress;
+    delete gd._editing;
+    delete gd._replotPending;
+    delete gd._mouseDownTime;
+    delete gd._legendMouseDownTime;
 
     // remove all event listeners
     if(gd.removeAllListeners) gd.removeAllListeners();
@@ -1158,11 +1542,21 @@ plots.purge = function(gd) {
 
 plots.style = function(gd) {
     var _modules = gd._fullLayout._modules;
+    var styleModules = [];
+    var i;
 
-    for(var i = 0; i < _modules.length; i++) {
+    // some trace modules reuse the same style method,
+    // make sure to not unnecessary call them multiple times.
+
+    for(i = 0; i < _modules.length; i++) {
         var _module = _modules[i];
+        if(_module.style) {
+            Lib.pushUnique(styleModules, _module.style);
+        }
+    }
 
-        if(_module.style) _module.style(gd);
+    for(i = 0; i < styleModules.length; i++) {
+        styleModules[i](gd);
     }
 };
 
@@ -1194,7 +1588,7 @@ plots.sanitizeMargins = function(fullLayout) {
     }
 };
 
-// called by legend and colorbar routines to see if we need to
+// called by components to see if we need to
 // expand the margins to show them
 // o is {x,l,r,y,t,b} where x and y are plot fractions,
 // the rest are pixels in each direction
@@ -1222,7 +1616,7 @@ plots.autoMargin = function(gd, id, o) {
             };
         }
 
-        if(!gd._replotting) plots.doAutoMargin(gd);
+        if(!fullLayout._replotting) plots.doAutoMargin(gd);
     }
 };
 
@@ -1234,7 +1628,7 @@ plots.doAutoMargin = function(gd) {
     var gs = fullLayout._size,
         oldmargins = JSON.stringify(gs);
 
-    // adjust margins for outside legends and colorbars
+    // adjust margins for outside components
     // fullLayout.margin is the requested margin,
     // fullLayout._size has margins and plotsize after adjustment
     var ml = Math.max(fullLayout.margin.l || 0, 0),
@@ -1244,6 +1638,7 @@ plots.doAutoMargin = function(gd) {
         pm = fullLayout._pushmargin;
 
     if(fullLayout.margin.autoexpand !== false) {
+
         // fill in the requested margins
         pm.base = {
             l: {val: 0, size: ml},
@@ -1251,19 +1646,24 @@ plots.doAutoMargin = function(gd) {
             t: {val: 1, size: mt},
             b: {val: 0, size: mb}
         };
+
         // now cycle through all the combinations of l and r
         // (and t and b) to find the required margins
-        Object.keys(pm).forEach(function(k1) {
+
+        for(var k1 in pm) {
+
             var pushleft = pm[k1].l || {},
                 pushbottom = pm[k1].b || {},
                 fl = pushleft.val,
                 pl = pushleft.size,
                 fb = pushbottom.val,
                 pb = pushbottom.size;
-            Object.keys(pm).forEach(function(k2) {
+
+            for(var k2 in pm) {
                 if(isNumeric(pl) && pm[k2].r) {
                     var fr = pm[k2].r.val,
                         pr = pm[k2].r.size;
+
                     if(fr > fl) {
                         var newl = (pl * fr +
                                 (pr - fullLayout.width) * fl) / (fr - fl),
@@ -1275,9 +1675,11 @@ plots.doAutoMargin = function(gd) {
                         }
                     }
                 }
+
                 if(isNumeric(pb) && pm[k2].t) {
                     var ft = pm[k2].t.val,
                         pt = pm[k2].t.size;
+
                     if(ft > fb) {
                         var newb = (pb * ft +
                                 (pt - fullLayout.height) * fb) / (ft - fb),
@@ -1289,8 +1691,8 @@ plots.doAutoMargin = function(gd) {
                         }
                     }
                 }
-            });
-        });
+            }
+        }
     }
 
     gs.l = Math.round(ml);
@@ -1302,9 +1704,9 @@ plots.doAutoMargin = function(gd) {
     gs.h = Math.round(fullLayout.height) - gs.t - gs.b;
 
     // if things changed and we're not already redrawing, trigger a redraw
-    if(!gd._replotting && oldmargins !== '{}' &&
+    if(!fullLayout._replotting && oldmargins !== '{}' &&
             oldmargins !== JSON.stringify(fullLayout._size)) {
-        return Plotly.plot(gd);
+        return Registry.call('plot', gd);
     }
 };
 
@@ -1426,7 +1828,7 @@ plots.graphJson = function(gd, dataonly, mode, output, useDefaults) {
 plots.modifyFrames = function(gd, operations) {
     var i, op, frame;
     var _frames = gd._transitionData._frames;
-    var _hash = gd._transitionData._frameHash;
+    var _frameHash = gd._transitionData._frameHash;
 
     for(i = 0; i < operations.length; i++) {
         op = operations[i];
@@ -1435,32 +1837,32 @@ plots.modifyFrames = function(gd, operations) {
             // No reason this couldn't exist, but is currently unused/untested:
             /* case 'rename':
                 frame = _frames[op.index];
-                delete _hash[frame.name];
-                _hash[op.name] = frame;
+                delete _frameHash[frame.name];
+                _frameHash[op.name] = frame;
                 frame.name = op.name;
                 break;*/
             case 'replace':
                 frame = op.value;
                 var oldName = (_frames[op.index] || {}).name;
                 var newName = frame.name;
-                _frames[op.index] = _hash[newName] = frame;
+                _frames[op.index] = _frameHash[newName] = frame;
 
                 if(newName !== oldName) {
                     // If name has changed in addition to replacement, then update
                     // the lookup table:
-                    delete _hash[oldName];
-                    _hash[newName] = frame;
+                    delete _frameHash[oldName];
+                    _frameHash[newName] = frame;
                 }
 
                 break;
             case 'insert':
                 frame = op.value;
-                _hash[frame.name] = frame;
+                _frameHash[frame.name] = frame;
                 _frames.splice(op.index, 0, frame);
                 break;
             case 'delete':
                 frame = _frames[op.index];
-                delete _hash[frame.name];
+                delete _frameHash[frame.name];
                 _frames.splice(op.index, 1);
                 break;
         }
@@ -1646,7 +2048,7 @@ plots.extendObjectWithContainers = function(dest, src, containerPaths) {
     return dest;
 };
 
-plots.dataArrayContainers = ['transforms'];
+plots.dataArrayContainers = ['transforms', 'dimensions'];
 plots.layoutArrayContainers = Registry.layoutArrayContainers;
 
 /*
@@ -1740,11 +2142,15 @@ plots.transition = function(gd, data, layout, traces, frameOpts, transitionOpts)
         // of essentially the whole supplyDefaults step, so that it seems sensible to just use
         // supplyDefaults even though it's heavier than would otherwise be desired for
         // transitions:
+
+        // first delete calcdata so supplyDefaults knows a calc step is coming
+        delete gd.calcdata;
+
         plots.supplyDefaults(gd);
 
         plots.doCalcdata(gd);
 
-        ErrorBars.calc(gd);
+        Registry.getComponentMethod('errorbars', 'calc')(gd);
 
         return Promise.resolve();
     }
@@ -1792,7 +2198,7 @@ plots.transition = function(gd, data, layout, traces, frameOpts, transitionOpts)
 
             if(frameOpts.redraw) {
                 gd._transitionData._interruptCallbacks.push(function() {
-                    return Plotly.redraw(gd);
+                    return Registry.call('redraw', gd);
                 });
             }
 
@@ -1864,7 +2270,7 @@ plots.transition = function(gd, data, layout, traces, frameOpts, transitionOpts)
 
         return Promise.resolve().then(function() {
             if(frameOpts.redraw) {
-                return Plotly.redraw(gd);
+                return Registry.call('redraw', gd);
             }
         }).then(function() {
             // Set transitioning false again once the redraw has occurred. This is used, for example,
@@ -1895,17 +2301,9 @@ plots.transition = function(gd, data, layout, traces, frameOpts, transitionOpts)
         var module = contFull._module;
 
         if(!module) continue;
-
-        if(!module.animatable) {
-            var thisUpdate = {};
-
-            for(var ai in data[i]) {
-                thisUpdate[ai] = [data[i][ai]];
-            }
-        }
     }
 
-    var seq = [plots.previousPromises, interruptPreviousTransitions, prepareTransitions, executeTransitions];
+    var seq = [plots.previousPromises, interruptPreviousTransitions, prepareTransitions, plots.rehover, executeTransitions];
 
     var transitionStarting = Lib.syncOrAsync(seq, gd);
 
@@ -1919,10 +2317,11 @@ plots.transition = function(gd, data, layout, traces, frameOpts, transitionOpts)
 };
 
 plots.doCalcdata = function(gd, traces) {
-    var axList = Plotly.Axes.list(gd),
+    var axList = axisIDs.list(gd),
         fullData = gd._fullData,
-        fullLayout = gd._fullLayout,
-        i, j;
+        fullLayout = gd._fullLayout;
+
+    var trace, _module, i, j;
 
     // XXX: Is this correct? Needs a closer look so that *some* traces can be recomputed without
     // *all* needing doCalcdata:
@@ -1934,8 +2333,12 @@ plots.doCalcdata = function(gd, traces) {
     // firstscatter: fill-to-next on the first trace goes to zero
     gd.firstscatter = true;
 
-    // how many box plots do we have (in case they're grouped)
-    gd.numboxes = 0;
+    // how many box/violins plots do we have (in case they're grouped)
+    fullLayout._numBoxes = 0;
+    fullLayout._numViolins = 0;
+
+    // initialize violin per-scale-group stats container
+    fullLayout._violinScaleGroupStats = {};
 
     // for calculating avg luminosity of heatmaps
     gd._hmpixcount = 0;
@@ -1943,67 +2346,97 @@ plots.doCalcdata = function(gd, traces) {
 
     // for sharing colors across pies (and for legend)
     fullLayout._piecolormap = {};
+    fullLayout._piecolorway = null;
     fullLayout._piedefaultcolorcount = 0;
 
-    // initialize the category list, if there is one, so we start over
-    // to be filled in later by ax.d2c
-    for(i = 0; i < axList.length; i++) {
-        axList[i]._categories = axList[i]._initialCategories.slice();
+    // If traces were specified and this trace was not included,
+    // then transfer it over from the old calcdata:
+    for(i = 0; i < fullData.length; i++) {
+        if(Array.isArray(traces) && traces.indexOf(i) === -1) {
+            calcdata[i] = oldCalcdata[i];
+            continue;
+        }
     }
 
+    // find array attributes in trace
     for(i = 0; i < fullData.length; i++) {
-        // If traces were specified and this trace was not included, then transfer it over from
-        // the old calcdata:
-        if(Array.isArray(traces) && traces.indexOf(i) === -1) {
-            calcdata[i] = oldCalcdata[i];
-            continue;
+        trace = fullData[i];
+        trace._arrayAttrs = PlotSchema.findArrayAttributes(trace);
+    }
+
+    // add polar axes to axis list
+    var polarIds = fullLayout._subplots.polar || [];
+    for(i = 0; i < polarIds.length; i++) {
+        axList.push(
+            fullLayout[polarIds[i]].radialaxis,
+            fullLayout[polarIds[i]].angularaxis
+        );
+    }
+
+    clearAxesCalc(axList);
+
+    var hasCalcTransform = false;
+
+    // transform loop
+    for(i = 0; i < fullData.length; i++) {
+        trace = fullData[i];
+
+        if(trace.visible === true && trace.transforms) {
+            _module = trace._module;
+
+            // we need one round of trace module calc before
+            // the calc transform to 'fill in' the categories list
+            // used for example in the data-to-coordinate method
+            if(_module && _module.calc) _module.calc(gd, trace);
+
+            for(j = 0; j < trace.transforms.length; j++) {
+                var transform = trace.transforms[j];
+
+                _module = transformsRegistry[transform.type];
+                if(_module && _module.calcTransform) {
+                    trace._hasCalcTransform = true;
+                    hasCalcTransform = true;
+                    _module.calcTransform(gd, trace, transform);
+                }
+            }
         }
+    }
 
-        var trace = fullData[i],
-            cd = [];
+    // clear stuff that should recomputed in 'regular' loop
+    if(hasCalcTransform) clearAxesCalc(axList);
 
-        // If traces were specified and this trace was not included, then transfer it over from
-        // the old calcdata:
-        if(Array.isArray(traces) && traces.indexOf(i) === -1) {
-            calcdata[i] = oldCalcdata[i];
-            continue;
-        }
+    function calci(i, isContainer) {
+        trace = fullData[i];
+        _module = trace._module;
 
-        var _module;
+        if(!!_module.isContainer !== isContainer) return;
+
+        var cd = [];
+
         if(trace.visible === true) {
 
-            // call calcTransform method if any
-            if(trace.transforms) {
-
-                // we need one round of trace module calc before
-                // the calc transform to 'fill in' the categories list
-                // used for example in the data-to-coordinate method
-                _module = trace._module;
-                if(_module && _module.calc) _module.calc(gd, trace);
-
-                for(j = 0; j < trace.transforms.length; j++) {
-                    var transform = trace.transforms[j];
-
-                    _module = transformsRegistry[transform.type];
-                    if(_module && _module.calcTransform) {
-                        _module.calcTransform(gd, trace, transform);
-                    }
+            // keep ref of index-to-points map object of the *last* enabled transform,
+            // this index-to-points map object is required to determine the calcdata indices
+            // that correspond to input indices (e.g. from 'selectedpoints')
+            var transforms = trace.transforms || [];
+            for(j = transforms.length - 1; j >= 0; j--) {
+                if(transforms[j].enabled) {
+                    trace._indexToPoints = transforms[j]._indexToPoints;
+                    break;
                 }
             }
 
-            _module = trace._module;
-            if(_module && _module.calc) cd = _module.calc(gd, trace);
+            if(_module && _module.calc) {
+                cd = _module.calc(gd, trace);
+            }
         }
 
         // Make sure there is a first point.
         //
         // This ensures there is a calcdata item for every trace,
         // even if cartesian logic doesn't handle it (for things like legends).
-        //
-        // Tag this artificial calc point with 'placeholder: true',
-        // to make it easier to skip over them in during the plot and hover step.
         if(!Array.isArray(cd) || !cd[0]) {
-            cd = [{x: false, y: false, placeholder: true}];
+            cd = [{x: BADNUM, y: BADNUM}];
         }
 
         // add the trace-wide properties to the first point,
@@ -2014,4 +2447,66 @@ plots.doCalcdata = function(gd, traces) {
 
         calcdata[i] = cd;
     }
+
+    // 'regular' loop - make sure container traces (eg carpet) calc before
+    // contained traces (eg contourcarpet)
+    for(i = 0; i < fullData.length; i++) calci(i, true);
+    for(i = 0; i < fullData.length; i++) calci(i, false);
+
+    Registry.getComponentMethod('fx', 'calc')(gd);
+};
+
+function clearAxesCalc(axList) {
+    for(var i = 0; i < axList.length; i++) {
+        axList[i].clearCalc();
+    }
+}
+
+plots.rehover = function(gd) {
+    if(gd._fullLayout._rehover) {
+        gd._fullLayout._rehover();
+    }
+};
+
+plots.generalUpdatePerTraceModule = function(gd, subplot, subplotCalcData, subplotLayout) {
+    var traceHashOld = subplot.traceHash;
+    var traceHash = {};
+    var i;
+
+    // build up moduleName -> calcData hash
+    for(i = 0; i < subplotCalcData.length; i++) {
+        var calcTraces = subplotCalcData[i],
+            trace = calcTraces[0].trace;
+
+        // skip over visible === false traces
+        // as they don't have `_module` ref
+        if(trace.visible) {
+            traceHash[trace.type] = traceHash[trace.type] || [];
+            traceHash[trace.type].push(calcTraces);
+        }
+    }
+
+    // when a trace gets deleted, make sure that its module's
+    // plot method is called so that it is properly
+    // removed from the DOM.
+    for(var moduleNameOld in traceHashOld) {
+        if(!traceHash[moduleNameOld]) {
+            var fakeCalcTrace = traceHashOld[moduleNameOld][0],
+                fakeTrace = fakeCalcTrace[0].trace;
+
+            fakeTrace.visible = false;
+            traceHash[moduleNameOld] = [fakeCalcTrace];
+        }
+    }
+
+    // call module plot method
+    for(var moduleName in traceHash) {
+        var moduleCalcData = traceHash[moduleName];
+        var _module = moduleCalcData[0][0].trace._module;
+
+        _module.plot(gd, subplot, Lib.filterVisible(moduleCalcData), subplotLayout);
+    }
+
+    // update moduleName -> calcData hash
+    subplot.traceHash = traceHash;
 };

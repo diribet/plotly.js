@@ -5,10 +5,12 @@ var d3 = require('d3');
 var Plotly = require('@lib');
 var Lib = require('@src/lib');
 var Events = require('@src/lib/events');
+var Drawing = require('@src/components/drawing');
 var createGraphDiv = require('../assets/create_graph_div');
 var destroyGraphDiv = require('../assets/destroy_graph_div');
 var TRANSITION_DELAY = 100;
 var fail = require('../assets/fail_test');
+var getBBox = require('../assets/get_bbox');
 
 describe('update menus defaults', function() {
     'use strict';
@@ -109,6 +111,7 @@ describe('update menus defaults', function() {
         expect(layoutOut.updatemenus[0].buttons[0]).toEqual({
             method: 'relayout',
             args: ['title', 'Hello World'],
+            execute: true,
             label: '',
             _index: 1
         });
@@ -133,7 +136,35 @@ describe('update menus defaults', function() {
         expect(layoutOut.updatemenus[0].buttons[0]).toEqual({
             method: 'relayout',
             args: ['title', 'Hello World'],
+            execute: true,
             label: '',
+            _index: 1
+        });
+    });
+
+    it('allow the `skip` method', function() {
+        layoutIn.updatemenus = [{
+            buttons: [{
+                method: 'skip',
+            }, {
+                method: 'skip',
+                args: ['title', 'Hello World']
+            }]
+        }];
+
+        supply(layoutIn, layoutOut);
+
+        expect(layoutOut.updatemenus[0].buttons.length).toEqual(2);
+        expect(layoutOut.updatemenus[0].buttons[0]).toEqual({
+            method: 'skip',
+            label: '',
+            execute: true,
+            _index: 0
+        }, {
+            method: 'skip',
+            args: ['title', 'Hello World'],
+            label: '',
+            execute: true,
             _index: 1
         });
     });
@@ -313,6 +344,7 @@ describe('update menus interactions', function() {
     });
 
     it('should draw only visible menus', function(done) {
+        var initialUM1 = Lib.extendDeep({}, gd.layout.updatemenus[1]);
         assertMenus([0, 0]);
         expect(gd._fullLayout._pushmargin['updatemenu-0']).toBeDefined();
         expect(gd._fullLayout._pushmargin['updatemenu-1']).toBeDefined();
@@ -331,7 +363,7 @@ describe('update menus interactions', function() {
 
             return Plotly.relayout(gd, {
                 'updatemenus[0].visible': true,
-                'updatemenus[1].visible': true
+                'updatemenus[1]': initialUM1
             });
         })
         .then(function() {
@@ -416,6 +448,32 @@ describe('update menus interactions', function() {
         });
     });
 
+    it('should execute the API command when execute = true', function(done) {
+        expect(gd.data[0].line.color).toEqual('blue');
+
+        click(selectHeader(0)).then(function() {
+            return click(selectButton(2));
+        }).then(function() {
+            // Has been changed:
+            expect(gd.data[0].line.color).toEqual('green');
+        }).catch(fail).then(done);
+    });
+
+    it('should not execute the API command when execute = false', function(done) {
+        // This test is identical to the one above, except that it disables
+        // the command by setting execute = false first:
+        expect(gd.data[0].line.color).toEqual('blue');
+
+        Plotly.relayout(gd, 'updatemenus[0].buttons[2].execute', false).then(function() {
+            return click(selectHeader(0));
+        }).then(function() {
+            return click(selectButton(2));
+        }).then(function() {
+            // Is unchanged:
+            expect(gd.data[0].line.color).toEqual('blue');
+        }).catch(fail).then(done);
+    });
+
     it('should emit an event on button click', function(done) {
         var clickCnt = 0;
         var data = [];
@@ -439,6 +497,33 @@ describe('update menus interactions', function() {
             expect(data.length).toEqual(2);
             expect(data[1].active).toEqual(1);
         }).catch(fail).then(done);
+    });
+
+    it('should still emit the event if method = skip', function(done) {
+        var clickCnt = 0;
+        var data = [];
+        gd.on('plotly_buttonclicked', function(datum) {
+            data.push(datum);
+            clickCnt++;
+        });
+
+        Plotly.relayout(gd, {
+            'updatemenus[0].buttons[0].method': 'skip',
+            'updatemenus[0].buttons[1].method': 'skip',
+            'updatemenus[0].buttons[2].method': 'skip',
+            'updatemenus[1].buttons[0].method': 'skip',
+            'updatemenus[1].buttons[1].method': 'skip',
+            'updatemenus[1].buttons[2].method': 'skip',
+            'updatemenus[1].buttons[3].method': 'skip',
+        }).then(function() {
+            click(selectHeader(0)).then(function() {
+                expect(clickCnt).toEqual(0);
+
+                return click(selectButton(2));
+            }).then(function() {
+                expect(clickCnt).toEqual(1);
+            }).catch(fail).then(done);
+        });
     });
 
     it('should apply update on button click', function(done) {
@@ -566,7 +651,7 @@ describe('update menus interactions', function() {
 
             return Plotly.relayout(gd, 'updatemenus[1].buttons[1].label', 'a looooooooooooong<br>label');
         }).then(function() {
-            assertItemDims(selectHeader(1), 179, 35);
+            assertItemDims(selectHeader(1), 165, 35);
 
             return click(selectHeader(1));
         }).then(function() {
@@ -585,6 +670,10 @@ describe('update menus interactions', function() {
         }).then(function() {
             // fold up buttons whenever new menus are added
             assertMenus([0, 0]);
+
+            // dropdown buttons container should still be on top of headers (and non-dropdown buttons)
+            var gButton = d3.select('.updatemenu-dropdown-button-group');
+            expect(gButton.node().nextSibling).toBe(null);
 
             return Plotly.relayout(gd, {
                 'updatemenus[0].bgcolor': null,
@@ -629,7 +718,7 @@ describe('update menus interactions', function() {
         }).catch(fail).then(done);
     });
 
-    it('appliesy padding on relayout', function(done) {
+    it('applies y padding on relayout', function(done) {
         var x1, x2;
         var firstMenu = d3.select('.' + constants.headerGroupClassName);
         var padShift = 40;
@@ -653,7 +742,7 @@ describe('update menus interactions', function() {
     });
 
     function assertNodeCount(query, cnt) {
-        expect(d3.selectAll(query).size()).toEqual(cnt);
+        expect(d3.selectAll(query).size()).toEqual(cnt, query);
     }
 
     // call assertMenus([0, 3]); to check that the 2nd update menu is dropped
@@ -689,7 +778,7 @@ describe('update menus interactions', function() {
 
     function assertItemColor(node, color) {
         var rect = node.select('rect');
-        expect(rect.style('fill')).toEqual(color);
+        expect(rect.node().style.fill).toEqual(color);
     }
 
     function assertItemDims(node, width, height) {
@@ -732,5 +821,467 @@ describe('update menus interactions', function() {
         var buttons = d3.selectAll('.' + constants.dropdownButtonClassName),
             button = d3.select(buttons[0][buttonIndex]);
         return button;
+    }
+});
+
+
+describe('update menus interaction with other components:', function() {
+    'use strict';
+
+    afterEach(destroyGraphDiv);
+
+    it('draws buttons above sliders', function(done) {
+
+        Plotly.plot(createGraphDiv(), [{
+            x: [1, 2, 3],
+            y: [1, 2, 1]
+        }], {
+            sliders: [{
+                xanchor: 'right',
+                x: -0.05,
+                y: 0.9,
+                len: 0.3,
+                steps: [{
+                    label: 'red',
+                    method: 'restyle',
+                    args: [{'line.color': 'red'}]
+                }, {
+                    label: 'orange',
+                    method: 'restyle',
+                    args: [{'line.color': 'orange'}]
+                }, {
+                    label: 'yellow',
+                    method: 'restyle',
+                    args: [{'line.color': 'yellow'}]
+                }]
+            }],
+            updatemenus: [{
+                buttons: [{
+                    label: 'markers and lines',
+                    method: 'restyle',
+                    args: [{ 'mode': 'markers+lines' }]
+                }, {
+                    label: 'markers',
+                    method: 'restyle',
+                    args: [{ 'mode': 'markers' }]
+                }, {
+                    label: 'lines',
+                    method: 'restyle',
+                    args: [{ 'mode': 'lines' }]
+                }]
+            }]
+        })
+        .then(function() {
+            var infoLayer = d3.select('g.infolayer');
+            var menuLayer = d3.select('g.menulayer');
+            expect(infoLayer.selectAll('.slider-container').size()).toBe(1);
+            expect(menuLayer.selectAll('.updatemenu-container').size()).toBe(1);
+            expect(infoLayer.node().nextSibling).toBe(menuLayer.node());
+        })
+        .catch(fail)
+        .then(done);
+    });
+});
+
+
+describe('update menus interaction with scrollbox:', function() {
+    'use strict';
+
+    var gd,
+        mock,
+        menuDown,
+        menuLeft,
+        menuRight,
+        menuUp;
+
+    // Adapted from https://github.com/plotly/plotly.js/pull/770#issuecomment-234669383
+    mock = {
+        data: [],
+        layout: {
+            width: 1100,
+            height: 450,
+            updatemenus: [{
+                buttons: [{
+                    method: 'restyle',
+                    args: ['line.color', 'red'],
+                    label: 'red'
+                }, {
+                    method: 'restyle',
+                    args: ['line.color', 'blue'],
+                    label: 'blue'
+                }, {
+                    method: 'restyle',
+                    args: ['line.color', 'green'],
+                    label: 'green'
+                }]
+            }, {
+                x: 0.5,
+                xanchor: 'left',
+                y: 0.5,
+                yanchor: 'top',
+                direction: 'down',
+                buttons: []
+            }, {
+                x: 0.5,
+                xanchor: 'right',
+                y: 0.5,
+                yanchor: 'top',
+                direction: 'left',
+                buttons: []
+            }, {
+                x: 0.5,
+                xanchor: 'left',
+                y: 0.5,
+                yanchor: 'bottom',
+                direction: 'right',
+                buttons: []
+            }, {
+                x: 0.5,
+                xanchor: 'right',
+                y: 0.5,
+                yanchor: 'bottom',
+                direction: 'up',
+                buttons: []
+            }]
+        }
+    };
+
+    for(var i = 0, n = 20; i < n; i++) {
+        var j;
+
+        var y;
+        for(j = 0, y = []; j < 10; j++) y.push(Math.random);
+
+        mock.data.push({
+            y: y,
+            line: {
+                shape: 'spline',
+                color: 'red'
+            },
+            visible: i === 0,
+            name: 'Data set ' + i,
+        });
+
+        var visible;
+        for(j = 0, visible = []; j < n; j++) visible.push(i === j);
+
+        for(j = 1; j <= 4; j++) {
+            mock.layout.updatemenus[j].buttons.push({
+                method: 'restyle',
+                args: ['visible', visible],
+                label: 'Data set ' + i
+            });
+        }
+    }
+
+    beforeEach(function(done) {
+        gd = createGraphDiv();
+
+        var mockCopy = Lib.extendDeep({}, mock);
+
+        Plotly.plot(gd, mockCopy.data, mockCopy.layout).then(function() {
+            var menus = document.getElementsByClassName('updatemenu-header');
+
+            expect(menus.length).toBe(5);
+
+            menuDown = menus[1];
+            menuLeft = menus[2];
+            menuRight = menus[3];
+            menuUp = menus[4];
+        }).catch(fail).then(done);
+    });
+
+    afterEach(function() {
+        Plotly.purge(gd);
+        destroyGraphDiv();
+    });
+
+    it('scrollbox can be dragged', function() {
+        var deltaX = -50,
+            deltaY = -100,
+            scrollBox,
+            scrollBar,
+            scrollBoxTranslate0,
+            scrollBarTranslate0,
+            scrollBoxTranslate1,
+            scrollBarTranslate1;
+
+        scrollBox = getScrollBox();
+        expect(scrollBox).toBeDefined();
+
+        // down menu
+        click(menuDown);
+
+        scrollBar = getVerticalScrollBar();
+        expect(scrollBar).toBeDefined();
+
+        scrollBoxTranslate0 = Drawing.getTranslate(scrollBox);
+        scrollBarTranslate0 = Drawing.getTranslate(scrollBar);
+        dragScrollBox(scrollBox, 0, deltaY);
+        scrollBoxTranslate1 = Drawing.getTranslate(scrollBox);
+        scrollBarTranslate1 = Drawing.getTranslate(scrollBar);
+
+        expect(scrollBoxTranslate1.y).toEqual(scrollBoxTranslate0.y + deltaY);
+        expect(scrollBarTranslate1.y).toBeGreaterThan(scrollBarTranslate0.y);
+
+        // left menu
+        click(menuLeft);
+
+        scrollBar = getHorizontalScrollBar();
+        expect(scrollBar).toBeDefined();
+
+        scrollBoxTranslate0 = Drawing.getTranslate(scrollBox);
+        scrollBarTranslate0 = Drawing.getTranslate(scrollBar);
+        dragScrollBox(scrollBox, deltaX, 0);
+        scrollBoxTranslate1 = Drawing.getTranslate(scrollBox);
+        scrollBarTranslate1 = Drawing.getTranslate(scrollBar);
+
+        expect(scrollBoxTranslate1.x).toEqual(scrollBoxTranslate0.x + deltaX);
+        expect(scrollBarTranslate1.x).toBeGreaterThan(scrollBarTranslate0.x);
+
+        // right menu
+        click(menuRight);
+
+        scrollBar = getHorizontalScrollBar();
+        expect(scrollBar).toBeDefined();
+
+        scrollBoxTranslate0 = Drawing.getTranslate(scrollBox);
+        scrollBarTranslate0 = Drawing.getTranslate(scrollBar);
+        dragScrollBox(scrollBox, deltaX, 0);
+        scrollBoxTranslate1 = Drawing.getTranslate(scrollBox);
+        scrollBarTranslate1 = Drawing.getTranslate(scrollBar);
+
+        expect(scrollBoxTranslate1.x).toEqual(scrollBoxTranslate0.x + deltaX);
+        expect(scrollBarTranslate1.x).toBeGreaterThan(scrollBarTranslate0.x);
+
+        // up menu
+        click(menuUp);
+
+        scrollBar = getVerticalScrollBar();
+        expect(scrollBar).toBeDefined();
+
+        scrollBoxTranslate0 = Drawing.getTranslate(scrollBox);
+        scrollBarTranslate0 = Drawing.getTranslate(scrollBar);
+        dragScrollBox(scrollBox, 0, deltaY);
+        scrollBoxTranslate1 = Drawing.getTranslate(scrollBox);
+        scrollBarTranslate1 = Drawing.getTranslate(scrollBar);
+
+        expect(scrollBoxTranslate1.y).toEqual(scrollBoxTranslate0.y + deltaY);
+        expect(scrollBarTranslate1.y).toBeGreaterThan(scrollBarTranslate0.y);
+    });
+
+    it('scrollbox handles wheel events', function() {
+        var deltaY = 100,
+            scrollBox,
+            scrollBar,
+            scrollBoxTranslate0,
+            scrollBarTranslate0,
+            scrollBoxTranslate1,
+            scrollBarTranslate1;
+
+        scrollBox = getScrollBox();
+        expect(scrollBox).toBeDefined();
+
+        // down menu
+        click(menuDown);
+
+        scrollBar = getVerticalScrollBar();
+        expect(scrollBar).toBeDefined();
+
+        scrollBoxTranslate0 = Drawing.getTranslate(scrollBox);
+        scrollBarTranslate0 = Drawing.getTranslate(scrollBar);
+        wheel(scrollBox, deltaY);
+        scrollBoxTranslate1 = Drawing.getTranslate(scrollBox);
+        scrollBarTranslate1 = Drawing.getTranslate(scrollBar);
+
+        expect(scrollBoxTranslate1.y).toEqual(scrollBoxTranslate0.y - deltaY);
+        expect(scrollBarTranslate1.y).toBeGreaterThan(scrollBarTranslate0.y);
+
+        // left menu
+        click(menuLeft);
+
+        scrollBar = getHorizontalScrollBar();
+        expect(scrollBar).toBeDefined();
+
+        scrollBoxTranslate0 = Drawing.getTranslate(scrollBox);
+        scrollBarTranslate0 = Drawing.getTranslate(scrollBar);
+        wheel(scrollBox, deltaY);
+        scrollBoxTranslate1 = Drawing.getTranslate(scrollBox);
+        scrollBarTranslate1 = Drawing.getTranslate(scrollBar);
+
+        expect(scrollBoxTranslate1.x).toEqual(scrollBoxTranslate0.x - deltaY);
+        expect(scrollBarTranslate1.x).toBeGreaterThan(scrollBarTranslate0.x);
+
+        // right menu
+        click(menuRight);
+
+        scrollBar = getHorizontalScrollBar();
+        expect(scrollBar).toBeDefined();
+
+        scrollBoxTranslate0 = Drawing.getTranslate(scrollBox);
+        scrollBarTranslate0 = Drawing.getTranslate(scrollBar);
+        wheel(scrollBox, deltaY);
+        scrollBoxTranslate1 = Drawing.getTranslate(scrollBox);
+        scrollBarTranslate1 = Drawing.getTranslate(scrollBar);
+
+        expect(scrollBoxTranslate1.x).toEqual(scrollBoxTranslate0.x - deltaY);
+        expect(scrollBarTranslate1.x).toBeGreaterThan(scrollBarTranslate0.x);
+
+        // up menu
+        click(menuUp);
+
+        scrollBar = getVerticalScrollBar();
+        expect(scrollBar).toBeDefined();
+
+        scrollBoxTranslate0 = Drawing.getTranslate(scrollBox);
+        scrollBarTranslate0 = Drawing.getTranslate(scrollBar);
+        wheel(scrollBox, deltaY);
+        scrollBoxTranslate1 = Drawing.getTranslate(scrollBox);
+        scrollBarTranslate1 = Drawing.getTranslate(scrollBar);
+
+        expect(scrollBoxTranslate1.y).toEqual(scrollBoxTranslate0.y - deltaY);
+        expect(scrollBarTranslate1.y).toBeGreaterThan(scrollBarTranslate0.y);
+    });
+
+    it('scrollbar can be dragged', function() {
+        var deltaX = 20,
+            deltaY = 10,
+            scrollBox,
+            scrollBar,
+            scrollBoxPosition0,
+            scrollBarPosition0,
+            scrollBoxPosition1,
+            scrollBarPosition1;
+
+        scrollBox = getScrollBox();
+        expect(scrollBox).toBeDefined();
+
+        // down menu
+        click(menuDown);
+
+        scrollBar = getVerticalScrollBar();
+        expect(scrollBar).toBeDefined();
+
+        scrollBoxPosition0 = Drawing.getTranslate(scrollBox);
+        scrollBarPosition0 = getScrollBarCenter(scrollBox, scrollBar);
+        dragScrollBar(scrollBar, scrollBarPosition0, 0, deltaY);
+        scrollBoxPosition1 = Drawing.getTranslate(scrollBox);
+        scrollBarPosition1 = getScrollBarCenter(scrollBox, scrollBar);
+
+        expect(scrollBoxPosition1.y).toBeLessThan(scrollBoxPosition0.y);
+        expect(scrollBarPosition1.y).toEqual(scrollBarPosition0.y + deltaY);
+
+        // left menu
+        click(menuLeft);
+
+        scrollBar = getHorizontalScrollBar();
+        expect(scrollBar).toBeDefined();
+
+        scrollBoxPosition0 = Drawing.getTranslate(scrollBox);
+        scrollBarPosition0 = getScrollBarCenter(scrollBox, scrollBar);
+        dragScrollBar(scrollBar, scrollBarPosition0, deltaX, 0);
+        scrollBoxPosition1 = Drawing.getTranslate(scrollBox);
+        scrollBarPosition1 = getScrollBarCenter(scrollBox, scrollBar);
+
+        expect(scrollBoxPosition1.x).toBeLessThan(scrollBoxPosition0.x);
+        expect(scrollBarPosition1.x).toEqual(scrollBarPosition0.x + deltaX);
+
+        // right menu
+        click(menuRight);
+
+        scrollBar = getHorizontalScrollBar();
+        expect(scrollBar).toBeDefined();
+
+        scrollBoxPosition0 = Drawing.getTranslate(scrollBox);
+        scrollBarPosition0 = getScrollBarCenter(scrollBox, scrollBar);
+        dragScrollBar(scrollBar, scrollBarPosition0, deltaX, 0);
+        scrollBoxPosition1 = Drawing.getTranslate(scrollBox);
+        scrollBarPosition1 = getScrollBarCenter(scrollBox, scrollBar);
+
+        expect(scrollBoxPosition1.x).toBeLessThan(scrollBoxPosition0.x);
+        expect(scrollBarPosition1.x).toEqual(scrollBarPosition0.x + deltaX);
+
+        // up menu
+        click(menuUp);
+
+        scrollBar = getVerticalScrollBar();
+        expect(scrollBar).toBeDefined();
+
+        scrollBoxPosition0 = Drawing.getTranslate(scrollBox);
+        scrollBarPosition0 = getScrollBarCenter(scrollBox, scrollBar);
+        dragScrollBar(scrollBar, scrollBarPosition0, 0, deltaY);
+        scrollBoxPosition1 = Drawing.getTranslate(scrollBox);
+        scrollBarPosition1 = getScrollBarCenter(scrollBox, scrollBar);
+
+        expect(scrollBoxPosition1.y).toBeLessThan(scrollBoxPosition0.y);
+        expect(scrollBarPosition1.y).toEqual(scrollBarPosition0.y + deltaY);
+    });
+
+    function getScrollBox() {
+        return document.getElementsByClassName('updatemenu-dropdown-button-group')[0];
+    }
+
+    function getHorizontalScrollBar() {
+        return document.getElementsByClassName('scrollbar-horizontal')[0];
+    }
+
+    function getVerticalScrollBar() {
+        return document.getElementsByClassName('scrollbar-vertical')[0];
+    }
+
+    function getCenter(node) {
+        var bbox = getBBox(node),
+            x = bbox.x + 0.5 * bbox.width,
+            y = bbox.y + 0.5 * bbox.height;
+
+        return { x: x, y: y };
+    }
+
+    function getScrollBarCenter(scrollBox, scrollBar) {
+        var scrollBoxTranslate = Drawing.getTranslate(scrollBox),
+            scrollBarTranslate = Drawing.getTranslate(scrollBar),
+            translateX = scrollBoxTranslate.x + scrollBarTranslate.x,
+            translateY = scrollBoxTranslate.y + scrollBarTranslate.y,
+            center = getCenter(scrollBar),
+            x = center.x + translateX,
+            y = center.y + translateY;
+
+        return { x: x, y: y };
+    }
+
+    function click(node) {
+        node.dispatchEvent(new MouseEvent('click'), {
+            bubbles: true
+        });
+    }
+
+    function drag(node, x, y, deltaX, deltaY) {
+        node.dispatchEvent(new MouseEvent('mousedown', {
+            bubbles: true,
+            clientX: x,
+            clientY: y
+        }));
+        node.dispatchEvent(new MouseEvent('mousemove', {
+            bubbles: true,
+            clientX: x + deltaX,
+            clientY: y + deltaY
+        }));
+    }
+
+    function dragScrollBox(node, deltaX, deltaY) {
+        var position = getCenter(node);
+
+        drag(node, position.x, position.y, deltaX, deltaY);
+    }
+
+    function dragScrollBar(node, position, deltaX, deltaY) {
+        drag(node, position.x, position.y, deltaX, deltaY);
+    }
+
+    function wheel(node, deltaY) {
+        node.dispatchEvent(new WheelEvent('wheel', {
+            bubbles: true,
+            deltaY: deltaY
+        }));
     }
 });

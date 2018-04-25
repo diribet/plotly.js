@@ -1,5 +1,5 @@
 /**
-* Copyright 2012-2016, Plotly, Inc.
+* Copyright 2012-2018, Plotly, Inc.
 * All rights reserved.
 *
 * This source code is licensed under the MIT license found in the
@@ -9,20 +9,19 @@
 
 'use strict';
 
-var Geo = require('./geo');
+var createGeo = require('./geo');
+var getSubplotCalcData = require('../../plots/get_data').getSubplotCalcData;
+var counterRegex = require('../../lib').counterRegex;
 
-var Plots = require('../../plots/plots');
+var GEO = 'geo';
 
+exports.name = GEO;
 
-exports.name = 'geo';
+exports.attr = GEO;
 
-exports.attr = 'geo';
+exports.idRoot = GEO;
 
-exports.idRoot = 'geo';
-
-exports.idRegex = /^geo([2-9]|[1-9][0-9]+)?$/;
-
-exports.attrRegex = /^geo([2-9]|[1-9][0-9]+)?$/;
+exports.idRegex = exports.attrRegex = counterRegex(GEO);
 
 exports.attributes = require('./layout/attributes');
 
@@ -31,33 +30,32 @@ exports.layoutAttributes = require('./layout/layout_attributes');
 exports.supplyLayoutDefaults = require('./layout/defaults');
 
 exports.plot = function plotGeo(gd) {
-    var fullLayout = gd._fullLayout,
-        calcData = gd.calcdata,
-        geoIds = Plots.getSubplotIds(fullLayout, 'geo');
+    var fullLayout = gd._fullLayout;
+    var calcData = gd.calcdata;
+    var geoIds = fullLayout._subplots[GEO];
 
     /**
      * If 'plotly-geo-assets.js' is not included,
      * initialize object to keep reference to every loaded topojson
      */
     if(window.PlotlyGeoAssets === undefined) {
-        window.PlotlyGeoAssets = { topojson: {} };
+        window.PlotlyGeoAssets = {topojson: {}};
     }
 
     for(var i = 0; i < geoIds.length; i++) {
-        var geoId = geoIds[i],
-            geoCalcData = getSubplotCalcData(calcData, geoId),
-            geo = fullLayout[geoId]._subplot;
+        var geoId = geoIds[i];
+        var geoCalcData = getSubplotCalcData(calcData, GEO, geoId);
+        var geoLayout = fullLayout[geoId];
+        var geo = geoLayout._subplot;
 
-        // If geo is not instantiated, create one!
-        if(geo === undefined) {
-            geo = new Geo({
+        if(!geo) {
+            geo = createGeo({
                 id: geoId,
                 graphDiv: gd,
-                container: fullLayout._geocontainer.node(),
-                topojsonURL: gd._context.topojsonURL
-            },
-                fullLayout
-            );
+                container: fullLayout._geolayer.node(),
+                topojsonURL: gd._context.topojsonURL,
+                staticPlot: gd._context.staticPlot
+            });
 
             fullLayout[geoId]._subplot = geo;
         }
@@ -67,51 +65,25 @@ exports.plot = function plotGeo(gd) {
 };
 
 exports.clean = function(newFullData, newFullLayout, oldFullData, oldFullLayout) {
-    var oldGeoKeys = Plots.getSubplotIds(oldFullLayout, 'geo');
+    var oldGeoKeys = oldFullLayout._subplots[GEO] || [];
 
     for(var i = 0; i < oldGeoKeys.length; i++) {
         var oldGeoKey = oldGeoKeys[i];
         var oldGeo = oldFullLayout[oldGeoKey]._subplot;
 
         if(!newFullLayout[oldGeoKey] && !!oldGeo) {
-            oldGeo.geoDiv.remove();
+            oldGeo.framework.remove();
+            oldGeo.clipDef.remove();
         }
     }
 };
 
-exports.toSVG = function(gd) {
-    var fullLayout = gd._fullLayout,
-        geoIds = Plots.getSubplotIds(fullLayout, 'geo'),
-        size = fullLayout._size;
+exports.updateFx = function(fullLayout) {
+    var subplotIds = fullLayout._subplots[GEO];
 
-    for(var i = 0; i < geoIds.length; i++) {
-        var geoLayout = fullLayout[geoIds[i]],
-            domain = geoLayout.domain,
-            geoFramework = geoLayout._subplot.framework;
-
-        geoFramework.attr('style', null);
-        geoFramework
-            .attr({
-                x: size.l + size.w * domain.x[0] + geoLayout._marginX,
-                y: size.t + size.h * (1 - domain.y[1]) + geoLayout._marginY,
-                width: geoLayout._width,
-                height: geoLayout._height
-            });
-
-        fullLayout._geoimages.node()
-            .appendChild(geoFramework.node());
+    for(var i = 0; i < subplotIds.length; i++) {
+        var subplotLayout = fullLayout[subplotIds[i]];
+        var subplotObj = subplotLayout._subplot;
+        subplotObj.updateFx(fullLayout, subplotLayout);
     }
 };
-
-function getSubplotCalcData(calcData, id) {
-    var subplotCalcData = [];
-
-    for(var i = 0; i < calcData.length; i++) {
-        var calcTrace = calcData[i],
-            trace = calcTrace[0].trace;
-
-        if(trace.geo === id) subplotCalcData.push(calcTrace);
-    }
-
-    return subplotCalcData;
-}

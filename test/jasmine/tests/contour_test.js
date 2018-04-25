@@ -1,3 +1,4 @@
+var Plotly = require('@lib/index');
 var Plots = require('@src/plots/plots');
 var Lib = require('@src/lib');
 
@@ -5,7 +6,11 @@ var Contour = require('@src/traces/contour');
 var makeColorMap = require('@src/traces/contour/make_color_map');
 var colorScales = require('@src/components/colorscale/scales');
 
-var customMatchers = require('../assets/custom_matchers');
+var fail = require('../assets/fail_test');
+var createGraphDiv = require('../assets/create_graph_div');
+var destroyGraphDiv = require('../assets/destroy_graph_div');
+var checkTicks = require('../assets/custom_assertions').checkTicks;
+var supplyAllDefaults = require('../assets/supply_defaults');
 
 
 describe('contour defaults', function() {
@@ -16,7 +21,8 @@ describe('contour defaults', function() {
 
     var defaultColor = '#444',
         layout = {
-            font: Plots.layoutAttributes.font
+            font: Plots.layoutAttributes.font,
+            _dfltTitle: {colorbar: 'cb'}
         };
 
     var supplyDefaults = Contour.supplyDefaults;
@@ -34,8 +40,9 @@ describe('contour defaults', function() {
                 [0.625, 1.25, 3.125, 6.25]],
             contours: {
                 start: 4,
-                end: 14,
-                size: 0.5
+                end: 14
+                // missing size does NOT set autocontour true
+                // even though in calc we set an autosize.
             }
         };
         supplyDefaults(traceIn, traceOut, defaultColor, layout);
@@ -46,7 +53,8 @@ describe('contour defaults', function() {
             z: [[10, 10.625, 12.5, 15.625],
                 [5.625, 6.25, 8.125, 11.25],
                 [2.5, 3.125, 5.0, 8.125],
-                [0.625, 1.25, 3.125, 6.25]]
+                [0.625, 1.25, 3.125, 6.25]],
+            contours: {start: 4} // you need at least start and end
         };
         supplyDefaults(traceIn, traceOut, defaultColor, layout);
         expect(traceOut.autocontour).toBe(true);
@@ -58,7 +66,7 @@ describe('contour defaults', function() {
             y: [1, 2],
             z: [[1, 2], [3, 4]]
         };
-        supplyDefaults(traceIn, traceOut, defaultColor, {calendar: 'islamic'});
+        supplyDefaults(traceIn, traceOut, defaultColor, Lib.extendFlat({calendar: 'islamic'}, layout));
 
         // we always fill calendar attributes, because it's hard to tell if
         // we're on a date axis at this point.
@@ -74,7 +82,7 @@ describe('contour defaults', function() {
             xcalendar: 'coptic',
             ycalendar: 'ethiopian'
         };
-        supplyDefaults(traceIn, traceOut, defaultColor, {calendar: 'islamic'});
+        supplyDefaults(traceIn, traceOut, defaultColor, Lib.extendFlat({calendar: 'islamic'}, layout));
 
         // we always fill calendar attributes, because it's hard to tell if
         // we're on a date axis at this point.
@@ -171,19 +179,17 @@ describe('contour makeColorMap', function() {
 describe('contour calc', function() {
     'use strict';
 
-    beforeAll(function() {
-        jasmine.addMatchers(customMatchers);
-    });
-
     function _calc(opts) {
         var base = { type: 'contour' },
             trace = Lib.extendFlat({}, base, opts),
             gd = { data: [trace] };
 
-        Plots.supplyDefaults(gd);
+        supplyAllDefaults(gd);
         var fullTrace = gd._fullData[0];
 
-        return Contour.calc(gd, fullTrace)[0];
+        var out = Contour.calc(gd, fullTrace)[0];
+        out.trace = fullTrace;
+        return out;
     }
 
     it('should fill in bricks if x/y not given', function() {
@@ -268,5 +274,137 @@ describe('contour calc', function() {
         expect(out.x).toBeCloseToArray([0, 1, 2]);
         expect(out.y).toBeCloseToArray([0, 1]);
         expect(out.z).toBeCloseTo2DArray([[1, 2, 3], [3, 1, 2]]);
+    });
+
+    it('should make nice autocontour values', function() {
+        var incompleteContours = [
+            undefined,
+            {start: 12},
+            {end: 45},
+            {start: 2, size: 2}  // size gets ignored
+        ];
+
+        var contoursFinal = [
+            // fully auto. These are *not* exactly the output contours objects,
+            // I put the input ncontours in here too.
+            {inputNcontours: undefined, start: 0.5, end: 4.5, size: 0.5},
+            // explicit ncontours
+            {inputNcontours: 6, start: 1, end: 4, size: 1},
+            // edge case where low ncontours makes start and end cross
+            {inputNcontours: 2, start: 2.5, end: 2.5, size: 5}
+        ];
+
+        incompleteContours.forEach(function(contoursIn) {
+            contoursFinal.forEach(function(spec) {
+                var out = _calc({
+                    z: [[0, 2], [3, 5]],
+                    contours: Lib.extendFlat({}, contoursIn),
+                    ncontours: spec.inputNcontours
+                }).trace;
+
+                ['start', 'end', 'size'].forEach(function(attr) {
+                    expect(out.contours[attr]).toBe(spec[attr], [contoursIn, spec.inputNcontours, attr]);
+                    // all these get copied back to the input trace
+                    expect(out._input.contours[attr]).toBe(spec[attr], [contoursIn, spec.inputNcontours, attr]);
+                });
+
+                expect(out._input.autocontour).toBe(true);
+                expect(out._input.zauto).toBe(true);
+                expect(out._input.zmin).toBe(0);
+                expect(out._input.zmax).toBe(5);
+            });
+        });
+    });
+
+    it('should supply size and reorder start/end if autocontour is off', function() {
+        var specs = [
+            {start: 1, end: 100, ncontours: undefined, size: 10},
+            {start: 1, end: 100, ncontours: 5, size: 20},
+            {start: 10, end: 10, ncontours: 10, size: 1}
+        ];
+
+        specs.forEach(function(spec) {
+            [
+                [spec.start, spec.end, 'normal'],
+                [spec.end, spec.start, 'reversed']
+            ].forEach(function(v) {
+                var startIn = v[0],
+                    endIn = v[1],
+                    order = v[2];
+
+                var out = _calc({
+                    z: [[1, 2], [3, 4]],
+                    contours: {start: startIn, end: endIn},
+                    ncontours: spec.ncontours
+                }).trace;
+
+                ['start', 'end', 'size'].forEach(function(attr) {
+                    expect(out.contours[attr]).toBe(spec[attr], [spec, order, attr]);
+                    expect(out._input.contours[attr]).toBe(spec[attr], [spec, order, attr]);
+                });
+            });
+        });
+    });
+});
+
+describe('contour plotting and editing', function() {
+    var gd;
+
+    beforeEach(function() {
+        gd = createGraphDiv();
+    });
+    afterEach(destroyGraphDiv);
+
+    it('can restyle x/y to different types', function(done) {
+        Plotly.newPlot(gd, [{
+            type: 'contour',
+            x: [1, 2, 3],
+            y: [3, 4, 5],
+            z: [[10, 11, 12], [13, 14, 15], [17, 18, 19]]
+        }], {width: 400, height: 400})
+        .then(function() {
+            checkTicks('x', ['1', '1.5', '2', '2.5', '3'], 'linear x');
+            expect(gd._fullLayout.xaxis.type).toBe('linear');
+            checkTicks('y', ['3', '3.5', '4', '4.5', '5'], 'linear y');
+            expect(gd._fullLayout.yaxis.type).toBe('linear');
+
+            return Plotly.restyle(gd, {x: [['a', 'b', 'c']], y: [['2016-01', '2016-02', '2016-03']]});
+        })
+        .then(function() {
+            checkTicks('x', ['a', 'b', 'c'], 'category x');
+            expect(gd._fullLayout.xaxis.type).toBe('category');
+            checkTicks('y', ['Jan 102016', 'Jan 24', 'Feb 7', 'Feb 21'], 'date y');
+            expect(gd._fullLayout.yaxis.type).toBe('date');
+
+            // should be a noop, but one that raises no errors!
+            return Plotly.relayout(gd, {'xaxis.type': '-', 'yaxis.type': '-'});
+        })
+        .then(function() {
+            checkTicks('x', ['a', 'b', 'c'], 'category x #2');
+            expect(gd._fullLayout.xaxis.type).toBe('category');
+            checkTicks('y', ['Jan 102016', 'Jan 24', 'Feb 7', 'Feb 21'], 'date y #2');
+            expect(gd._fullLayout.yaxis.type).toBe('date');
+        })
+        .catch(fail)
+        .then(done);
+    });
+
+    it('works and draws labels when explicitly specifying ncontours=1', function(done) {
+        Plotly.newPlot(gd, [{
+            z: [[0.20, 0.57], [0.3, 0.4]],
+            type: 'contour',
+            zmin: 0.4,
+            zmax: 0.41,
+            ncontours: 1,
+            showscale: false,
+            contours: {showlabels: true}
+        }], {
+            width: 500, height: 500
+        })
+        .then(function() {
+            expect(gd.querySelector('.contourlabels text').textContent).toBe('0.41');
+        })
+        .catch(fail)
+        .then(done);
     });
 });

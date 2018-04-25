@@ -15,26 +15,33 @@ We use the following [labels](https://github.com/plotly/plotly.js/labels) to tra
 | Label | Purpose |
 |--------|---------|
 | `type: bug` | bug report confirmed by a plotly team member |
+| `type: regression` | bug that introduced a change in behavior from one version to the next |
 | `type: feature` | planned feature additions |
+| `type: translation` | localization-related tasks |
 | `type: performance` | performance related tasks |
 | `type: maintenance` | source code cleanup resulting in no enhancement for users |
 | `type: documentation` | API doc or attribute description improvements |
 | `type: community` | issue left open for community input and pull requests |
 | `type: duplicate` | *self-explanatory* |
 | `type: wontfix` | *self-explanatory* |
-| `status: discussion needed` | Issue or PR that required discussion among maintaners before moving forward |
-| `status: in progress` | PRs that required some intial feedback but not ready to merge |
+| `status: discussion needed` | Issue or PR that required discussion among maintainers before moving forward |
+| `status: in progress` | PRs that required some initial feedback but not ready to merge |
 | `status: reviewable` | PRs that are completed from the author's perspective |
 | `status: on hold` | PRs that are put on hold |
 
 ## Development
 
-#### Perequisites
+#### Prerequisites
 
 - git
-- [node.js](https://nodejs.org/en/). We recommend using node.js v6.x or v4.x (both LTS).
-  Upgrading and managing node versions can be easily done using
-  [`nvm`](https://github.com/creationix/nvm) or its Windows alternatives.
+- [node.js](https://nodejs.org/en/). We recommend using node.js v8.x, but all
+  versions starting from v4 should work.  Upgrading and managing node versions
+  can be easily done using [`nvm`](https://github.com/creationix/nvm) or its
+  Windows alternatives.
+- [`npm`](https://www.npmjs.com/) v5.x and up (which ships by default with
+  node.js v8.x) to ensure that the
+  [`package-lock.json`](https://docs.npmjs.com/files/package-lock.json) file is
+  used and updated correctly.
 
 #### Step 1: Clone the plotly.js repo and install its dependencies
 
@@ -117,6 +124,8 @@ Both jasmine and image tests are run on
 [CircleCI](https://circleci.com/gh/plotly/plotly.js) on every push to this
 repo.
 
+### Jasmine tests
+
 Jasmine tests are run in a browser using
 [karma](https://github.com/karma-runner/karma). To run them locally:
 
@@ -127,17 +136,44 @@ npm run test-jasmine
 To run a specific suite, use:
 
 ```
-npm run test-jasmine -- tests/<suite>.js
+npm run test-jasmine -- <suite>
 ```
 
-where the `<suite>` corresponds to the suite's file name as found in [`test/jasmine/tests/`](https://github.com/plotly/plotly.js/tree/master/test/jasmine/tests). In certain situations, you may find that the default reporting is not verbose enough to pin down the source of the failing test. In this situation, you may wish to use [karma-verbose-reporter](https://www.npmjs.com/package/karma-verbose-reporter). You can use it without adding as a dev dependency by running:
+where the `<suite>` corresponds to the suite's file name as found in
+[`test/jasmine/tests/`](https://github.com/plotly/plotly.js/tree/master/test/jasmine/tests).
+
+You can also test multiple suites at a time, for example:
 
 ```
-npm install karma-verbose-reporter
+npm run test-jasmine -- bar axes scatter
 ```
 
-and adding `reporters: ['verbose']` to the corresponding karma configuration file. (You should disable the `progress` reporter when using `verbose`.)
+which will run tests in the `bar_test.js`, `axes_test.js` and `scatter_test.js`
+suites.
 
+To turn off the `autoWatch` / auto-bundle / multiple run mode:
+
+```
+npm run test-jasmine -- <suite> --nowatch
+```
+
+In certain situations, you may find that the default reporting is not verbose
+enough to pin down the source of the failing test. In this situation, you may
+wish to use
+[karma-verbose-reporter](https://www.npmjs.com/package/karma-verbose-reporter):
+
+```
+npm run test-jasmine -- <suite> --verbose
+```
+
+For more info on the karma / jasmine CLI:
+
+```
+npm run test-jasmine -- --help
+npm run test-jasmine -- --info
+```
+
+### Image pixel comparison tests
 
 Image pixel comparison tests are run in a docker container. For more
 information on how to run them locally, please refer to [image test
@@ -153,6 +189,27 @@ npm run start-image_viewer
 which shows the baseline image, the generated image, the diff and the json mocks of test cases that failed.
 
 To view the results of a run on CircleCI, download the `build/test_images/` and `build/test_images_diff/` artifacts into your local repo and then run `npm run start-image_viewer`.
+
+### Writing interaction tests
+Keep in mind that the interaction coordinates are relative to the top-left corner of the plot, including the margins. To produce a reliable interaction test, 
+it may be necessary to fix the width, height, margins, X axis range and Y axis range of the plot. For example:
+
+```
+Plotly.newPlot(gd, [{
+    x: [1, 1, 1, 2, 2, 2, 3, 3, 3],
+    y: [1, 2, 3, 1, 2, 3, 1, 2, 3],
+    mode: 'markers'
+}], {
+    width: 400, height: 400,
+    margin: {l: 100, r: 100, t: 100, b: 100},
+    xaxis: {range: [0, 4]},
+    yaxis: {range: [0, 4]}
+});
+```
+
+This will produce the following plot, and say you want to simulate a selection path of (175, 175) to (225, 225):
+
+<img src="https://user-images.githubusercontent.com/31989842/38890553-0bc6190c-4282-11e8-8efc-077bf05ca565.png">
 
 
 ## Repo organization

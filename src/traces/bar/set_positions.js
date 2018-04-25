@@ -1,5 +1,5 @@
 /**
-* Copyright 2012-2016, Plotly, Inc.
+* Copyright 2012-2018, Plotly, Inc.
 * All rights reserved.
 *
 * This source code is licensed under the MIT license found in the
@@ -10,6 +10,8 @@
 'use strict';
 
 var isNumeric = require('fast-isnumeric');
+var isArrayOrTypedArray = require('../../lib').isArrayOrTypedArray;
+var BADNUM = require('../../constants/numerical').BADNUM;
 
 var Registry = require('../../registry');
 var Axes = require('../../plots/cartesian/axes');
@@ -104,6 +106,8 @@ function setGroupPositions(gd, pa, sa, calcTraces) {
             setGroupPositionsInOverlayMode(gd, pa, sa, excluded);
         }
     }
+
+    collectExtents(calcTraces, pa);
 }
 
 
@@ -187,7 +191,7 @@ function setGroupPositionsInStackOrRelativeMode(gd, pa, sa, calcTraces) {
         for(var j = 0; j < calcTrace.length; j++) {
             var bar = calcTrace[j];
 
-            if(!isNumeric(bar.s)) continue;
+            if(bar.s === BADNUM) continue;
 
             var isOutmostBar = ((bar.b + bar.s) === sieve.get(bar.p, bar.s));
             if(isOutmostBar) bar._outmost = true;
@@ -226,6 +230,7 @@ function setOffsetAndWidth(gd, pa, sieve) {
         t.barwidth = barWidth;
         t.poffset = offsetFromCenter;
         t.bargroupwidth = barGroupWidth;
+        t.bardelta = minDiff;
     }
 
     // stack bars that only differ by rounding
@@ -235,7 +240,7 @@ function setOffsetAndWidth(gd, pa, sieve) {
     applyAttributes(sieve);
 
     // store the bar center in each calcdata item
-    setBarCenter(gd, pa, sieve);
+    setBarCenterAndWidth(gd, pa, sieve);
 
     // update position axes
     updatePositionAxis(gd, pa, sieve);
@@ -276,6 +281,7 @@ function setOffsetAndWidthInGroupMode(gd, pa, sieve) {
         t.barwidth = barWidth;
         t.poffset = offsetFromCenter;
         t.bargroupwidth = barGroupWidth;
+        t.bardelta = minDiff;
     }
 
     // stack bars that only differ by rounding
@@ -285,7 +291,7 @@ function setOffsetAndWidthInGroupMode(gd, pa, sieve) {
     applyAttributes(sieve);
 
     // store the bar center in each calcdata item
-    setBarCenter(gd, pa, sieve);
+    setBarCenterAndWidth(gd, pa, sieve);
 
     // update position axes
     updatePositionAxis(gd, pa, sieve, overlap);
@@ -308,7 +314,7 @@ function applyAttributes(sieve) {
             initialPoffset = t.poffset,
             newPoffset;
 
-        if(Array.isArray(offset)) {
+        if(isArrayOrTypedArray(offset)) {
             // if offset is an array, then clone it into t.poffset.
             newPoffset = offset.slice(0, calcTrace.length);
 
@@ -334,7 +340,7 @@ function applyAttributes(sieve) {
         var width = fullTrace.width,
             initialBarwidth = t.barwidth;
 
-        if(Array.isArray(width)) {
+        if(isArrayOrTypedArray(width)) {
             // if width is an array, then clone it into t.barwidth.
             var newBarwidth = width.slice(0, calcTrace.length);
 
@@ -376,7 +382,7 @@ function applyAttributes(sieve) {
 }
 
 
-function setBarCenter(gd, pa, sieve) {
+function setBarCenterAndWidth(gd, pa, sieve) {
     var calcTraces = sieve.traces,
         pLetter = getAxisLetter(pa);
 
@@ -391,9 +397,13 @@ function setBarCenter(gd, pa, sieve) {
         for(var j = 0; j < calcTrace.length; j++) {
             var calcBar = calcTrace[j];
 
+            // store the actual bar width and position, for use by hover
+            var width = calcBar.w = (barwidthIsArray) ? barwidth[j] : barwidth;
             calcBar[pLetter] = calcBar.p +
                 ((poffsetIsArray) ? poffset[j] : poffset) +
-                ((barwidthIsArray) ? barwidth[j] : barwidth) / 2;
+                width / 2;
+
+
         }
     }
 }
@@ -448,6 +458,13 @@ function updatePositionAxis(gd, pa, sieve, allowMinDtick) {
     Axes.expand(pa, [pMin, pMax], {padded: false});
 }
 
+function expandRange(range, newValue) {
+    if(isNumeric(range[0])) range[0] = Math.min(range[0], newValue);
+    else range[0] = newValue;
+
+    if(isNumeric(range[1])) range[1] = Math.max(range[1], newValue);
+    else range[1] = newValue;
+}
 
 function setBaseAndTop(gd, sa, sieve) {
     // store these bar bases and tops in calcdata
@@ -455,8 +472,7 @@ function setBaseAndTop(gd, sa, sieve) {
     // along with the bases and tops of each bar.
     var traces = sieve.traces,
         sLetter = getAxisLetter(sa),
-        sMax = sa.l2c(sa.c2l(0)),
-        sMin = sMax;
+        sRange = [null, null];
 
     for(var i = 0; i < traces.length; i++) {
         var trace = traces[i];
@@ -468,18 +484,12 @@ function setBaseAndTop(gd, sa, sieve) {
 
             bar[sLetter] = barTop;
 
-            if(isNumeric(sa.c2l(barTop))) {
-                sMax = Math.max(sMax, barTop);
-                sMin = Math.min(sMin, barTop);
-            }
-            if(isNumeric(sa.c2l(barBase))) {
-                sMax = Math.max(sMax, barBase);
-                sMin = Math.min(sMin, barBase);
-            }
+            if(isNumeric(sa.c2l(barTop))) expandRange(sRange, barTop);
+            if(bar.hasB && isNumeric(sa.c2l(barBase))) expandRange(sRange, barBase);
         }
     }
 
-    Axes.expand(sa, [sMin, sMax], {tozero: true, padded: true});
+    Axes.expand(sa, sRange, {tozero: true, padded: true});
 }
 
 
@@ -491,8 +501,7 @@ function stackBars(gd, sa, sieve) {
         i, trace,
         j, bar;
 
-    var sMax = sa.l2c(sa.c2l(0)),
-        sMin = sMax;
+    var sRange = [null, null];
 
     for(i = 0; i < traces.length; i++) {
         trace = traces[i];
@@ -500,7 +509,7 @@ function stackBars(gd, sa, sieve) {
         for(j = 0; j < trace.length; j++) {
             bar = trace[j];
 
-            if(!isNumeric(bar.s)) continue;
+            if(bar.s === BADNUM) continue;
 
             // stack current bar and get previous sum
             var barBase = sieve.put(bar.p, bar.b + bar.s),
@@ -511,20 +520,14 @@ function stackBars(gd, sa, sieve) {
             bar[sLetter] = barTop;
 
             if(!barnorm) {
-                if(isNumeric(sa.c2l(barTop))) {
-                    sMax = Math.max(sMax, barTop);
-                    sMin = Math.min(sMin, barTop);
-                }
-                if(isNumeric(sa.c2l(barBase))) {
-                    sMax = Math.max(sMax, barBase);
-                    sMin = Math.min(sMin, barBase);
-                }
+                if(isNumeric(sa.c2l(barTop))) expandRange(sRange, barTop);
+                if(bar.hasB && isNumeric(sa.c2l(barBase))) expandRange(sRange, barBase);
             }
         }
     }
 
     // if barnorm is set, let normalizeBars update the axis range
-    if(!barnorm) Axes.expand(sa, [sMin, sMax], {tozero: true, padded: true});
+    if(!barnorm) Axes.expand(sa, sRange, {tozero: true, padded: true});
 }
 
 
@@ -537,7 +540,7 @@ function sieveBars(gd, sa, sieve) {
         for(var j = 0; j < trace.length; j++) {
             var bar = trace[j];
 
-            if(isNumeric(bar.s)) sieve.put(bar.p, bar.b + bar.s);
+            if(bar.s !== BADNUM) sieve.put(bar.p, bar.b + bar.s);
         }
     }
 }
@@ -553,9 +556,19 @@ function normalizeBars(gd, sa, sieve) {
         sLetter = getAxisLetter(sa),
         sTop = (gd._fullLayout.barnorm === 'fraction') ? 1 : 100,
         sTiny = sTop / 1e9, // in case of rounding error in sum
-        sMin = 0,
-        sMax = (gd._fullLayout.barmode === 'stack') ? sTop : 0,
+        sMin = sa.l2c(sa.c2l(0)),
+        sMax = (gd._fullLayout.barmode === 'stack') ? sTop : sMin,
+        sRange = [sMin, sMax],
         padded = false;
+
+    function maybeExpand(newValue) {
+        if(isNumeric(sa.c2l(newValue)) &&
+            ((newValue < sMin - sTiny) || (newValue > sMax + sTiny) || !isNumeric(sMin))
+        ) {
+            padded = true;
+            expandRange(sRange, newValue);
+        }
+    }
 
     for(var i = 0; i < traces.length; i++) {
         var trace = traces[i];
@@ -563,7 +576,7 @@ function normalizeBars(gd, sa, sieve) {
         for(var j = 0; j < trace.length; j++) {
             var bar = trace[j];
 
-            if(!isNumeric(bar.s)) continue;
+            if(bar.s === BADNUM) continue;
 
             var scale = Math.abs(sTop / sieve.get(bar.p, bar.s));
             bar.b *= scale;
@@ -573,35 +586,67 @@ function normalizeBars(gd, sa, sieve) {
                 barTop = barBase + bar.s;
             bar[sLetter] = barTop;
 
-            if(isNumeric(sa.c2l(barTop))) {
-                if(barTop < sMin - sTiny) {
-                    padded = true;
-                    sMin = barTop;
-                }
-                if(barTop > sMax + sTiny) {
-                    padded = true;
-                    sMax = barTop;
-                }
-            }
-
-            if(isNumeric(sa.c2l(barBase))) {
-                if(barBase < sMin - sTiny) {
-                    padded = true;
-                    sMin = barBase;
-                }
-                if(barBase > sMax + sTiny) {
-                    padded = true;
-                    sMax = barBase;
-                }
-            }
+            maybeExpand(barTop);
+            if(bar.hasB) maybeExpand(barBase);
         }
     }
 
     // update range of size axis
-    Axes.expand(sa, [sMin, sMax], {tozero: true, padded: padded});
+    Axes.expand(sa, sRange, {tozero: true, padded: padded});
 }
 
 
 function getAxisLetter(ax) {
     return ax._id.charAt(0);
+}
+
+// find the full position span of bars at each position
+// for use by hover, to ensure labels move in if bars are
+// narrower than the space they're in.
+// run once per trace group (subplot & direction) and
+// the same mapping is attached to all calcdata traces
+function collectExtents(calcTraces, pa) {
+    var posLetter = pa._id.charAt(0);
+    var extents = {};
+    var pMin = Infinity;
+    var pMax = -Infinity;
+
+    var i, j, cd;
+    for(i = 0; i < calcTraces.length; i++) {
+        cd = calcTraces[i];
+        for(j = 0; j < cd.length; j++) {
+            var p = cd[j].p;
+            if(isNumeric(p)) {
+                pMin = Math.min(pMin, p);
+                pMax = Math.max(pMax, p);
+            }
+        }
+    }
+
+    // this is just for positioning of hover labels, and nobody will care if
+    // the label is 1px too far out; so round positions to 1/10K in case
+    // position values don't exactly match from trace to trace
+    var roundFactor = 10000 / (pMax - pMin);
+    var round = extents.round = function(p) {
+        return String(Math.round(roundFactor * (p - pMin)));
+    };
+
+    for(i = 0; i < calcTraces.length; i++) {
+        cd = calcTraces[i];
+        cd[0].t.extents = extents;
+        for(j = 0; j < cd.length; j++) {
+            var di = cd[j];
+            var p0 = di[posLetter] - di.w / 2;
+            if(isNumeric(p0)) {
+                var p1 = di[posLetter] + di.w / 2;
+                var pVal = round(di.p);
+                if(extents[pVal]) {
+                    extents[pVal] = [Math.min(p0, extents[pVal][0]), Math.max(p1, extents[pVal][1])];
+                }
+                else {
+                    extents[pVal] = [p0, p1];
+                }
+            }
+        }
+    }
 }

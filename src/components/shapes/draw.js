@@ -1,5 +1,5 @@
 /**
-* Copyright 2012-2016, Plotly, Inc.
+* Copyright 2012-2018, Plotly, Inc.
 * All rights reserved.
 *
 * This source code is licensed under the MIT license found in the
@@ -9,9 +9,7 @@
 
 'use strict';
 
-var isNumeric = require('fast-isnumeric');
-
-var Plotly = require('../../plotly');
+var Registry = require('../../registry');
 var Lib = require('../../lib');
 var Axes = require('../../plots/cartesian/axes');
 var Color = require('../color');
@@ -22,8 +20,6 @@ var setCursor = require('../../lib/setcursor');
 
 var constants = require('./constants');
 var helpers = require('./helpers');
-var handleShapeDefaults = require('./shape_defaults');
-var supplyLayoutDefaults = require('./defaults');
 
 
 // Shapes are stored in gd.layout.shapes, an array of objects
@@ -46,7 +42,11 @@ function draw(gd) {
     // Remove previous shapes before drawing new in shapes in fullLayout.shapes
     fullLayout._shapeUpperLayer.selectAll('path').remove();
     fullLayout._shapeLowerLayer.selectAll('path').remove();
-    fullLayout._shapeSubplotLayer.selectAll('path').remove();
+
+    for(var k in fullLayout._plots) {
+        var shapelayer = fullLayout._plots[k].shapelayer;
+        if(shapelayer) shapelayer.selectAll('path').remove();
+    }
 
     for(var i = 0; i < fullLayout.shapes.length; i++) {
         if(fullLayout.shapes[i].visible) {
@@ -58,205 +58,37 @@ function draw(gd) {
     // return Plots.previousPromises(gd);
 }
 
-function drawOne(gd, index, opt, value) {
-    if(!isNumeric(index) || index === -1) {
-
-        // no index provided - we're operating on ALL shapes
-        if(!index && Array.isArray(value)) {
-            replaceAllShapes(gd, value);
-            return;
-        }
-        else if(value === 'remove') {
-            deleteAllShapes(gd);
-            return;
-        }
-        else if(opt && value !== 'add') {
-            updateAllShapes(gd, opt, value);
-            return;
-        }
-        else {
-            // add a new empty annotation
-            index = gd._fullLayout.shapes.length;
-            gd._fullLayout.shapes.push({});
-        }
-    }
-
-    if(!opt && value) {
-        if(value === 'remove') {
-            deleteShape(gd, index);
-            return;
-        }
-        else if(value === 'add' || Lib.isPlainObject(value)) {
-            insertShape(gd, index, value);
-        }
-    }
-
-    updateShape(gd, index, opt, value);
-}
-
-function replaceAllShapes(gd, newShapes) {
-    gd.layout.shapes = newShapes;
-    supplyLayoutDefaults(gd.layout, gd._fullLayout);
-    draw(gd);
-}
-
-function deleteAllShapes(gd) {
-    delete gd.layout.shapes;
-    gd._fullLayout.shapes = [];
-    draw(gd);
-}
-
-function updateAllShapes(gd, opt, value) {
-    for(var i = 0; i < gd._fullLayout.shapes.length; i++) {
-        drawOne(gd, i, opt, value);
-    }
-}
-
-function deleteShape(gd, index) {
-    getShapeLayer(gd, index)
-        .selectAll('[data-index="' + index + '"]')
+function drawOne(gd, index) {
+    // remove the existing shape if there is one.
+    // because indices can change, we need to look in all shape layers
+    gd._fullLayout._paperdiv
+        .selectAll('.shapelayer [data-index="' + index + '"]')
         .remove();
 
-    gd._fullLayout.shapes.splice(index, 1);
+    var optionsIn = (gd.layout.shapes || [])[index],
+        options = gd._fullLayout.shapes[index];
 
-    gd.layout.shapes.splice(index, 1);
+    // this shape is gone - quit now after deleting it
+    // TODO: use d3 idioms instead of deleting and redrawing every time
+    if(!optionsIn || options.visible === false) return;
 
-    for(var i = index; i < gd._fullLayout.shapes.length; i++) {
-        // redraw all shapes past the removed one,
-        // so they bind to the right events
-        getShapeLayer(gd, i)
-            .selectAll('[data-index="' + (i + 1) + '"]')
-            .attr('data-index', i);
-        drawOne(gd, i);
-    }
-}
-
-function insertShape(gd, index, newShape) {
-    gd._fullLayout.shapes.splice(index, 0, {});
-
-    var rule = Lib.isPlainObject(newShape) ?
-        Lib.extendFlat({}, newShape) :
-        {text: 'New text'};
-
-    if(gd.layout.shapes) {
-        gd.layout.shapes.splice(index, 0, rule);
-    } else {
-        gd.layout.shapes = [rule];
-    }
-
-    // there is no need to call shapes.draw(gd, index),
-    // because updateShape() is called from within shapes.draw()
-
-    for(var i = gd._fullLayout.shapes.length - 1; i > index; i--) {
-        getShapeLayer(gd, i)
-            .selectAll('[data-index="' + (i - 1) + '"]')
-            .attr('data-index', i);
-        drawOne(gd, i);
-    }
-}
-
-function updateShape(gd, index, opt, value) {
-    var i, n;
-
-    // remove the existing shape if there is one
-    getShapeLayer(gd, index)
-        .selectAll('[data-index="' + index + '"]')
-        .remove();
-
-    // remember a few things about what was already there,
-    var optionsIn = gd.layout.shapes[index];
-
-    // (from annos...) not sure how we're getting here... but C12 is seeing a bug
-    // where we fail here when they add/remove annotations
-    // TODO: clean this up and remove it.
-    if(!optionsIn) return;
-
-    // alter the input shape as requested
-    var optionsEdit = {};
-    if(typeof opt === 'string' && opt) optionsEdit[opt] = value;
-    else if(Lib.isPlainObject(opt)) optionsEdit = opt;
-
-    var optionKeys = Object.keys(optionsEdit);
-    for(i = 0; i < optionKeys.length; i++) {
-        var k = optionKeys[i];
-        Lib.nestedProperty(optionsIn, k).set(optionsEdit[k]);
-    }
-
-    // return early in visible: false updates
-    if(optionsIn.visible === false) return;
-
-    var oldRef = {xref: optionsIn.xref, yref: optionsIn.yref},
-        posAttrs = ['x0', 'x1', 'y0', 'y1'];
-
-    for(i = 0; i < 4; i++) {
-        var posAttr = posAttrs[i];
-        // if we don't have an explicit position already,
-        // don't set one just because we're changing references
-        // or axis type.
-        // the defaults will be consistent most of the time anyway,
-        // except in log/linear changes
-        if(optionsEdit[posAttr] !== undefined ||
-                optionsIn[posAttr] === undefined) {
-            continue;
-        }
-
-        var axLetter = posAttr.charAt(0),
-            axOld = Axes.getFromId(gd,
-                Axes.coerceRef(oldRef, {}, gd, axLetter, '', 'paper')),
-            axNew = Axes.getFromId(gd,
-                Axes.coerceRef(optionsIn, {}, gd, axLetter, '', 'paper')),
-            position = optionsIn[posAttr],
-            rangePosition;
-
-        if(optionsEdit[axLetter + 'ref'] !== undefined) {
-            // first convert to fraction of the axis
-            if(axOld) {
-                rangePosition = helpers.shapePositionToRange(axOld)(position);
-                position = axOld.r2fraction(rangePosition);
-            } else {
-                position = (position - axNew.domain[0]) /
-                    (axNew.domain[1] - axNew.domain[0]);
-            }
-
-            if(axNew) {
-                // then convert to new data coordinates at the same fraction
-                rangePosition = axNew.fraction2r(position);
-                position = helpers.rangeToShapePosition(axNew)(rangePosition);
-            } else {
-                // or scale to the whole plot
-                position = axOld.domain[0] +
-                    position * (axOld.domain[1] - axOld.domain[0]);
-            }
-        }
-
-        optionsIn[posAttr] = position;
-    }
-
-    var options = {};
-    handleShapeDefaults(optionsIn, options, gd._fullLayout);
-    gd._fullLayout.shapes[index] = options;
-
-    var clipAxes;
     if(options.layer !== 'below') {
-        clipAxes = (options.xref + options.yref).replace(/paper/g, '');
         drawShape(gd._fullLayout._shapeUpperLayer);
     }
-    else if(options.xref === 'paper' && options.yref === 'paper') {
-        clipAxes = '';
+    else if(options.xref === 'paper' || options.yref === 'paper') {
         drawShape(gd._fullLayout._shapeLowerLayer);
     }
     else {
-        var plots = gd._fullLayout._plots || {},
-            subplots = Object.keys(plots),
-            plotinfo;
-
-        for(i = 0, n = subplots.length; i < n; i++) {
-            plotinfo = plots[subplots[i]];
-            clipAxes = subplots[i];
-
-            if(isShapeInSubplot(gd, options, plotinfo)) {
-                drawShape(plotinfo.shapelayer);
-            }
+        var plotinfo = gd._fullLayout._plots[options.xref + options.yref];
+        if(plotinfo) {
+            var mainPlot = plotinfo.mainplotinfo || plotinfo;
+            drawShape(mainPlot.shapelayer);
+        }
+        else {
+            // Fall back to _shapeLowerLayer in case the requested subplot doesn't exist.
+            // This can happen if you reference the shape to an x / y axis combination
+            // that doesn't have any data on it (and layer is below)
+            drawShape(gd._fullLayout._shapeLowerLayer);
         }
     }
 
@@ -276,12 +108,17 @@ function updateShape(gd, index, opt, value) {
             .call(Color.fill, options.fillcolor)
             .call(Drawing.dashLine, options.line.dash, options.line.width);
 
-        if(clipAxes) {
-            path.call(Drawing.setClipUrl,
-                'clip' + gd._fullLayout._uid + clipAxes);
-        }
+        // note that for layer="below" the clipAxes can be different from the
+        // subplot we're drawing this in. This could cause problems if the shape
+        // spans two subplots. See https://github.com/plotly/plotly.js/issues/1452
+        var clipAxes = (options.xref + options.yref).replace(/paper/g, '');
 
-        if(gd._context.editable) setupDragElement(gd, path, options, index);
+        path.call(Drawing.setClipUrl, clipAxes ?
+            ('clip' + gd._fullLayout._uid + clipAxes) :
+            null
+        );
+
+        if(gd._context.edits.shapePosition) setupDragElement(gd, path, options, index);
     }
 }
 
@@ -289,25 +126,33 @@ function setupDragElement(gd, shapePath, shapeOptions, index) {
     var MINWIDTH = 10,
         MINHEIGHT = 10;
 
+    var xPixelSized = shapeOptions.xsizemode === 'pixel',
+        yPixelSized = shapeOptions.ysizemode === 'pixel';
+
     var update;
-    var x0, y0, x1, y1, astrX0, astrY0, astrX1, astrY1;
+    var x0, y0, x1, y1, xAnchor, yAnchor, astrX0, astrY0, astrX1, astrY1, astrXAnchor, astrYAnchor;
     var n0, s0, w0, e0, astrN, astrS, astrW, astrE, optN, optS, optW, optE;
     var pathIn, astrPath;
 
     var xa, ya, x2p, y2p, p2x, p2y;
 
     var dragOptions = {
-            setCursor: updateDragMode,
             element: shapePath.node(),
+            gd: gd,
             prepFn: startDrag,
             doneFn: endDrag
         },
-        dragBBox = dragOptions.element.getBoundingClientRect(),
         dragMode;
 
     dragElement.init(dragOptions);
 
+    shapePath.node().onmousemove = updateDragMode;
+
     function updateDragMode(evt) {
+        // element might not be on screen at time of setup,
+        // so obtain bounding box here
+        var dragBBox = dragOptions.element.getBoundingClientRect();
+
         // choose 'move' or 'resize'
         // based on initial position of cursor within the drag element
         var w = dragBBox.right - dragBBox.left,
@@ -336,15 +181,25 @@ function setupDragElement(gd, shapePath, shapeOptions, index) {
 
         // setup update strings and initial values
         var astr = 'shapes[' + index + ']';
+
+        if(xPixelSized) {
+            xAnchor = x2p(shapeOptions.xanchor);
+            astrXAnchor = astr + '.xanchor';
+        }
+        if(yPixelSized) {
+            yAnchor = y2p(shapeOptions.yanchor);
+            astrYAnchor = astr + '.yanchor';
+        }
+
         if(shapeOptions.type === 'path') {
             pathIn = shapeOptions.path;
             astrPath = astr + '.path';
         }
         else {
-            x0 = x2p(shapeOptions.x0);
-            y0 = y2p(shapeOptions.y0);
-            x1 = x2p(shapeOptions.x1);
-            y1 = y2p(shapeOptions.y1);
+            x0 = xPixelSized ? shapeOptions.x0 : x2p(shapeOptions.x0);
+            y0 = yPixelSized ? shapeOptions.y0 : y2p(shapeOptions.y0);
+            x1 = xPixelSized ? shapeOptions.x1 : x2p(shapeOptions.x1);
+            y1 = yPixelSized ? shapeOptions.y1 : y2p(shapeOptions.y1);
 
             astrX0 = astr + '.x0';
             astrY0 = astr + '.y0';
@@ -360,7 +215,10 @@ function setupDragElement(gd, shapePath, shapeOptions, index) {
             w0 = x1; astrW = astr + '.x1'; optW = 'x1';
             e0 = x0; astrE = astr + '.x0'; optE = 'x0';
         }
-        if(y0 < y1) {
+
+        // For fixed size shapes take opposing direction of y-axis into account.
+        // Hint: For data sized shapes this is done by the y2p function.
+        if((!yPixelSized && y0 < y1) || (yPixelSized && y0 > y1)) {
             n0 = y0; astrN = astr + '.y0'; optN = 'y0';
             s0 = y1; astrS = astr + '.y1'; optS = 'y1';
         }
@@ -376,29 +234,48 @@ function setupDragElement(gd, shapePath, shapeOptions, index) {
         dragOptions.moveFn = (dragMode === 'move') ? moveShape : resizeShape;
     }
 
-    function endDrag(dragged) {
+    function endDrag() {
         setCursor(shapePath);
-        if(dragged) {
-            Plotly.relayout(gd, update);
-        }
+        Registry.call('relayout', gd, update);
     }
 
     function moveShape(dx, dy) {
         if(shapeOptions.type === 'path') {
-            var moveX = function moveX(x) { return p2x(x2p(x) + dx); };
-            if(xa && xa.type === 'date') moveX = helpers.encodeDate(moveX);
+            var noOp = function(coord) { return coord; },
+                moveX = noOp,
+                moveY = noOp;
 
-            var moveY = function moveY(y) { return p2y(y2p(y) + dy); };
-            if(ya && ya.type === 'date') moveY = helpers.encodeDate(moveY);
+            if(xPixelSized) {
+                update[astrXAnchor] = shapeOptions.xanchor = p2x(xAnchor + dx);
+            } else {
+                moveX = function moveX(x) { return p2x(x2p(x) + dx); };
+                if(xa && xa.type === 'date') moveX = helpers.encodeDate(moveX);
+            }
+
+            if(yPixelSized) {
+                update[astrYAnchor] = shapeOptions.yanchor = p2y(yAnchor + dy);
+            } else {
+                moveY = function moveY(y) { return p2y(y2p(y) + dy); };
+                if(ya && ya.type === 'date') moveY = helpers.encodeDate(moveY);
+            }
 
             shapeOptions.path = movePath(pathIn, moveX, moveY);
             update[astrPath] = shapeOptions.path;
         }
         else {
-            update[astrX0] = shapeOptions.x0 = p2x(x0 + dx);
-            update[astrY0] = shapeOptions.y0 = p2y(y0 + dy);
-            update[astrX1] = shapeOptions.x1 = p2x(x1 + dx);
-            update[astrY1] = shapeOptions.y1 = p2y(y1 + dy);
+            if(xPixelSized) {
+                update[astrXAnchor] = shapeOptions.xanchor = p2x(xAnchor + dx);
+            } else {
+                update[astrX0] = shapeOptions.x0 = p2x(x0 + dx);
+                update[astrX1] = shapeOptions.x1 = p2x(x1 + dx);
+            }
+
+            if(yPixelSized) {
+                update[astrYAnchor] = shapeOptions.yanchor = p2y(yAnchor + dy);
+            } else {
+                update[astrY0] = shapeOptions.y0 = p2y(y0 + dy);
+                update[astrY1] = shapeOptions.y1 = p2y(y1 + dy);
+            }
         }
 
         shapePath.attr('d', getPathString(gd, shapeOptions));
@@ -407,11 +284,23 @@ function setupDragElement(gd, shapePath, shapeOptions, index) {
     function resizeShape(dx, dy) {
         if(shapeOptions.type === 'path') {
             // TODO: implement path resize
-            var moveX = function moveX(x) { return p2x(x2p(x) + dx); };
-            if(xa && xa.type === 'date') moveX = helpers.encodeDate(moveX);
+            var noOp = function(coord) { return coord; },
+                moveX = noOp,
+                moveY = noOp;
 
-            var moveY = function moveY(y) { return p2y(y2p(y) + dy); };
-            if(ya && ya.type === 'date') moveY = helpers.encodeDate(moveY);
+            if(xPixelSized) {
+                update[astrXAnchor] = shapeOptions.xanchor = p2x(xAnchor + dx);
+            } else {
+                moveX = function moveX(x) { return p2x(x2p(x) + dx); };
+                if(xa && xa.type === 'date') moveX = helpers.encodeDate(moveX);
+            }
+
+            if(yPixelSized) {
+                update[astrYAnchor] = shapeOptions.yanchor = p2y(yAnchor + dy);
+            } else {
+                moveY = function moveY(y) { return p2y(y2p(y) + dy); };
+                if(ya && ya.type === 'date') moveY = helpers.encodeDate(moveY);
+            }
 
             shapeOptions.path = movePath(pathIn, moveX, moveY);
             update[astrPath] = shapeOptions.path;
@@ -422,14 +311,21 @@ function setupDragElement(gd, shapePath, shapeOptions, index) {
                 newW = (~dragMode.indexOf('w')) ? w0 + dx : w0,
                 newE = (~dragMode.indexOf('e')) ? e0 + dx : e0;
 
-            if(newS - newN > MINHEIGHT) {
-                update[astrN] = shapeOptions[optN] = p2y(newN);
-                update[astrS] = shapeOptions[optS] = p2y(newS);
-            }
+            // Do things in opposing direction for y-axis.
+            // Hint: for data-sized shapes the reversal of axis direction is done in p2y.
+            if(~dragMode.indexOf('n') && yPixelSized) newN = n0 - dy;
+            if(~dragMode.indexOf('s') && yPixelSized) newS = s0 - dy;
 
+            // Update shape eventually. Again, be aware of the
+            // opposing direction of the y-axis of fixed size shapes.
+            if((!yPixelSized && newS - newN > MINHEIGHT) ||
+              (yPixelSized && newN - newS > MINHEIGHT)) {
+                update[astrN] = shapeOptions[optN] = yPixelSized ? newN : p2y(newN);
+                update[astrS] = shapeOptions[optS] = yPixelSized ? newS : p2y(newS);
+            }
             if(newE - newW > MINWIDTH) {
-                update[astrW] = shapeOptions[optW] = p2x(newW);
-                update[astrE] = shapeOptions[optE] = p2x(newE);
+                update[astrW] = shapeOptions[optW] = xPixelSized ? newW : p2x(newW);
+                update[astrE] = shapeOptions[optE] = xPixelSized ? newE : p2x(newE);
             }
         }
 
@@ -437,40 +333,13 @@ function setupDragElement(gd, shapePath, shapeOptions, index) {
     }
 }
 
-function getShapeLayer(gd, index) {
-    var shape = gd._fullLayout.shapes[index],
-        shapeLayer = gd._fullLayout._shapeUpperLayer;
-
-    if(!shape) {
-        Lib.log('getShapeLayer: undefined shape: index', index);
-    }
-    else if(shape.layer === 'below') {
-        shapeLayer = (shape.xref === 'paper' && shape.yref === 'paper') ?
-            gd._fullLayout._shapeLowerLayer :
-            gd._fullLayout._shapeSubplotLayer;
-    }
-
-    return shapeLayer;
-}
-
-function isShapeInSubplot(gd, shape, plotinfo) {
-    var xa = Axes.getFromId(gd, plotinfo.id, 'x')._id,
-        ya = Axes.getFromId(gd, plotinfo.id, 'y')._id,
-        isBelow = shape.layer === 'below',
-        inSuplotAxis = (xa === shape.xref || ya === shape.yref),
-        isNotAnOverlaidSubplot = !!plotinfo.shapelayer;
-    return isBelow && inSuplotAxis && isNotAnOverlaidSubplot;
-}
-
 function getPathString(gd, options) {
     var type = options.type,
         xa = Axes.getFromId(gd, options.xref),
         ya = Axes.getFromId(gd, options.yref),
         gs = gd._fullLayout._size,
-        x2r,
-        x2p,
-        y2r,
-        y2p;
+        x2r, x2p, y2r, y2p,
+        x0, x1, y0, y1;
 
     if(xa) {
         x2r = helpers.shapePositionToRange(xa);
@@ -491,13 +360,28 @@ function getPathString(gd, options) {
     if(type === 'path') {
         if(xa && xa.type === 'date') x2p = helpers.decodeDate(x2p);
         if(ya && ya.type === 'date') y2p = helpers.decodeDate(y2p);
-        return convertPath(options.path, x2p, y2p);
+        return convertPath(options, x2p, y2p);
     }
 
-    var x0 = x2p(options.x0),
-        x1 = x2p(options.x1),
-        y0 = y2p(options.y0),
+    if(options.xsizemode === 'pixel') {
+        var xAnchorPos = x2p(options.xanchor);
+        x0 = xAnchorPos + options.x0;
+        x1 = xAnchorPos + options.x1;
+    }
+    else {
+        x0 = x2p(options.x0);
+        x1 = x2p(options.x1);
+    }
+
+    if(options.ysizemode === 'pixel') {
+        var yAnchorPos = y2p(options.yanchor);
+        y0 = yAnchorPos - options.y0;
+        y1 = yAnchorPos - options.y1;
+    }
+    else {
+        y0 = y2p(options.y0);
         y1 = y2p(options.y1);
+    }
 
     if(type === 'line') return 'M' + x0 + ',' + y0 + 'L' + x1 + ',' + y1;
     if(type === 'rect') return 'M' + x0 + ',' + y0 + 'H' + x1 + 'V' + y1 + 'H' + x0 + 'Z';
@@ -514,8 +398,14 @@ function getPathString(gd, options) {
 }
 
 
-function convertPath(pathIn, x2p, y2p) {
-    // convert an SVG path string from data units to pixels
+function convertPath(options, x2p, y2p) {
+    var pathIn = options.path,
+        xSizemode = options.xsizemode,
+        ySizemode = options.ysizemode,
+        xAnchor = options.xanchor,
+        yAnchor = options.yanchor;
+
+
     return pathIn.replace(constants.segmentRE, function(segment) {
         var paramNumber = 0,
             segmentType = segment.charAt(0),
@@ -524,8 +414,14 @@ function convertPath(pathIn, x2p, y2p) {
             nParams = constants.numParams[segmentType];
 
         var paramString = segment.substr(1).replace(constants.paramRE, function(param) {
-            if(xParams[paramNumber]) param = x2p(param);
-            else if(yParams[paramNumber]) param = y2p(param);
+            if(xParams[paramNumber]) {
+                if(xSizemode === 'pixel') param = x2p(xAnchor) + Number(param);
+                else param = x2p(param);
+            }
+            else if(yParams[paramNumber]) {
+                if(ySizemode === 'pixel') param = y2p(yAnchor) - Number(param);
+                else param = y2p(param);
+            }
             paramNumber++;
 
             if(paramNumber > nParams) param = 'X';

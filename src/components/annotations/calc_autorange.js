@@ -1,5 +1,5 @@
 /**
-* Copyright 2012-2016, Plotly, Inc.
+* Copyright 2012-2018, Plotly, Inc.
 * All rights reserved.
 *
 * This source code is licensed under the MIT license found in the
@@ -23,19 +23,19 @@ module.exports = function calcAutorange(gd) {
 
     var annotationAxes = {};
     annotationList.forEach(function(ann) {
-        annotationAxes[ann.xref] = true;
-        annotationAxes[ann.yref] = true;
+        annotationAxes[ann.xref] = 1;
+        annotationAxes[ann.yref] = 1;
     });
 
-    var autorangedAnnos = Axes.list(gd).filter(function(ax) {
-        return ax.autorange && annotationAxes[ax._id];
-    });
-    if(!autorangedAnnos.length) return;
-
-    return Lib.syncOrAsync([
-        draw,
-        annAutorange
-    ], gd);
+    for(var axId in annotationAxes) {
+        var ax = Axes.getFromId(gd, axId);
+        if(ax && ax.autorange) {
+            return Lib.syncOrAsync([
+                draw,
+                annAutorange
+            ], gd);
+        }
+    }
 };
 
 function annAutorange(gd) {
@@ -45,41 +45,66 @@ function annAutorange(gd) {
     // relative to their anchor points
     // use the arrow and the text bg rectangle,
     // as the whole anno may include hidden text in its bbox
-    fullLayout.annotations.forEach(function(ann) {
+    Lib.filterVisible(fullLayout.annotations).forEach(function(ann) {
         var xa = Axes.getFromId(gd, ann.xref),
-            ya = Axes.getFromId(gd, ann.yref);
+            ya = Axes.getFromId(gd, ann.yref),
+            headSize = 3 * ann.arrowsize * ann.arrowwidth || 0,
+            startHeadSize = 3 * ann.startarrowsize * ann.arrowwidth || 0;
 
-        if(!(xa || ya)) return;
-
-        var halfWidth = (ann._xsize || 0) / 2,
-            xShift = ann._xshift || 0,
-            halfHeight = (ann._ysize || 0) / 2,
-            yShift = ann._yshift || 0,
-            leftSize = halfWidth - xShift,
-            rightSize = halfWidth + xShift,
-            topSize = halfHeight - yShift,
-            bottomSize = halfHeight + yShift;
-
-        if(ann.showarrow) {
-            var headSize = 3 * ann.arrowsize * ann.arrowwidth;
-            leftSize = Math.max(leftSize, headSize);
-            rightSize = Math.max(rightSize, headSize);
-            topSize = Math.max(topSize, headSize);
-            bottomSize = Math.max(bottomSize, headSize);
-        }
+        var headPlus, headMinus, startHeadPlus, startHeadMinus;
 
         if(xa && xa.autorange) {
-            Axes.expand(xa, [xa.r2c(ann.x)], {
-                ppadplus: rightSize,
-                ppadminus: leftSize
-            });
+            headPlus = headSize + ann.xshift;
+            headMinus = headSize - ann.xshift;
+            startHeadPlus = startHeadSize + ann.xshift;
+            startHeadMinus = startHeadSize - ann.xshift;
+
+            if(ann.axref === ann.xref) {
+                // expand for the arrowhead (padded by arrowhead)
+                Axes.expand(xa, [xa.r2c(ann.x)], {
+                    ppadplus: headPlus,
+                    ppadminus: headMinus
+                });
+                // again for the textbox (padded by textbox)
+                Axes.expand(xa, [xa.r2c(ann.ax)], {
+                    ppadplus: Math.max(ann._xpadplus, startHeadPlus),
+                    ppadminus: Math.max(ann._xpadminus, startHeadMinus)
+                });
+            }
+            else {
+                startHeadPlus = ann.ax ? startHeadPlus + ann.ax : startHeadPlus;
+                startHeadMinus = ann.ax ? startHeadMinus - ann.ax : startHeadMinus;
+                Axes.expand(xa, [xa.r2c(ann.x)], {
+                    ppadplus: Math.max(ann._xpadplus, headPlus, startHeadPlus),
+                    ppadminus: Math.max(ann._xpadminus, headMinus, startHeadMinus)
+                });
+            }
         }
 
         if(ya && ya.autorange) {
-            Axes.expand(ya, [ya.r2c(ann.y)], {
-                ppadplus: bottomSize,
-                ppadminus: topSize
-            });
+            headPlus = headSize - ann.yshift;
+            headMinus = headSize + ann.yshift;
+            startHeadPlus = startHeadSize - ann.yshift;
+            startHeadMinus = startHeadSize + ann.yshift;
+
+            if(ann.ayref === ann.yref) {
+                Axes.expand(ya, [ya.r2c(ann.y)], {
+                    ppadplus: headPlus,
+                    ppadminus: headMinus
+                });
+                Axes.expand(ya, [ya.r2c(ann.ay)], {
+                    ppadplus: Math.max(ann._ypadplus, startHeadPlus),
+                    ppadminus: Math.max(ann._ypadminus, startHeadMinus)
+                });
+            }
+            else {
+                startHeadPlus = ann.ay ? startHeadPlus + ann.ay : startHeadPlus;
+                startHeadMinus = ann.ay ? startHeadMinus - ann.ay : startHeadMinus;
+                Axes.expand(ya, [ya.r2c(ann.y)], {
+                    ppadplus: Math.max(ann._ypadplus, headPlus, startHeadPlus),
+                    ppadminus: Math.max(ann._ypadminus, headMinus, startHeadMinus)
+                });
+            }
         }
     });
 }

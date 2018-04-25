@@ -1,5 +1,5 @@
 /**
-* Copyright 2012-2016, Plotly, Inc.
+* Copyright 2012-2018, Plotly, Inc.
 * All rights reserved.
 *
 * This source code is licensed under the MIT license found in the
@@ -15,9 +15,7 @@ var Color = require('../../components/color');
 
 var handleBinDefaults = require('./bin_defaults');
 var handleStyleDefaults = require('../bar/style_defaults');
-var errorBarsSupplyDefaults = require('../../components/errorbars/defaults');
 var attributes = require('./attributes');
-
 
 module.exports = function supplyDefaults(traceIn, traceOut, defaultColor, layout) {
     function coerce(attr, dflt) {
@@ -26,6 +24,12 @@ module.exports = function supplyDefaults(traceIn, traceOut, defaultColor, layout
 
     var x = coerce('x'),
         y = coerce('y');
+
+    var cumulative = coerce('cumulative.enabled');
+    if(cumulative) {
+        coerce('cumulative.direction');
+        coerce('cumulative.currentbin');
+    }
 
     coerce('text');
 
@@ -49,6 +53,9 @@ module.exports = function supplyDefaults(traceIn, traceOut, defaultColor, layout
     handleStyleDefaults(traceIn, traceOut, coerce, defaultColor, layout);
 
     // override defaultColor for error bars with defaultLine
+    var errorBarsSupplyDefaults = Registry.getComponentMethod('errorbars', 'supplyDefaults');
     errorBarsSupplyDefaults(traceIn, traceOut, Color.defaultLine, {axis: 'y'});
     errorBarsSupplyDefaults(traceIn, traceOut, Color.defaultLine, {axis: 'x', inherit: 'y'});
+
+    Lib.coerceSelectionMarkerOpacity(traceOut, coerce);
 };

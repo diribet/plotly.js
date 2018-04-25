@@ -1,5 +1,5 @@
 /**
-* Copyright 2012-2016, Plotly, Inc.
+* Copyright 2012-2018, Plotly, Inc.
 * All rights reserved.
 *
 * This source code is licensed under the MIT license found in the
@@ -13,18 +13,21 @@ var mergeArray = require('../../lib').mergeArray;
 
 
 // arrayOk attributes, merge them into calcdata array
-module.exports = function arraysToCalcdata(cd) {
-    var trace = cd[0].trace,
-        marker = trace.marker;
+module.exports = function arraysToCalcdata(cd, trace) {
+    for(var i = 0; i < cd.length; i++) cd[i].i = i;
 
     mergeArray(trace.text, cd, 'tx');
+    mergeArray(trace.hovertext, cd, 'htx');
 
-    if(marker && marker.line) {
-        var markerLine = marker.line;
-
+    var marker = trace.marker;
+    if(marker) {
         mergeArray(marker.opacity, cd, 'mo');
         mergeArray(marker.color, cd, 'mc');
-        mergeArray(markerLine.color, cd, 'mlc');
-        mergeArray(markerLine.width, cd, 'mlw');
+
+        var markerLine = marker.line;
+        if(markerLine) {
+            mergeArray(markerLine.color, cd, 'mlc');
+            mergeArray(markerLine.width, cd, 'mlw');
+        }
     }
 };

@@ -1,5 +1,5 @@
 /**
-* Copyright 2012-2016, Plotly, Inc.
+* Copyright 2012-2018, Plotly, Inc.
 * All rights reserved.
 *
 * This source code is licensed under the MIT license found in the
@@ -10,49 +10,71 @@
 
 var Lib = require('../../lib');
 var attributes = require('./attributes');
+var oppAxisAttrs = require('./oppaxis_attributes');
+var axisIds = require('../../plots/cartesian/axis_ids');
 
+module.exports = function handleDefaults(layoutIn, layoutOut, axName) {
+    var axIn = layoutIn[axName];
+    var axOut = layoutOut[axName];
 
-module.exports = function handleDefaults(layoutIn, layoutOut, axName, counterAxes) {
-    if(!layoutIn[axName].rangeslider) return;
+    if(!(axIn.rangeslider || layoutOut._requestRangeslider[axOut._id])) return;
 
     // not super proud of this (maybe store _ in axis object instead
-    if(!Lib.isPlainObject(layoutIn[axName].rangeslider)) {
-        layoutIn[axName].rangeslider = {};
+    if(!Lib.isPlainObject(axIn.rangeslider)) {
+        axIn.rangeslider = {};
     }
 
-    var containerIn = layoutIn[axName].rangeslider,
-        axOut = layoutOut[axName],
-        containerOut = axOut.rangeslider = {};
+    var containerIn = axIn.rangeslider;
+    var containerOut = axOut.rangeslider = {};
 
     function coerce(attr, dflt) {
         return Lib.coerce(containerIn, containerOut, attributes, attr, dflt);
     }
 
+    function coerceRange(rangeContainerIn, rangeContainerOut, attr, dflt) {
+        return Lib.coerce(rangeContainerIn, rangeContainerOut, oppAxisAttrs, attr, dflt);
+    }
+
+    var visible = coerce('visible');
+    if(!visible) return;
+
     coerce('bgcolor', layoutOut.plot_bgcolor);
     coerce('bordercolor');
     coerce('borderwidth');
     coerce('thickness');
-    coerce('visible');
+
+    axOut._rangesliderAutorange = coerce('autorange', !axOut.isValidRange(containerIn.range));
     coerce('range');
 
-    // Expand slider range to the axis range
-    if(containerOut.range && !axOut.autorange) {
-        // TODO: what if the ranges are reversed?
-        var outRange = containerOut.range,
-            axRange = axOut.range;
+    var subplots = layoutOut._subplots;
+    if(subplots) {
+        var yIds = subplots.cartesian
+            .filter(function(subplotId) {
+                return subplotId.substr(0, subplotId.indexOf('y')) === axisIds.name2id(axName);
+            })
+            .map(function(subplotId) {
+                return subplotId.substr(subplotId.indexOf('y'), subplotId.length);
+            });
+        var yNames = Lib.simpleMap(yIds, axisIds.id2name);
+        for(var i = 0; i < yNames.length; i++) {
+            var yName = yNames[i];
 
-        outRange[0] = axOut.l2r(Math.min(axOut.r2l(outRange[0]), axOut.r2l(axRange[0])));
-        outRange[1] = axOut.l2r(Math.max(axOut.r2l(outRange[1]), axOut.r2l(axRange[1])));
-    } else {
-        axOut._needsExpand = true;
-    }
+            var rangeContainerIn = containerIn[yName] || {};
+            var rangeContainerOut = containerOut[yName] = {};
 
-    if(containerOut.visible) {
-        counterAxes.forEach(function(ax) {
-            var opposing = layoutOut[ax] || {};
-            opposing.fixedrange = true;
-            layoutOut[ax] = opposing;
-        });
+            var yAxOut = layoutOut[yName];
+
+            var rangemodeDflt;
+            if(rangeContainerIn.range && yAxOut.isValidRange(rangeContainerIn.range)) {
+                rangemodeDflt = 'fixed';
+            }
+
+            var rangeMode = coerceRange(rangeContainerIn, rangeContainerOut, 'rangemode', rangemodeDflt);
+            if(rangeMode !== 'match') {
+                coerceRange(rangeContainerIn, rangeContainerOut, 'range', yAxOut.range.slice());
+            }
+            yAxOut._rangesliderAutorange = (rangeMode === 'auto');
+        }
     }
 
     // to map back range slider (auto) range

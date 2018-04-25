@@ -1,21 +1,18 @@
 /**
-* Copyright 2012-2016, Plotly, Inc.
+* Copyright 2012-2018, Plotly, Inc.
 * All rights reserved.
 *
 * This source code is licensed under the MIT license found in the
 * LICENSE file in the root directory of this source tree.
 */
 
-
 'use strict';
-
-var register = require('../../plot_api/register');
 
 module.exports = {
     moduleType: 'trace',
     name: 'candlestick',
     basePlotModule: require('../../plots/cartesian'),
-    categories: ['cartesian', 'showLegend'],
+    categories: ['cartesian', 'svg', 'showLegend', 'candlestick', 'boxLayout'],
     meta: {
         description: [
             'The candlestick is a style of financial chart describing',
@@ -33,8 +30,13 @@ module.exports = {
     },
 
     attributes: require('./attributes'),
+    layoutAttributes: require('../box/layout_attributes'),
+    supplyLayoutDefaults: require('../box/layout_defaults').supplyLayoutDefaults,
+    setPositions: require('../box/set_positions').setPositions,
     supplyDefaults: require('./defaults'),
+    calc: require('./calc'),
+    plot: require('../box/plot').plot,
+    style: require('../box/style'),
+    hoverPoints: require('../ohlc/hover'),
+    selectPoints: require('../ohlc/select')
 };
-
-register(require('../box'));
-register(require('./transform'));
