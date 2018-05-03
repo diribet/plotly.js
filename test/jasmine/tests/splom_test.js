@@ -82,7 +82,7 @@ describe('Test splom trace defaults:', function() {
         });
 
         var fullTrace = gd._fullData[0];
-        expect(fullTrace._commonLength).toBe(3, 'common length');
+        expect(fullTrace._length).toBe(3, 'common length');
         expect(fullTrace.dimensions[0]._length).toBe(3, 'dim 0 length');
         expect(fullTrace.dimensions[1]._length).toBe(3, 'dim 1 length');
         expect(fullTrace.xaxes).toEqual(['x', 'x2']);
@@ -546,6 +546,21 @@ describe('@gl Test splom interactions:', function() {
                 y: 79, y2: 230, y3: 382
             });
         })
+        .catch(failTest)
+        .then(done);
+    });
+
+    it('should work with typed arrays', function(done) {
+        Plotly.plot(gd, [{
+            type: 'splom',
+            dimensions: [{
+                label: 'A',
+                values: new Int32Array([1, 2, 3])
+            }, {
+                label: 'B',
+                values: new Int32Array([2, 5, 6])
+            }]
+        }])
         .catch(failTest)
         .then(done);
     });
