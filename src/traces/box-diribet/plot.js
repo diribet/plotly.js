@@ -208,8 +208,7 @@ module.exports = function plot(gd, plotinfo, cdbox, boxLayer) {
 
         // draw probability density
         if (fullLayout.showProbabilityDensity != 'never') {
-        	var showDensityOnHover = fullLayout.showProbabilityDensity === 'hover',
-        		transition = d3.transition().duration(500);
+        	var showDensityOnHover = fullLayout.showProbabilityDensity === 'hover';
 
 	        var densityGroupJoin = boxGroups.selectAll('g.density')
 	        								.data(function(d) {
@@ -223,7 +222,6 @@ module.exports = function plot(gd, plotinfo, cdbox, boxLayer) {
 	        var densityGroup = densityGroupJoin.enter()
 								            	.append('g')
 						            			.classed('density', true);
-	        densityGroup.style('opacity', 0).transition(transition).style('opacity', 1);
 
 	        densityGroupJoin.exit()
 			            	.remove();
