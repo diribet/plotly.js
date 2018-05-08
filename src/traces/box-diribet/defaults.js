@@ -19,25 +19,28 @@ module.exports = function supplyDefaults(traceIn, traceOut, defaultColor, layout
         return Lib.coerce(traceIn, traceOut, attributes, attr, dflt);
     }
 
-    var y = coerce('y'),
-	    x = coerce('x'),
-	    defaultOrientation;
-	
+    var y = coerce('y');
+	var x = coerce('x');
+	var defaultOrientation, len;
+
     function isBoxStats(data) {
     	return data && data.length && typeof data[0] == "object";
     }
-    
+
 	if(isBoxStats(y)) {
 	    defaultOrientation = 'v';
 	    if(!x) coerce('x0');
+		len = y.length;
 	} else if(isBoxStats(x)) {
 	    defaultOrientation = 'h';
 	    if(!y) coerce('y0');
+		len = x.length;
 	} else {
 	    traceOut.visible = false;
 	    return;
 	}
-    
+	traceOut._length = len;
+
     var handleCalendarDefaults = Registry.getComponentMethod('calendars', 'handleTraceDefaults');
     handleCalendarDefaults(traceIn, traceOut, ['x', 'y'], layout);
 
@@ -71,7 +74,7 @@ module.exports = function supplyDefaults(traceIn, traceOut, defaultColor, layout
     coerce('avgmarker.color');
     coerce('avgmarker.line.color');
     coerce('avgmarker.line.width');
-    
+
     coerce('invalidmarker.symbol');
     coerce('invalidmarker.opacity');
     coerce('invalidmarker.size');
