@@ -14,7 +14,7 @@ var Lib = require('../../lib');
 var Drawing = require('../../components/drawing');
 var linePoints = require('../scatter/line_points');
 
-module.exports = function plot(gd, plotinfo, cdbox) {
+module.exports = function plot(gd, plotinfo, cdbox, boxLayer) {
     var fullLayout = gd._fullLayout,
         xa = plotinfo.xaxis,
         ya = plotinfo.yaxis,
@@ -34,11 +34,10 @@ module.exports = function plot(gd, plotinfo, cdbox) {
 		};
 	}
 
-    var boxtraces = plotinfo.plot.select('.boxlayer')
-        .selectAll('g.trace.boxes')
-            .data(cdbox)
-            .enter().append('g')
-            .classed('trace boxes', true);
+    var boxtraces = boxLayer.selectAll('g.trace.boxes')
+							.data(cdbox)
+							.enter().append('g')
+							.classed('trace boxes', true);
 
     boxtraces.each(function(d) {
         var t = d[0].t,
