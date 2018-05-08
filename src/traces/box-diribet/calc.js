@@ -43,7 +43,7 @@ module.exports = function calc(gd, trace) {
     // so if you want one box
     // per trace, set x0 (y0) to the x (y) value or category for this trace
     // (or set x (y) to a constant array matching y (x))
-    function getPos(gd, trace, posLetter, posAxis, val) {
+    function getPos(trace, posLetter, posAxis, val, num) {
         var pos0;
         if(posLetter in trace) pos = posAxis.makeCalcdata(trace, posLetter);
         else {
@@ -57,14 +57,14 @@ module.exports = function calc(gd, trace) {
                     )) {
                 pos0 = trace.name;
             }
-            else pos0 = gd.numboxes;
+            else pos0 = num;
             pos0 = posAxis.d2c(pos0, 0, trace[posLetter + 'calendar']);
             pos = val.map(function() { return pos0; });
         }
         return pos;
     }
 
-    pos = getPos(gd, trace, posLetter, posAxis, val);
+    pos = getPos(trace, posLetter, posAxis, val, fullLayout._numBoxes);
 
     // get distinct positions and min difference
     var dv = Lib.distinctVals(pos);
@@ -78,10 +78,10 @@ module.exports = function calc(gd, trace) {
     var hasOutliers = false;
     for (i = 0; i < cd.length; i++) {
     	box = cd[i];
-		
+
 		box.showOutliersText = fullLayout.showOutliersText;
 		box.scaleIgnoresOutliers = fullLayout.scaleIgnoresOutliers;
-		
+
     	box.loc = 0; // lower outliers count
     	box.uoc = 0; // upper outliers count
     	if (box.points != null) {
@@ -92,35 +92,35 @@ module.exports = function calc(gd, trace) {
     			box.uoc = box.points.filter(function(e) { return e > box.uw; }).length;
     		}
     	}
-    	
+
     	if (box.loc > 0 || box.uoc > 0) {
     		hasOutliers = true;
     	}
     }
-    
+
     // normalization
     if (trace.normalize) {
     	cd = cd.map(normalizeBox);
     }
-    
+
     // size autorange based on min and max values of boxes
     var minMaxValues = [],
     	i;
-    
+
     for (i = 0; i < cd.length; ++i) {
     	box = cd[i];
     	minMaxValues[i * 2] = Math.min(
-    								box.lw, 
+    								box.lw,
     								fullLayout.scaleIgnoresOutliers ? Infinity : box.min,
-    								isNaN(box.lsl) ? Infinity : box.lsl, 
+    								isNaN(box.lsl) ? Infinity : box.lsl,
     								isNaN(box.lnb) ? Infinity : box.lnb);
     	minMaxValues[i * 2 + 1] = Math.max(
-    									box.uw, 
-    									fullLayout.scaleIgnoresOutliers ? -Infinity : box.max, 
-        								isNaN(box.usl) ? -Infinity : box.usl, 
+    									box.uw,
+    									fullLayout.scaleIgnoresOutliers ? -Infinity : box.max,
+        								isNaN(box.usl) ? -Infinity : box.usl,
         								isNaN(box.unb) ? -Infinity : box.unb);
     }
-    
+
     var paddingOptions = { padded: true };
     if (fullLayout.scaleIgnoresOutliers && hasOutliers) {
     	// additional padding for outliers out of scale markers
@@ -128,24 +128,24 @@ module.exports = function calc(gd, trace) {
     }
     Axes.expand(valAxis, minMaxValues, paddingOptions);
 
-    
+
     function calculateWidths(data) {
     	if (!data.length) return [];
-    	
-    	var i,    	
+
+    	var i,
     		counts = data.map(function(d) { return d.count == null ? 0 : d.count; }),
     		maxCount = Math.max.apply(null, counts);
-    	
+
     	return counts.map(function(count) { return Math.sqrt(count / maxCount); });
     }
-    
+
     var widths = calculateWidths(cd);
-    
+
     // set positions and widths to stats
 	for(var i = 0; i < pos.length; ++i) {
 		cd[i].pos = pos[i];
 		cd[i].boxwidth = widths[i];
-		
+
 		if (trace.hoverindex != null) {
 			if (i == trace.hoverindex) {
 				cd[i].hover = true;
@@ -160,53 +160,58 @@ module.exports = function calc(gd, trace) {
 				scale = e.probabilityDensity.scale,
 				densityLength = Math.min(density.length, scale.length),
 				i;
-			
+
 			var transformedDensity = new Array(densityLength);
 			for (i = 0; i < densityLength; i++) {
 				transformedDensity[i] = {};
-				transformedDensity[i][posLetter] = density[i]; 
-				transformedDensity[i][valLetter] = scale[i]; 
+				transformedDensity[i][posLetter] = density[i];
+				transformedDensity[i][valLetter] = scale[i];
 			}
 			e.probabilityDensity = transformedDensity;
 		}
 	});
-	
+
     // add numboxes and dPos to cd
-    cd[0].t = {boxnum: gd.numboxes, dPos: dPos};
-    gd.numboxes++;
+    cd[0].t = {
+    	boxnum: fullLayout._numBoxes,
+		dPos: dPos,
+		posLetter: posLetter,
+		valLetter: valLetter
+    };
+	fullLayout._numBoxes++;
     return cd;
 };
 
 function normalizeBox(box) {
-	var lsl = box.lsl == null ? box.lnb : box.lsl, 
+	var lsl = box.lsl == null ? box.lnb : box.lsl,
 		usl = box.usl == null ? box.unb : box.usl;
-	
+
 	if (lsl == null || usl == null) {
 		return {
 			normalizationFailed: true,
 			_origBox: box
 		};
 	}
-	
+
 	var target = (lsl + usl) / 2,
 		origBox = extendDeep({}, box);
-	
+
 	box._origBox = origBox;
-	
+
 	function normalize(v) {
 		if (v == null) return null;
-		
+
 		if (Array.isArray(v)) {
 			return v.map(normalize);
 		}
-		
+
 		if (v >= target) {
 			return (v - target) / (usl - target);
 		} else {
 			return (v - target) / (target - lsl);
 		}
 	}
-	
+
 	box.med = normalize(box.med);
 	box.avg = normalize(box.avg);
 	box.q1 = normalize(box.q1);

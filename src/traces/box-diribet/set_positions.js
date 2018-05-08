@@ -62,7 +62,7 @@ module.exports = function setPositions(gd, plotinfo) {
 
         // if there's no duplication of x points,
         // disable 'group' mode by setting numboxes=1
-        if(boxpointlist.length === boxdv.vals.length) gd.numboxes = 1;
+        if(boxpointlist.length === boxdv.vals.length) fullLayout._numBoxes = 1;
 
         // check for forced minimum dtick
         Axes.minDtick(posAxis, boxdv.minDiff, boxdv.vals[0], true);

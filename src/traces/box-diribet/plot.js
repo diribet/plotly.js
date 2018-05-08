@@ -43,15 +43,15 @@ module.exports = function plot(gd, plotinfo, cdbox) {
     boxtraces.each(function(d) {
         var t = d[0].t,
             trace = d[0].trace,
-            group = (fullLayout.boxmode === 'group' && gd.numboxes > 1),
+            group = (fullLayout.boxmode === 'group' && fullLayout._numBoxes > 1),
             // box half width
-            bdPos = t.dPos * (1 - fullLayout.boxgap) * (1 - fullLayout.boxgroupgap) / (group ? gd.numboxes : 1),
+            bdPos = t.dPos * (1 - fullLayout.boxgap) * (1 - fullLayout.boxgroupgap) / (group ? fullLayout._numBoxes : 1),
             // box center offset
-            bPos = group ? 2 * t.dPos * (-0.5 + (t.boxnum + 0.5) / gd.numboxes) * (1 - fullLayout.boxgap) : 0,
+            bPos = group ? 2 * t.dPos * (-0.5 + (t.boxnum + 0.5) / fullLayout._numBoxes) * (1 - fullLayout.boxgap) : 0,
             // whisker width
             wdPos = bdPos * trace.whiskerwidth,
             // specification limit width (box width without gaps)
-            limitWidth = t.dPos * (group ? (1 - fullLayout.boxgap) : 1) / (group ? gd.numboxes : 1);
+            limitWidth = t.dPos * (group ? (1 - fullLayout.boxgap) : 1) / (group ? fullLayout._numBoxes : 1);
         if(trace.visible !== true || t.emptybox) {
             d3.select(this).remove();
             return;
@@ -296,7 +296,16 @@ module.exports = function plot(gd, plotinfo, cdbox) {
         }
 
         // draw mean
-        boxGroups.append('path')
+		boxGroups.selectAll('path.mean')
+			.data(function(d) {
+				if (d.avg != null) {
+					return [d];
+				} else {
+					return [];
+				}
+			})
+			.enter()
+			.append('path')
             .classed('mean', true)
             .style('fill', 'none')
             .each(function(d) {
