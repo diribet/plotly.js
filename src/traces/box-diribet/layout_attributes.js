@@ -15,6 +15,7 @@ module.exports = {
         values: ['group', 'overlay'],
         dflt: 'overlay',
         role: 'info',
+        editType: 'calc',
         description: [
             'Determines how boxes at the same location coordinate',
             'are displayed on the graph.',
@@ -30,6 +31,7 @@ module.exports = {
         max: 1,
         dflt: 0.3,
         role: 'style',
+        editType: 'calc',
         description: [
             'Sets the gap (in plot fraction) between boxes of',
             'adjacent location coordinates.'
@@ -41,6 +43,7 @@ module.exports = {
         max: 1,
         dflt: 0.3,
         role: 'style',
+        editType: 'calc',
         description: [
             'Sets the gap (in plot fraction) between boxes of',
             'the same location coordinate.'
@@ -51,6 +54,7 @@ module.exports = {
         values: ['always', 'hover', 'never'],
         dflt: 'hover',
         role: 'style',
+        editType: 'plot',
         description: 'Whether probability density line is always shown (true), shown on hover (\'hover\') or never shown (false).'
     },
     probabilityDensityMargin: {
@@ -59,17 +63,21 @@ module.exports = {
         max: 1,
         dflt: 0.1,
         role: 'style',
+        editType: 'plot',
         description: 'Margin between probability density line and box boundary.'
     },
     scaleIgnoresOutliers: {
         valType: 'boolean',
         dflt: true,
         role: 'style',
+        editType: 'calc',
         description: 'Whether the scale of the axis should contain outliers or not.'
     },
     showOutliersText: {
         valType: 'string',
         dflt: 'Show outliers.',
+        role: 'style',
+        editType: 'plot',
         description: 'Text that is displayed on hover over outliers marker.'
     }    
 };
