@@ -23,8 +23,9 @@ BoxDiribet.eventData = require('./event_data');
 
 BoxDiribet.moduleType = 'trace';
 BoxDiribet.name = 'box-diribet';
+BoxDiribet.layerName = 'boxlayer';
 BoxDiribet.basePlotModule = require('../../plots/cartesian');
-BoxDiribet.categories = ['cartesian', 'symbols', 'oriented', 'box', 'showLegend'];
+BoxDiribet.categories = ['cartesian', 'svg', 'symbols', 'oriented', 'box-violin', 'showLegend', 'boxLayout'];
 BoxDiribet.meta = {
     description: [
         'In vertical (horizontal) box plots,',

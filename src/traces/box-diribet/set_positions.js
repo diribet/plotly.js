@@ -38,7 +38,7 @@ module.exports = function setPositions(gd, plotinfo) {
             t = cd[0].t;
             trace = cd[0].trace;
 
-            if(trace.visible === true && Registry.traceIs(trace, 'box') &&
+            if(trace.visible === true && Registry.traceIs(trace, 'box-violin') &&
                     !t.emptybox &&
                     trace.orientation === orientation &&
                     trace.xaxis === xa._id &&

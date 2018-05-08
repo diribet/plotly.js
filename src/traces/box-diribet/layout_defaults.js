@@ -19,7 +19,7 @@ module.exports = function supplyLayoutDefaults(layoutIn, layoutOut, fullData) {
 
     var hasBoxes;
     for(var i = 0; i < fullData.length; i++) {
-        if(Registry.traceIs(fullData[i], 'box')) {
+        if(Registry.traceIs(fullData[i], 'box-violin')) {
             hasBoxes = true;
             break;
         }
