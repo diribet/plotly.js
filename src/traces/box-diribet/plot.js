@@ -18,8 +18,22 @@ module.exports = function plot(gd, plotinfo, cdbox) {
     var fullLayout = gd._fullLayout,
         xa = plotinfo.xaxis,
         ya = plotinfo.yaxis,
-        posAxis, valAxis;
-    
+		posAxis, valAxis;
+
+	if (!plotinfo._showDensityCallback) {
+		plotinfo._showDensityCallback = function(event) {
+			setHoverIndex(event, true, gd);
+		};
+
+		plotinfo._hideDensityCallback = function(event) {
+			setHoverIndex(event, false, gd);
+		};
+
+		plotinfo._showOutliersCallback = function(event) {
+			showOutliers(event, gd);
+		};
+	}
+
     var boxtraces = plotinfo.plot.select('.boxlayer')
         .selectAll('g.trace.boxes')
             .data(cdbox)
@@ -63,7 +77,7 @@ module.exports = function plot(gd, plotinfo, cdbox) {
         		return data;
         	}
         }
-        
+
         function invalidBoxes(data) {
         	if (trace.normalize) {
         		return data.filter(function(d) { return d.normalizationFailed; });
@@ -78,8 +92,8 @@ module.exports = function plot(gd, plotinfo, cdbox) {
 	            .data(validBoxes)
 	            .enter().append('g')
 	            .classed('box', true);
-        
-	            
+
+
         // boxes and whiskers
         boxGroups.selectAll('path.box')
         	.data(function(d) {
@@ -125,10 +139,10 @@ module.exports = function plot(gd, plotinfo, cdbox) {
         // specification limits and natural boundaries
         function plotLimits(cssClass, lslAttr, uslAttr) {
         	boxGroups.selectAll('path.' + cssClass)
-	        	.data(function(d) { 
-		        	var hasLsl = d[lslAttr] != null, 
-		        		hasUsl = d[uslAttr] != null; 
-		        	
+	        	.data(function(d) {
+		        	var hasLsl = d[lslAttr] != null,
+		        		hasUsl = d[uslAttr] != null;
+
 		        	if (hasLsl || hasUsl) {
 		        		return [d];
 		        	} else {
@@ -141,27 +155,27 @@ module.exports = function plot(gd, plotinfo, cdbox) {
 		        .each(function(d) {
 		            var pos0 = posAxis.c2p(d.pos + bPos - limitWidth, true),
 		                pos1 = posAxis.c2p(d.pos + bPos + limitWidth, true),
-		                hasLsl = d[lslAttr] != null, 
-		                hasUsl = d[uslAttr] != null, 
+		                hasLsl = d[lslAttr] != null,
+		                hasUsl = d[uslAttr] != null,
 		                lsl = hasLsl ? valAxis.c2p(d[lslAttr], true) : null,
 		                usl = hasUsl ? valAxis.c2p(d[uslAttr], true) : null;
-		                
+
 	            	if(trace.orientation === 'h') {
 	            		d3.select(this).attr('d',
-	            				((hasLsl) ? 'M' + lsl + ',' + pos0 + 'V' + pos1 : '') + 
+	            				((hasLsl) ? 'M' + lsl + ',' + pos0 + 'V' + pos1 : '') +
 	            				((hasUsl) ? 'M' + usl + ',' + pos0 + 'V' + pos1 : ''));
 	            	}
 	            	else {
 	            		d3.select(this).attr('d',
-	            				((hasLsl) ? 'M' + pos0 + ',' + lsl + 'H' + pos1 : '') + 
+	            				((hasLsl) ? 'M' + pos0 + ',' + lsl + 'H' + pos1 : '') +
         						((hasUsl) ? 'M' + pos0 + ',' + usl + 'H' + pos1 : ''));
 	            	}
 		        });
         };
-        
+
         plotLimits.call(this, "specificationlimit", "lsl", "usl");
         plotLimits.call(this, "naturalboundary", "lnb", "unb");
-        
+
         // draw points, if desired
         boxGroups.selectAll('g.points')
             .data(function(d) {
@@ -196,7 +210,7 @@ module.exports = function plot(gd, plotinfo, cdbox) {
         if (fullLayout.showProbabilityDensity != 'never') {
         	var showDensityOnHover = fullLayout.showProbabilityDensity === 'hover',
         		transition = d3.transition().duration(500);
-        	
+
 	        var densityGroupJoin = boxGroups.selectAll('g.density')
 	        								.data(function(d) {
 								        		if (showDensityOnHover && !d.hover) {
@@ -205,36 +219,36 @@ module.exports = function plot(gd, plotinfo, cdbox) {
 								        			return [d];
 								        		}
 								            });
-	        
+
 	        var densityGroup = densityGroupJoin.enter()
 								            	.append('g')
 						            			.classed('density', true);
 	        densityGroup.style('opacity', 0).transition(transition).style('opacity', 1);
-	        
+
 	        densityGroupJoin.exit()
 			            	.remove();
-	        
-	        gd.removeListener('plotly_hover', showDensity);
-	        gd.removeListener('plotly_unhover', hideDensity);
+
+	        gd.removeListener('plotly_hover', plotinfo._showDensityCallback);
+	        gd.removeListener('plotly_unhover', plotinfo._hideDensityCallback);
         	if (showDensityOnHover) {
-        		gd.on('plotly_hover', showDensity);
-        		gd.on('plotly_unhover', hideDensity);
+        		gd.on('plotly_hover', plotinfo._showDensityCallback);
+        		gd.on('plotly_unhover', plotinfo._hideDensityCallback);
         	}
-        	
+
 	        var densitySegments = function(d, side) {
 	        	if (!d.probabilityDensity) return [];
-	        	
+
 	        	var boxOffset = d.pos + bPos,
 	        		densityPoints = d.probabilityDensity.map(function(v, i) {
 	        			var scale = bdPos * (1 - fullLayout.probabilityDensityMargin);
 		                if(trace.orientation === 'h') {
-		            		return { 
-		            			x: v.x, 
+		            		return {
+		            			x: v.x,
 		            			y: v.y * scale * side + boxOffset
 		            		};
 		        		} else {
-		            		return { 
-		            			x: v.x * scale * side + boxOffset, 
+		            		return {
+		            			x: v.x * scale * side + boxOffset,
 		            			y: v.y
 		            		};
 		        		}
@@ -243,21 +257,22 @@ module.exports = function plot(gd, plotinfo, cdbox) {
 		                xaxis: xa,
 		                yaxis: ya,
 		                connectGaps: false,
-		                linear: false,
-		                simplify: false
+		                simplify: false,
+						shape: 'spline',
+						baseTolerance: 0.75
 		            });
-	
+
 	        	// set line style to data
 	        	segments.forEach(function(segment) { segment[0].trace = { line: d.probabilityDensity.line } });
-	        	
+
 	        	return segments.filter(function(s) {
 	                return s.length > 1;
 	            });
 	        };
-	        
+
 	        var drawDensity = function(leftSide) {
 	        	var sideClass = leftSide ? "left" : "right";
-	        	
+
 	        	densityGroup
 		        	.selectAll('path.' + sideClass)
 		            .data(function(d) {
@@ -270,7 +285,7 @@ module.exports = function plot(gd, plotinfo, cdbox) {
 			        .each(function(d) {
 			        	var smoothing = 1,
 			        		path = Drawing.smoothopen(d, smoothing);
-			        	
+
 		        		d3.select(this)
 		        			.attr('d', path)
 		        			.call(Drawing.lineGroupStyle);
@@ -279,7 +294,7 @@ module.exports = function plot(gd, plotinfo, cdbox) {
 	        drawDensity(true);
 	        drawDensity(false);
         }
-        
+
         // draw mean
         boxGroups.append('path')
             .classed('mean', true)
@@ -287,14 +302,14 @@ module.exports = function plot(gd, plotinfo, cdbox) {
             .each(function(d) {
                 var posc = posAxis.c2p(d.pos + bPos, true),
                 	avg = valAxis.c2p(d.avg, true);
-                
+
                 if(trace.orientation === 'h') {
                 	d3.select(this).attr('transform', 'translate(' + avg + ',' + posc + ')');
                 } else {
                 	d3.select(this).attr('transform', 'translate(' + posc + ',' + avg + ')');
                 }
             });
-        
+
         // draw marks for outliers out of scale
         if (fullLayout.scaleIgnoresOutliers && valAxis.autorange == true) {
         	var lowerMarkPos = valAxis.c2p(valAxis.range[0], true),
@@ -312,55 +327,54 @@ module.exports = function plot(gd, plotinfo, cdbox) {
         		lowerMarkPos = lowerMarkPos - 8;
         		upperMarkPos = upperMarkPos + 16;
         	}
-        	function plotOutliersMark(outliersCountAttr, markPosition, textAnchor) {
-                var outlierMark = 
-                	boxGroups
-                		.selectAll('g.outlierMark.' + outliersCountAttr)
-    		            .data(function(d) {
-    		        		return d[outliersCountAttr] > 0 ? [d] : [];
-    		            })
-    		            .enter().append('g')
-    		            .classed('outlierMark', true)
-    		            .classed(outliersCountAttr, true)
-    		            .each(function(d) {
-    		                var pos = posAxis.c2p(d.pos + bPos, true);
-    		                
-    		                var outlierMark = d3.select(this),
-    		                	transformAttr;
-    		                
-    		                if (trace.orientation === 'h') {
-    		                	transformAttr = 'translate(' + markPosition + ',' + pos + ')';
-    		                } else {
-    		                	transformAttr = 'translate(' + pos + ',' + markPosition + ')';
-    		                }
-		                	outlierMark.attr('transform', transformAttr);
-    		                
-    		                var text = 
-    		                	outlierMark
-    		                		.append('text')
-    		        				.attr('text-anchor', textAnchor)
-    		        				.style('font-size', '12px') // font size has to be applied here to calculate bounding box
-    		                		.text(function(d) { return d[outliersCountAttr]; });
-    		                
-    		                var boundingBox = text.node().getBBox();
-    		                outlierMark
-    		        				.append('rect')
-    		        				.attr('x', boundingBox.x - rectPadding / 2)
-    		        				.attr('y', boundingBox.y - rectPadding / 2)
-    		        				.attr('width', boundingBox.width + rectPadding)
-    		        				.attr('height', boundingBox.height + rectPadding)
-    		        				.attr('rx', 3)
-    		        				.attr('ry', 3);
-    		            });
-        	}
-        	
+        	var plotOutliersMark = function(outliersCountAttr, markPosition, textAnchor) {
+				boxGroups
+					.selectAll('g.outlierMark.' + outliersCountAttr)
+					.data(function(d) {
+						return d[outliersCountAttr] > 0 ? [d] : [];
+					})
+					.enter().append('g')
+					.classed('outlierMark', true)
+					.classed(outliersCountAttr, true)
+					.each(function(d) {
+						var pos = posAxis.c2p(d.pos + bPos, true);
+
+						var outlierMark = d3.select(this),
+							transformAttr;
+
+						if (trace.orientation === 'h') {
+							transformAttr = 'translate(' + markPosition + ',' + pos + ')';
+						} else {
+							transformAttr = 'translate(' + pos + ',' + markPosition + ')';
+						}
+						outlierMark.attr('transform', transformAttr);
+
+						var text =
+							outlierMark
+								.append('text')
+								.attr('text-anchor', textAnchor)
+								.style('font-size', '12px') // font size has to be applied here to calculate bounding box
+								.text(function(d) { return d[outliersCountAttr]; });
+
+						var boundingBox = text.node().getBBox();
+						outlierMark
+								.append('rect')
+								.attr('x', boundingBox.x - rectPadding / 2)
+								.attr('y', boundingBox.y - rectPadding / 2)
+								.attr('width', boundingBox.width + rectPadding)
+								.attr('height', boundingBox.height + rectPadding)
+								.attr('rx', 3)
+								.attr('ry', 3);
+					});
+        	};
+
         	plotOutliersMark('loc', lowerMarkPos, lowerTextAnchor);
         	plotOutliersMark('uoc', upperMarkPos, upperTextAnchor);
-        	
-            gd.removeListener('plotly_click', showOutliers);
-            gd.on('plotly_click', showOutliers)
+
+            gd.removeListener('plotly_click', plotinfo._showOutliersCallback);
+            gd.on('plotly_click', plotinfo._showOutliersCallback)
         }
-        
+
         // draw invalid (not normalizable boxes)
         d3.select(this).selectAll('g.invalid-box')
             .data(invalidBoxes)
@@ -385,30 +399,20 @@ module.exports = function plot(gd, plotinfo, cdbox) {
     });
 };
 
-function showDensity(event) {
-	setHoverIndex(event, true);
-}
-
-function hideDensity(event) {
-	setHoverIndex(event, false);
-}
-
-function setHoverIndex(event, setIndex) {
+function setHoverIndex(event, setIndex, gd) {
 	var point = event.points[0],
 		traceNumber = point.curveNumber,
-		pointNumber = point.pointNumber,
-		gd = point.xaxis._gd;
-	
+		pointNumber = point.pointNumber;
+
 	gd.data[traceNumber].hoverindex = setIndex ? pointNumber : null;
 	Plotly.redraw(gd);
 }
 
-function showOutliers(event) {
+function showOutliers(event, gd) {
 	if (event.points && event.points.length > 0) {
 		var hoverPoint = event.points[0];
 		if (hoverPoint.outliersMark) {
-			var gd = hoverPoint.xaxis._gd,
-				update = { 'scaleIgnoresOutliers': false };
+			var update = { 'scaleIgnoresOutliers': false };
 			Plotly.relayout(gd, update);
 		}
 	}

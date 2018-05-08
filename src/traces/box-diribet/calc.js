@@ -78,7 +78,10 @@ module.exports = function calc(gd, trace) {
     var hasOutliers = false;
     for (i = 0; i < cd.length; i++) {
     	box = cd[i];
-    	
+		
+		box.showOutliersText = fullLayout.showOutliersText;
+		box.scaleIgnoresOutliers = fullLayout.scaleIgnoresOutliers;
+		
     	box.loc = 0; // lower outliers count
     	box.uoc = 0; // upper outliers count
     	if (box.points != null) {

@@ -9,7 +9,7 @@
 'use strict';
 
 var Axes = require('../../plots/cartesian/axes');
-var Fx = require('../../plots/cartesian/graph_interact');
+var Fx = require('../../components/fx');
 var Lib = require('../../lib');
 var Color = require('../../components/color');
 
@@ -21,21 +21,21 @@ module.exports = function hoverPoints(pointData, xval, yval, hovermode) {
         xa = pointData.xa,
         ya = pointData.ya,
         closeData = [],
-        fullLayout = xa._gd._fullLayout,
         dx, dy, distfn, boxDelta,
         posLetter, posAxis,
-        val, valLetter, valAxis;
+        val, valLetter, valAxis,
+        hoverPseudoDistance;
 
     // adjust inbox w.r.t. to calculate box size
     boxDelta = (hovermode === 'closest') ? 2.5 * t.bdPos : t.bdPos;
 
     if(trace.orientation === 'h') {
         dx = function(di) {
-            return Fx.inbox(di.min - xval, di.max - xval);
+            return Fx.inbox(di.min - xval, di.max - xval, hoverPseudoDistance);
         };
         dy = function(di) {
             var pos = di.pos + t.bPos - yval;
-            return Fx.inbox(pos - boxDelta, pos + boxDelta);
+            return Fx.inbox(pos - boxDelta, pos + boxDelta, hoverPseudoDistance);
         };
         posLetter = 'y';
         posAxis = ya;
@@ -45,10 +45,10 @@ module.exports = function hoverPoints(pointData, xval, yval, hovermode) {
     } else {
         dx = function(di) {
             var pos = di.pos + t.bPos - xval;
-            return Fx.inbox(pos - boxDelta, pos + boxDelta);
+            return Fx.inbox(pos - boxDelta, pos + boxDelta, hoverPseudoDistance);
         };
         dy = function(di) {
-            return Fx.inbox(di.min - yval, di.max - yval);
+            return Fx.inbox(di.min - yval, di.max - yval, hoverPseudoDistance);
         };
         posLetter = 'x';
         posAxis = xa;
@@ -57,7 +57,12 @@ module.exports = function hoverPoints(pointData, xval, yval, hovermode) {
         val = yval;
     }
 
-    distfn = Fx.getDistanceFunction(hovermode, dx, dy);
+    // if two boxes are overlaying, let the narrowest one win
+    var pseudoDistance = Math.min(1, boxDelta / Math.abs(posAxis.r2c(posAxis.range[1]) - posAxis.r2c(posAxis.range[0])));
+    hoverPseudoDistance = pointData.maxHoverDistance - pseudoDistance;
+    
+    function dxy(di) { return (dx(di) + dy(di)) / 2; }
+    distfn = Fx.getDistanceFunction(hovermode, dx, dy, dxy);
     Fx.getClosest(cd, distfn, pointData);
 
     // skip the rest (for this trace) if we didn't find a close point
@@ -86,14 +91,14 @@ module.exports = function hoverPoints(pointData, xval, yval, hovermode) {
 		pointData.attr = 'normalizationFailed';
 		closeData.push(pointData);
     	
-    } else if (hoverOutliersMark(xval, yval, di, trace.orientation, fullLayout) && valAxis.autorange == true) {
+    } else if (hoverOutliersMark(xval, yval, di, trace.orientation) && valAxis.autorange == true) {
     	
     	// tooltip is placed in center of box
     	pointData[posLetter + '0'] = pointData[posLetter + '1'] = posAxis.c2p(di.pos + t.bPos, true);
     	
     	// show outliers tooltip
 		pointData[valLetter + '0'] = pointData[valLetter + '1'] = valAxis.c2p(val, true);
-		pointData.text = fullLayout.showOutliersText;
+		pointData.text = di.showOutliersText;
 		pointData.attr = 'outliersMark';
 		pointData.outliersMark = true;
 		pointData.color = 'rgba(255, 0, 0, 0.3)';
@@ -108,7 +113,7 @@ module.exports = function hoverPoints(pointData, xval, yval, hovermode) {
 	    	pointData2,
 	    	boxHalfWidth = t.bdPos * di.boxwidth;
 
-    	if (!fullLayout.scaleIgnoresOutliers) {
+    	if (!di.scaleIgnoresOutliers) {
     		attrs.push('min', 'max');
     	}
     	
@@ -145,8 +150,8 @@ module.exports = function hoverPoints(pointData, xval, yval, hovermode) {
     return closeData;
 };
 
-function hoverOutliersMark(xval, yval, dataPoint, orientation, layout) {
-	if (!layout.scaleIgnoresOutliers) { 
+function hoverOutliersMark(xval, yval, dataPoint, orientation) {
+	if (!dataPoint.scaleIgnoresOutliers) { 
 		return false;
 	}
 	
