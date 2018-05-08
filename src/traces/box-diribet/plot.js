@@ -34,6 +34,7 @@ module.exports = function plot(gd, plotinfo, cdbox, boxLayer) {
 		};
 	}
 
+	boxLayer.selectAll('g.trace.boxes').remove();
     var boxtraces = boxLayer.selectAll('g.trace.boxes')
 							.data(cdbox)
 							.enter().append('g')
