@@ -21,6 +21,10 @@ module.exports = {
     // no interactivity, for export or image generation
     staticPlot: false,
 
+    // base URL for the 'Edit in Chart Studio' (aka sendDataToCloud) mode bar button
+    // and the showLink/sendData on-graph link
+    plotlyServerURL: 'https://plot.ly',
+
     /*
      * we can edit titles, move annotations, etc - sets all pieces of `edits`
      * unless a separate `edits` config item overrides individual parts
@@ -114,6 +118,11 @@ module.exports = {
      * (see ./components/modebar/buttons.js for more info)
      */
     modeBarButtons: false,
+
+    // statically override options for toImage modebar button
+    // allowed keys are format, filename, width, height, scale
+    // see ./components/modebar/buttons.js
+    toImageButtonOptions: {},
 
     // add the plotly logo on the end of the mode bar
     displaylogo: true,

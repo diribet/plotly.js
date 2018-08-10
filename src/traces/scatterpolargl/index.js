@@ -36,13 +36,7 @@ function calc(container, trace) {
     stash.r = rArray;
     stash.theta = thetaArray;
 
-    Axes.expand(radialAxis, rArray, {tozero: true});
-
-    if(angularAxis.type !== 'linear') {
-        angularAxis.autorange = true;
-        Axes.expand(angularAxis, thetaArray);
-        delete angularAxis.autorange;
-    }
+    trace._extremes.x = Axes.findExtremes(radialAxis, rArray, {tozero: true});
 
     return [{x: false, y: false, t: stash, trace: trace}];
 }
@@ -117,7 +111,7 @@ function plot(container, subplot, cdata) {
 
         // bring positions to selected/unselected options
         if(subTypes.hasMarkers(trace)) {
-            options.selected.positions = options.unselected.positions = options.marker.positions;
+            options.markerSel.positions = options.markerUnsel.positions = options.marker.positions;
         }
 
         // save scene options batch
@@ -126,8 +120,8 @@ function plot(container, subplot, cdata) {
         scene.errorYOptions.push(options.errorY);
         scene.fillOptions.push(options.fill);
         scene.markerOptions.push(options.marker);
-        scene.selectedOptions.push(options.selected);
-        scene.unselectedOptions.push(options.unselected);
+        scene.markerSelectedOptions.push(options.markerSel);
+        scene.markerUnselectedOptions.push(options.markerUnsel);
         scene.count = cdata.length;
 
         // stash scene ref
@@ -184,10 +178,11 @@ module.exports = {
     moduleType: 'trace',
     name: 'scatterpolargl',
     basePlotModule: require('../../plots/polar'),
-    categories: ['gl', 'regl', 'polar', 'symbols', 'markerColorscale', 'showLegend', 'scatter-like'],
+    categories: ['gl', 'regl', 'polar', 'symbols', 'showLegend', 'scatter-like'],
 
     attributes: require('./attributes'),
     supplyDefaults: require('./defaults'),
+    colorbar: require('../scatter/marker_colorbar'),
 
     calc: calc,
     plot: plot,

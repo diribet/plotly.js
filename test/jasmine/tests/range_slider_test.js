@@ -13,6 +13,7 @@ var destroyGraphDiv = require('../assets/destroy_graph_div');
 var mouseEvent = require('../assets/mouse_event');
 var supplyAllDefaults = require('../assets/supply_defaults');
 var failTest = require('../assets/fail_test');
+var assertPlotSize = require('../assets/custom_assertions').assertPlotSize;
 
 var TOL = 6;
 
@@ -363,31 +364,41 @@ describe('Rangeslider visibility property', function() {
 
     afterEach(destroyGraphDiv);
 
+    function defaultLayout(opts) {
+        return Lib.extendDeep({
+            width: 500,
+            height: 600,
+            margin: {l: 50, r: 50, t: 100, b: 100}
+        }, opts || {});
+    }
+
     it('should not add the slider to the DOM by default', function(done) {
-        Plotly.plot(gd, [{ x: [1, 2, 3], y: [2, 3, 4] }], {})
+        Plotly.plot(gd, [{ x: [1, 2, 3], y: [2, 3, 4] }], defaultLayout())
         .then(function() {
             var rangeSlider = getRangeSlider();
             expect(rangeSlider).not.toBeDefined();
+            assertPlotSize({height: 400});
         })
         .catch(failTest)
         .then(done);
     });
 
     it('should add the slider if rangeslider is set to anything', function(done) {
-        Plotly.plot(gd, [{ x: [1, 2, 3], y: [2, 3, 4] }], {})
+        Plotly.plot(gd, [{ x: [1, 2, 3], y: [2, 3, 4] }], defaultLayout())
         .then(function() {
             return Plotly.relayout(gd, 'xaxis.rangeslider', 'exists');
         })
         .then(function() {
             var rangeSlider = getRangeSlider();
             expect(rangeSlider).toBeDefined();
+            assertPlotSize({heightLessThan: 400});
         })
         .catch(failTest)
         .then(done);
     });
 
     it('should add the slider if visible changed to `true`', function(done) {
-        Plotly.plot(gd, [{ x: [1, 2, 3], y: [2, 3, 4] }], {})
+        Plotly.plot(gd, [{ x: [1, 2, 3], y: [2, 3, 4] }], defaultLayout())
         .then(function() {
             return Plotly.relayout(gd, 'xaxis.rangeslider.visible', true);
         })
@@ -395,6 +406,7 @@ describe('Rangeslider visibility property', function() {
             var rangeSlider = getRangeSlider();
             expect(rangeSlider).toBeDefined();
             expect(countRangeSliderClipPaths()).toEqual(1);
+            assertPlotSize({heightLessThan: 400});
         })
         .catch(failTest)
         .then(done);
@@ -404,11 +416,11 @@ describe('Rangeslider visibility property', function() {
         Plotly.plot(gd, [{
             x: [1, 2, 3],
             y: [2, 3, 4]
-        }], {
+        }], defaultLayout({
             xaxis: {
                 rangeslider: { visible: true }
             }
-        })
+        }))
         .then(function() {
             return Plotly.relayout(gd, 'xaxis.rangeslider.visible', false);
         })
@@ -416,6 +428,7 @@ describe('Rangeslider visibility property', function() {
             var rangeSlider = getRangeSlider();
             expect(rangeSlider).not.toBeDefined();
             expect(countRangeSliderClipPaths()).toEqual(0);
+            assertPlotSize({height: 400});
         })
         .catch(failTest)
         .then(done);
@@ -434,11 +447,11 @@ describe('Rangeslider visibility property', function() {
             type: 'bar',
             x: [1, 2, 3],
             y: [2, 5, 2]
-        }], {
+        }], defaultLayout({
             xaxis: {
                 rangeslider: { visible: true }
             }
-        })
+        }))
         .then(function() {
             expect(count('g.scatterlayer > g.trace')).toEqual(1);
             expect(count('g.barlayer > g.trace')).toEqual(1);
@@ -549,7 +562,7 @@ describe('Rangeslider handleDefaults function', function() {
             };
 
         _supply(layoutIn, layoutOut, 'xaxis');
-        expect(layoutOut.xaxis.rangeslider).toEqual(expected);
+        expect(layoutOut.xaxis.rangeslider).toEqual(jasmine.objectContaining(expected));
     });
 
     it('should set defaults if rangeslider is requested', function() {
@@ -570,7 +583,7 @@ describe('Rangeslider handleDefaults function', function() {
         // but that's a problem for another time.
         // see https://github.com/plotly/plotly.js/issues/1473
         expect(layoutIn).toEqual({xaxis: {rangeslider: {}}});
-        expect(layoutOut.xaxis.rangeslider).toEqual(expected);
+        expect(layoutOut.xaxis.rangeslider).toEqual(jasmine.objectContaining(expected));
     });
 
     it('should set defaults if rangeslider.visible is true', function() {
@@ -587,7 +600,7 @@ describe('Rangeslider handleDefaults function', function() {
             };
 
         _supply(layoutIn, layoutOut, 'xaxis');
-        expect(layoutOut.xaxis.rangeslider).toEqual(expected);
+        expect(layoutOut.xaxis.rangeslider).toEqual(jasmine.objectContaining(expected));
     });
 
     it('should return early if *visible: false*', function() {
@@ -595,7 +608,7 @@ describe('Rangeslider handleDefaults function', function() {
             layoutOut = { xaxis: { rangeslider: {}} };
 
         _supply(layoutIn, layoutOut, 'xaxis');
-        expect(layoutOut.xaxis.rangeslider).toEqual({ visible: false });
+        expect(layoutOut.xaxis.rangeslider).toEqual(jasmine.objectContaining({ visible: false }));
     });
 
     it('should set defaults if properties are invalid', function() {
@@ -618,7 +631,7 @@ describe('Rangeslider handleDefaults function', function() {
             };
 
         _supply(layoutIn, layoutOut, 'xaxis');
-        expect(layoutOut.xaxis.rangeslider).toEqual(expected);
+        expect(layoutOut.xaxis.rangeslider).toEqual(jasmine.objectContaining(expected));
     });
 
     it('should set autorange to true when range input is invalid', function() {
@@ -635,7 +648,7 @@ describe('Rangeslider handleDefaults function', function() {
             };
 
         _supply(layoutIn, layoutOut, 'xaxis');
-        expect(layoutOut.xaxis.rangeslider).toEqual(expected);
+        expect(layoutOut.xaxis.rangeslider).toEqual(jasmine.objectContaining(expected));
     });
 
     it('should default \'bgcolor\' to layout \'plot_bgcolor\'', function() {
@@ -665,7 +678,7 @@ describe('Rangeslider yaxis options', function() {
 
         supplyAllDefaults(mock);
 
-        expect(mock._fullLayout.xaxis.rangeslider.yaxis).toEqual({ rangemode: 'match' });
+        expect(mock._fullLayout.xaxis.rangeslider.yaxis).toEqual(jasmine.objectContaining({ rangemode: 'match' }));
     });
 
     it('should set multiple yaxis with data are present', function() {
@@ -684,8 +697,8 @@ describe('Rangeslider yaxis options', function() {
 
         supplyAllDefaults(mock);
 
-        expect(mock._fullLayout.xaxis.rangeslider.yaxis).toEqual({ rangemode: 'match' });
-        expect(mock._fullLayout.xaxis.rangeslider.yaxis2).toEqual({ rangemode: 'match' });
+        expect(mock._fullLayout.xaxis.rangeslider.yaxis).toEqual(jasmine.objectContaining({ rangemode: 'match' }));
+        expect(mock._fullLayout.xaxis.rangeslider.yaxis2).toEqual(jasmine.objectContaining({ rangemode: 'match' }));
         expect(mock._fullLayout.xaxis.rangeslider.yaxis3).toEqual(undefined);
     });
 
@@ -710,9 +723,9 @@ describe('Rangeslider yaxis options', function() {
 
         supplyAllDefaults(mock);
 
-        expect(mock._fullLayout.xaxis.rangeslider.yaxis).toEqual({ rangemode: 'auto', range: [-1, 4] });
-        expect(mock._fullLayout.xaxis.rangeslider.yaxis2).toEqual({ rangemode: 'fixed', range: [-1, 4] });
-        expect(mock._fullLayout.xaxis.rangeslider.yaxis3).toEqual({ rangemode: 'fixed', range: [0, 1] });
+        expect(mock._fullLayout.xaxis.rangeslider.yaxis).toEqual(jasmine.objectContaining({ rangemode: 'auto', range: [-1, 4] }));
+        expect(mock._fullLayout.xaxis.rangeslider.yaxis2).toEqual(jasmine.objectContaining({ rangemode: 'fixed', range: [-1, 4] }));
+        expect(mock._fullLayout.xaxis.rangeslider.yaxis3).toEqual(jasmine.objectContaining({ rangemode: 'fixed', range: [0, 1] }));
     });
 });
 
@@ -898,7 +911,7 @@ describe('rangesliders in general', function() {
             xaxis: { rangeslider: { yaxis: { range: [-10, 20] } } }
         })
         .then(function() {
-            expect(gd.layout.xaxis.rangeslider.yaxis).toEqual({ rangemode: 'fixed', range: [-10, 20] });
+            expect(gd.layout.xaxis.rangeslider.yaxis).toEqual(jasmine.objectContaining({ rangemode: 'fixed', range: [-10, 20] }));
 
             return Plotly.relayout(gd, 'xaxis.rangeslider.yaxis.rangemode', 'auto');
         })
@@ -912,7 +925,7 @@ describe('rangesliders in general', function() {
             return Plotly.relayout(gd, 'xaxis.rangeslider.yaxis.rangemode', 'match');
         })
         .then(function() {
-            expect(gd.layout.xaxis.rangeslider.yaxis).toEqual({ rangemode: 'match' });
+            expect(gd.layout.xaxis.rangeslider.yaxis).toEqual(jasmine.objectContaining({ rangemode: 'match' }));
         })
         .catch(failTest)
         .then(done);

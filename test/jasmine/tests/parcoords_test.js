@@ -136,14 +136,14 @@ describe('parcoords initialization tests', function() {
                     alienProperty: 'Alpha Centauri'
                 }]
             });
-            expect(fullTrace.dimensions).toEqual([{
+            expect(fullTrace.dimensions).toEqual([jasmine.objectContaining({
                 values: [1],
                 visible: true,
                 tickformat: '3s',
                 multiselect: true,
                 _index: 0,
                 _length: 1
-            }]);
+            })]);
         });
 
         it('\'dimension.visible\' should be set to false, and other props just passed through if \'values\' is not provided', function() {
@@ -152,7 +152,9 @@ describe('parcoords initialization tests', function() {
                     alienProperty: 'Alpha Centauri'
                 }]
             });
-            expect(fullTrace.dimensions).toEqual([{visible: false, _index: 0}]);
+            expect(fullTrace.dimensions).toEqual([jasmine.objectContaining({
+                visible: false, _index: 0
+            })]);
         });
 
         it('\'dimension.visible\' should be set to false, and other props just passed through if \'values\' is an empty array', function() {
@@ -162,7 +164,9 @@ describe('parcoords initialization tests', function() {
                     alienProperty: 'Alpha Centauri'
                 }]
             });
-            expect(fullTrace.dimensions).toEqual([{visible: false, values: [], _index: 0}]);
+            expect(fullTrace.dimensions).toEqual([jasmine.objectContaining({
+                visible: false, values: [], _index: 0
+            })]);
         });
 
         it('\'dimension.visible\' should be set to false, and other props just passed through if \'values\' is not an array', function() {
@@ -172,7 +176,9 @@ describe('parcoords initialization tests', function() {
                     alienProperty: 'Alpha Centauri'
                 }]
             });
-            expect(fullTrace.dimensions).toEqual([{visible: false, _index: 0}]);
+            expect(fullTrace.dimensions).toEqual([jasmine.objectContaining({
+                visible: false, _index: 0
+            })]);
         });
 
         it('\'dimension.values\' should get truncated to a common shortest *nonzero* length', function() {
@@ -770,8 +776,8 @@ describe('@gl parcoords Lifecycle methods', function() {
 });
 
 describe('@gl parcoords basic use', function() {
-    var mockCopy,
-        gd;
+    var mockCopy;
+    var gd;
 
     beforeEach(function(done) {
         mockCopy = Lib.extendDeep({}, mock);
@@ -788,6 +794,14 @@ describe('@gl parcoords basic use', function() {
     });
 
     afterAll(purgeGraphDiv);
+
+    it('should create three WebGL contexts per graph', function() {
+        var cnt = 0;
+        d3.select(gd).selectAll('canvas').each(function(d) {
+            if(d.regl) cnt++;
+        });
+        expect(cnt).toBe(3);
+    });
 
     it('`Plotly.plot` should have proper fields on `gd.data` on initial rendering', function() {
 

@@ -188,7 +188,8 @@ func.defaultConfig = {
             flags: [
                 '--touch-events',
                 '--window-size=' + argv.width + ',' + argv.height,
-                isCI ? '--ignore-gpu-blacklist' : ''
+                isCI ? '--ignore-gpu-blacklist' : '',
+                (isBundleTest && basename(testFileGlob) === 'no_webgl') ? '--disable-webgl' : ''
             ]
         },
         _Firefox: {
@@ -209,6 +210,13 @@ func.defaultConfig = {
     //
     // A few tests don't behave well on CI
     // add @noCI to the spec description to skip a spec on CI
+    //
+    // Although not recommended, some tests "depend" on other
+    // tests to pass (e.g. the Plotly.react tests check that
+    // all available traces and transforms are tested). Tag these
+    // with @noCIdep, so that
+    // - $ npm run test-jasmine -- tags=noCI,noCIdep
+    // can pass.
     //
     // Label tests that require a WebGL-context by @gl so that
     // they can be skipped using:
@@ -246,6 +254,10 @@ if(isFullSuite) {
                 constants.pathToRequireJSFixture
             ];
             delete func.defaultConfig.preprocessors[pathToCustomMatchers];
+            break;
+        case 'minified_bundle':
+            func.defaultConfig.files.push(constants.pathToPlotlyDistMin);
+            func.defaultConfig.preprocessors[testFileGlob] = ['browserify'];
             break;
         case 'ie9':
             // load ie9_mock.js before plotly.js+test bundle

@@ -20,8 +20,8 @@ var subTypes = require('../scatter/subtypes');
 var calcMarkerSize = require('../scatter/calc').calcMarkerSize;
 var calcAxisExpansion = require('../scatter/calc').calcAxisExpansion;
 var calcColorscales = require('../scatter/colorscale_calc');
-var convertMarkerSelection = require('../scattergl/convert').convertMarkerSelection;
-var convertMarkerStyle = require('../scattergl/convert').convertMarkerStyle;
+var convertMarkerSelection = require('../scattergl/convert').markerSelection;
+var convertMarkerStyle = require('../scattergl/convert').markerStyle;
 var calcHover = require('../scattergl').calcHover;
 
 var BADNUM = require('../../constants/numerical').BADNUM;
@@ -66,11 +66,9 @@ function calc(gd, trace) {
             var xa = AxisIDs.getFromId(gd, trace._diag[i][0]) || {};
             var ya = AxisIDs.getFromId(gd, trace._diag[i][1]) || {};
 
-            // Re-use SVG scatter axis expansion routine except
-            // for graph with very large number of points where it
-            // performs poorly.
-            // In big data case, fake Axes.expand outputs with data bounds,
-            // and an average size for array marker.size inputs.
+            // Reuse SVG scatter axis expansion routine.
+            // For graphs with very large number of points and array marker.size,
+            // use average marker size instead to speed things up.
             var ppad;
             if(hasTooManyPoints) {
                 ppad = 2 * (opts.sizeAvg || Math.max(opts.size, 3));
@@ -460,10 +458,11 @@ module.exports = {
     name: 'splom',
 
     basePlotModule: require('./base_plot'),
-    categories: ['gl', 'regl', 'cartesian', 'symbols', 'markerColorscale', 'showLegend', 'scatter-like'],
+    categories: ['gl', 'regl', 'cartesian', 'symbols', 'showLegend', 'scatter-like'],
 
     attributes: require('./attributes'),
     supplyDefaults: require('./defaults'),
+    colorbar: require('../scatter/marker_colorbar'),
 
     calc: calc,
     plot: plot,

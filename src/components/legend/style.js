@@ -83,21 +83,21 @@ module.exports = function style(s, gd) {
     }
 
     function stylePoints(d) {
-        var d0 = d[0],
-            trace = d0.trace,
-            showMarkers = subTypes.hasMarkers(trace),
-            showText = subTypes.hasText(trace),
-            showLines = subTypes.hasLines(trace);
-
+        var d0 = d[0];
+        var trace = d0.trace;
+        var showMarkers = subTypes.hasMarkers(trace);
+        var showText = subTypes.hasText(trace);
+        var showLines = subTypes.hasLines(trace);
         var dMod, tMod;
 
-        // 'scatter3d' and 'scattergeo' don't use gd.calcdata yet;
+        // 'scatter3d' don't use gd.calcdata,
         // use d0.trace to infer arrayOk attributes
 
         function boundVal(attrIn, arrayToValFn, bounds) {
-            var valIn = Lib.nestedProperty(trace, attrIn).get(),
-                valToBound = (Array.isArray(valIn) && arrayToValFn) ?
-                    arrayToValFn(valIn) : valIn;
+            var valIn = Lib.nestedProperty(trace, attrIn).get();
+            var valToBound = (Array.isArray(valIn) && arrayToValFn) ?
+                arrayToValFn(valIn) :
+                valIn;
 
             if(bounds) {
                 if(valToBound < bounds[0]) return bounds[0];
@@ -115,8 +115,8 @@ module.exports = function style(s, gd) {
 
             if(showMarkers) {
                 dEdit.mc = boundVal('marker.color', pickFirst);
+                dEdit.mx = boundVal('marker.symbol', pickFirst);
                 dEdit.mo = boundVal('marker.opacity', Lib.mean, [0.2, 1]);
-                dEdit.ms = boundVal('marker.size', Lib.mean, [2, 16]);
                 dEdit.mlc = boundVal('marker.line.color', pickFirst);
                 dEdit.mlw = boundVal('marker.line.width', Lib.mean, [0, 5]);
                 tEdit.marker = {
@@ -124,6 +124,10 @@ module.exports = function style(s, gd) {
                     sizemin: 1,
                     sizemode: 'diameter'
                 };
+
+                var ms = boundVal('marker.size', Lib.mean, [2, 16]);
+                dEdit.ms = ms;
+                tEdit.marker.size = ms;
             }
 
             if(showLines) {

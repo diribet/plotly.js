@@ -55,13 +55,13 @@ describe('heatmap supplyDefaults', function() {
             type: 'heatmap',
             z: [[1, 2], []]
         };
-        traceOut = Plots.supplyTraceDefaults(traceIn, 0, layout);
+        traceOut = Plots.supplyTraceDefaults(traceIn, {type: 'heatmap'}, 0, layout);
 
         traceIn = {
             type: 'heatmap',
             z: [[], [1, 2], [1, 2, 3]]
         };
-        traceOut = Plots.supplyTraceDefaults(traceIn, 0, layout);
+        traceOut = Plots.supplyTraceDefaults(traceIn, {type: 'heatmap'}, 0, layout);
         expect(traceOut.visible).toBe(true);
         expect(traceOut.visible).toBe(true);
     });
@@ -300,6 +300,8 @@ describe('heatmap calc', function() {
         supplyAllDefaults(gd);
         var fullTrace = gd._fullData[0];
         var fullLayout = gd._fullLayout;
+
+        fullTrace._extremes = {};
 
         var out = Heatmap.calc(gd, fullTrace)[0];
         out._xcategories = fullLayout.xaxis._categories;
@@ -585,6 +587,35 @@ describe('heatmap plot', function() {
             });
         })
         .catch(failTest)
+        .then(done);
+    });
+
+    it('can change z values with connected gaps', function(done) {
+        var gd = createGraphDiv();
+        Plotly.newPlot(gd, [{
+            type: 'heatmap', connectgaps: true,
+            z: [[1, 2], [null, 4], [1, 2]]
+        }])
+        .then(function() {
+            expect(gd.calcdata[0][0].z).toEqual([[1, 2], [2, 4], [1, 2]]);
+
+            return Plotly.react(gd, [{
+                type: 'heatmap', connectgaps: true,
+                z: [[6, 5], [8, 7], [null, 10]]
+            }]);
+        })
+        .then(function() {
+            expect(gd.calcdata[0][0].z).toEqual([[6, 5], [8, 7], [9, 10]]);
+
+            return Plotly.react(gd, [{
+                type: 'heatmap', connectgaps: true,
+                z: [[1, 2], [null, 4], [1, 2]]
+            }]);
+        })
+        .then(function() {
+            expect(gd.calcdata[0][0].z).toEqual([[1, 2], [2, 4], [1, 2]]);
+        })
+        .catch(fail)
         .then(done);
     });
 });

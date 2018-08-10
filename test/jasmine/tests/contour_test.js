@@ -186,6 +186,7 @@ describe('contour calc', function() {
 
         supplyAllDefaults(gd);
         var fullTrace = gd._fullData[0];
+        fullTrace._extremes = {};
 
         var out = Contour.calc(gd, fullTrace)[0];
         out.trace = fullTrace;
@@ -454,6 +455,48 @@ describe('contour plotting and editing', function() {
                 hmIndex: 0,
                 contoursIndex: 1
             });
+        })
+        .catch(fail)
+        .then(done);
+    });
+
+    it('can change z values with gaps', function(done) {
+        Plotly.newPlot(gd, [{
+            type: 'contour',
+            z: [[1, 2], [null, 4], [1, 2]]
+        }])
+        .then(function() {
+            expect(gd.calcdata[0][0].z).toEqual([[1, 2], [2, 4], [1, 2]]);
+            expect(gd.calcdata[0][0].zmask).toEqual([[1, 1], [0, 1], [1, 1]]);
+
+            return Plotly.react(gd, [{
+                type: 'contour',
+                z: [[6, 5], [8, 7], [null, 10]]
+            }]);
+        })
+        .then(function() {
+            expect(gd.calcdata[0][0].z).toEqual([[6, 5], [8, 7], [9, 10]]);
+            expect(gd.calcdata[0][0].zmask).toEqual([[1, 1], [1, 1], [0, 1]]);
+
+            return Plotly.react(gd, [{
+                type: 'contour',
+                z: [[1, 2], [null, 4], [1, 2]]
+            }]);
+        })
+        .then(function() {
+            expect(gd.calcdata[0][0].z).toEqual([[1, 2], [2, 4], [1, 2]]);
+            expect(gd.calcdata[0][0].zmask).toEqual([[1, 1], [0, 1], [1, 1]]);
+
+            return Plotly.react(gd, [{
+                type: 'contour',
+                // notice that this one is the same as the previous, except that
+                // a previously present value was removed...
+                z: [[1, 2], [null, 4], [1, null]]
+            }]);
+        })
+        .then(function() {
+            expect(gd.calcdata[0][0].z).toEqual([[1, 2], [2, 4], [1, 2.5]]);
+            expect(gd.calcdata[0][0].zmask).toEqual([[1, 1], [0, 1], [1, 0]]);
         })
         .catch(fail)
         .then(done);

@@ -100,9 +100,10 @@ describe('Test splom trace defaults:', function() {
         expect(subplots.cartesian).toEqual(['xy', 'xy2', 'x2y', 'x2y2']);
     });
 
-    it('should use special `grid.xside` and `grid.yside` defaults on splom generated grids', function() {
+    it('should use special `grid.xside` and `grid.yside` defaults on splom w/o lower half generated grids', function() {
         var gridOut;
 
+        // base case
         _supply({
             dimensions: [
                 {values: [1, 2, 3]},
@@ -111,9 +112,23 @@ describe('Test splom trace defaults:', function() {
         });
 
         gridOut = gd._fullLayout.grid;
+        expect(gridOut.xside).toBe('bottom plot');
+        expect(gridOut.yside).toBe('left plot');
+
+        // w/o lower half case
+        _supply({
+            dimensions: [
+                {values: [1, 2, 3]},
+                {values: [2, 1, 2]}
+            ],
+            showlowerhalf: false
+        });
+
+        gridOut = gd._fullLayout.grid;
         expect(gridOut.xside).toBe('bottom');
         expect(gridOut.yside).toBe('left');
 
+        // non-splom generated grid
         _supply({
             dimensions: [
                 {values: [1, 2, 3]},
@@ -442,7 +457,7 @@ describe('@gl Test splom interactions:', function() {
             subplots.each(function(d, i) {
                 var actual = this.children.length;
                 var expected = typeof exp.innerSubplotNodeCnt === 'function' ?
-                    exp.innerSubplotNodeCnt(d, i) :
+                    exp.innerSubplotNodeCnt(d[0], i) :
                     exp.innerSubplotNodeCnt;
                 if(actual !== expected) {
                     failedSubplots.push([d, actual, 'vs', expected].join(' '));
@@ -561,6 +576,35 @@ describe('@gl Test splom interactions:', function() {
                 values: new Int32Array([2, 5, 6])
             }]
         }])
+        .catch(failTest)
+        .then(done);
+    });
+
+    it('should toggle trace correctly', function(done) {
+        var fig = Lib.extendDeep({}, require('@mocks/splom_iris.json'));
+
+        function _assert(msg, exp) {
+            for(var i = 0; i < 3; i++) {
+                expect(Boolean(gd.calcdata[i][0].t._scene))
+                    .toBe(Boolean(exp[i]), msg + ' - trace ' + i);
+            }
+        }
+
+        Plotly.plot(gd, fig).then(function() {
+            _assert('base', [1, 1, 1]);
+            return Plotly.restyle(gd, 'visible', 'legendonly', [0, 2]);
+        })
+        .then(function() {
+            _assert('0-2 legendonly', [0, 1, 0]);
+            return Plotly.restyle(gd, 'visible', false);
+        })
+        .then(function() {
+            _assert('all gone', [0, 0, 0]);
+            return Plotly.restyle(gd, 'visible', true);
+        })
+        .then(function() {
+            _assert('all back', [1, 1, 1]);
+        })
         .catch(failTest)
         .then(done);
     });

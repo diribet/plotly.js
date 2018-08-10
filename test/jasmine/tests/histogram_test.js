@@ -11,6 +11,7 @@ var getBinSpanLabelRound = require('@src/traces/histogram/bin_label_vals');
 var createGraphDiv = require('../assets/create_graph_div');
 var destroyGraphDiv = require('../assets/destroy_graph_div');
 var supplyAllDefaults = require('../assets/supply_defaults');
+var failTest = require('../assets/fail_test');
 
 
 describe('Test histogram', function() {
@@ -236,7 +237,7 @@ describe('Test histogram', function() {
             var d73 = Date.UTC(1973, 0, 1);
             expect(out).toEqual([
                 // full calcdata has x and y too (and t in the first one),
-                // but those come later from setPositions.
+                // but those come later from crossTraceCalc.
                 {i: 0, b: 0, p: d70, s: 2, pts: [0, 1], p0: d70, p1: d70},
                 {i: 1, b: 0, p: d71, s: 1, pts: [2], p0: d71, p1: d71},
                 {i: 2, b: 0, p: d72, s: 0, pts: [], p0: d72, p1: d72},
@@ -690,7 +691,7 @@ describe('Test histogram', function() {
                     expect(trace._autoBinFinished).toBeUndefined(i);
                 });
             })
-            .catch(fail)
+            .catch(failTest)
             .then(done);
         });
 
@@ -703,7 +704,42 @@ describe('Test histogram', function() {
             .then(function() {
                 expect(gd._fullLayout.xaxis.range).toBeCloseToArray([2, 4], 3);
             })
-            .catch(fail)
+            .catch(failTest)
+            .then(done);
+        });
+
+        it('can recalc after the first trace is hidden', function(done) {
+            function assertTraceCount(n) {
+                expect(gd.querySelectorAll('.trace').length).toBe(n);
+            }
+
+            Plotly.newPlot(gd, [{
+                x: [1, 2, 3], type: 'histogram'
+            }, {
+                x: [1, 2, 3], type: 'histogram'
+            }, {
+                x: [1, 2, 3], type: 'histogram'
+            }])
+            .then(function() {
+                assertTraceCount(3);
+                return Plotly.restyle(gd, 'visible', 'legendonly');
+            })
+            .then(function() {
+                assertTraceCount(0);
+                return Plotly.restyle(gd, 'visible', true, [1]);
+            })
+            .then(function() {
+                assertTraceCount(1);
+                return Plotly.restyle(gd, 'visible', true, [2]);
+            })
+            .then(function() {
+                assertTraceCount(2);
+                return Plotly.restyle(gd, 'visible', true);
+            })
+            .then(function() {
+                assertTraceCount(3);
+            })
+            .catch(failTest)
             .then(done);
         });
     });

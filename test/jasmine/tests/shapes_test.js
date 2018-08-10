@@ -30,6 +30,22 @@ var dyToShrinkHeight = { n: 10, s: -10, w: 0, e: 0, nw: 10, se: -10, ne: 10, sw:
 var dxToEnlargeWidth = { n: 0, s: 0, w: -10, e: 10, nw: -10, se: 10, ne: 10, sw: -10 };
 var dyToEnlargeHeight = { n: -10, s: 10, w: 0, e: 0, nw: -10, se: 10, ne: -10, sw: 10 };
 
+// Helper functions
+function getMoveLineDragElement(index) {
+    index = index || 0;
+    return d3.selectAll('.shapelayer g[data-index="' + index + '"] path').node();
+}
+
+function getResizeLineOverStartPointElement(index) {
+    index = index || 0;
+    return d3.selectAll('.shapelayer g[data-index="' + index + '"] circle[data-line-point="start-point"]').node();
+}
+
+function getResizeLineOverEndPointElement(index) {
+    index = index || 0;
+    return d3.selectAll('.shapelayer g[data-index="' + index + '"] circle[data-line-point="end-point"]').node();
+}
+
 describe('Test shapes defaults:', function() {
     'use strict';
 
@@ -61,20 +77,19 @@ describe('Test shapes defaults:', function() {
         expect(layoutIn.shapes).toEqual(shapes);
 
         out.forEach(function(item, i) {
-            expect(item).toEqual({
+            expect(item).toEqual(jasmine.objectContaining({
                 visible: false,
-                _input: {},
                 _index: i
-            });
+            }));
         });
     });
 
     it('should provide the right defaults on all axis types', function() {
         var fullLayout = {
-            xaxis: {type: 'linear', range: [0, 20]},
-            yaxis: {type: 'log', range: [1, 5]},
-            xaxis2: {type: 'date', range: ['2006-06-05', '2006-06-09']},
-            yaxis2: {type: 'category', range: [-0.5, 7.5]},
+            xaxis: {type: 'linear', range: [0, 20], _shapeIndices: []},
+            yaxis: {type: 'log', range: [1, 5], _shapeIndices: []},
+            xaxis2: {type: 'date', range: ['2006-06-05', '2006-06-09'], _shapeIndices: []},
+            yaxis2: {type: 'category', range: [-0.5, 7.5], _shapeIndices: []},
             _subplots: {xaxis: ['x', 'x2'], yaxis: ['y', 'y2']}
         };
 
@@ -514,11 +529,16 @@ describe('shapes edge cases', function() {
 });
 
 describe('shapes autosize', function() {
-    'use strict';
-
     var gd;
 
     afterEach(destroyGraphDiv);
+
+    function assertRanges(msg, x, y) {
+        var fullLayout = gd._fullLayout;
+        var PREC = 1;
+        expect(fullLayout.xaxis.range).toBeCloseToArray(x, PREC, msg + ' - xaxis');
+        expect(fullLayout.yaxis.range).toBeCloseToArray(y, PREC, msg + ' - yaxis');
+    }
 
     it('should adapt to relayout calls', function(done) {
         gd = createGraphDiv();
@@ -542,31 +562,55 @@ describe('shapes autosize', function() {
             }
         };
 
-        function assertRanges(x, y) {
-            var fullLayout = gd._fullLayout;
-            var PREC = 1;
-
-            expect(fullLayout.xaxis.range).toBeCloseToArray(x, PREC, '- xaxis');
-            expect(fullLayout.yaxis.range).toBeCloseToArray(y, PREC, '- yaxis');
-        }
-
         Plotly.plot(gd, mock).then(function() {
-            assertRanges([0, 2], [0, 2]);
-
+            assertRanges('base', [0, 2], [0, 2]);
             return Plotly.relayout(gd, { 'shapes[1].visible': false });
         })
         .then(function() {
-            assertRanges([0, 1], [0, 1]);
+            assertRanges('shapes[1] not visible', [0, 1], [0, 1]);
 
             return Plotly.relayout(gd, { 'shapes[1].visible': true });
         })
         .then(function() {
-            assertRanges([0, 2], [0, 2]);
+            assertRanges('back to base', [0, 2], [0, 2]);
 
             return Plotly.relayout(gd, { 'shapes[0].x1': 3 });
         })
         .then(function() {
-            assertRanges([0, 3], [0, 2]);
+            assertRanges('stretched shapes[0]', [0, 3], [0, 2]);
+        })
+        .catch(failTest)
+        .then(done);
+    });
+
+    it('should propagate axis autorange changes when axis ranges are set', function(done) {
+        gd = createGraphDiv();
+
+        Plotly.plot(gd, [{y: [1, 2]}], {
+            xaxis: {range: [0, 2]},
+            yaxis: {range: [0, 2]},
+            shapes: [{
+                x0: 2, y0: 2,
+                x1: 3, y1: 3
+            }]
+        })
+        .then(function() {
+            assertRanges('set rng / narrow shape', [0, 2], [0, 2]);
+            return Plotly.relayout(gd, 'shapes[0].x1', 10);
+        })
+        .then(function() {
+            assertRanges('set rng / large shape', [0, 2], [0, 2]);
+            return Plotly.relayout(gd, {
+                'xaxis.autorange': true,
+                'yaxis.autorange': true
+            });
+        })
+        .then(function() {
+            assertRanges('auto rng / large shape', [-0.61, 10], [0.86, 3]);
+            return Plotly.relayout(gd, 'shapes[0].x1', 3);
+        })
+        .then(function() {
+            assertRanges('auto rng / small shape', [-0.18, 3], [0.86, 3]);
         })
         .catch(failTest)
         .then(done);
@@ -1024,7 +1068,9 @@ describe('A fixed size shape', function() {
         return combinations;
     }
 
-    var shapeAndResizeTypes = combinations(shapeTypes, resizeTypes);
+    // Only rect and circle because (i) path isn't yet resizable
+    // and (ii) line has a different resize behavior.
+    var shapeAndResizeTypes = combinations([{type: 'rect'}, {type: 'circle'}], resizeTypes);
     shapeAndResizeTypes.forEach(function(testCase) {
         describe('@flaky of type ' + testCase.type + ' can be ' + testCase.resizeDisplayName, function() {
             resizeDirections.forEach(function(direction) {
@@ -1053,6 +1099,81 @@ describe('A fixed size shape', function() {
                       });
                 });
             });
+        });
+    });
+
+    describe('@flaky of type line', function() {
+        beforeEach(function() {
+            layout.shapes[0].type = 'line';
+            layout.shapes[0].yanchor = 3;
+
+        });
+
+        it('can be moved by dragging the middle', function(done) {
+            Plotly.plot(gd, data, layout, {editable: true})
+              .then(function() {
+                  var shapeNodeBeforeDrag = getFirstShapeNode();
+                  var bBoxBeforeDrag = shapeNodeBeforeDrag.getBoundingClientRect();
+
+                  var dragSensitiveElement = getMoveLineDragElement(0);
+                  drag(dragSensitiveElement, 10, -10)
+                    .then(function() {
+                        var shapeNodeAfterDrag = getFirstShapeNode();
+                        var bBoxAfterDrag = shapeNodeAfterDrag.getBoundingClientRect();
+
+                        assertShapeSize(shapeNodeAfterDrag, 25, 25);
+                        expect(bBoxAfterDrag.left).toBe(bBoxBeforeDrag.left + 10);
+                        expect(bBoxAfterDrag.top).toBe(bBoxBeforeDrag.top - 10);
+
+                        done();
+                    });
+              });
+        });
+
+        it('can be resized by dragging the start point', function(done) {
+            Plotly.plot(gd, data, layout, {editable: true})
+              .then(function() {
+                  var shapeNodeBeforeDrag = getFirstShapeNode();
+                  var bBoxBeforeDrag = shapeNodeBeforeDrag.getBoundingClientRect();
+
+                  var dragSensitiveElement = getResizeLineOverStartPointElement();
+                  drag(dragSensitiveElement, 50, -10)
+                    .then(function() {
+                        var shapeNodeAfterDrag = getFirstShapeNode();
+                        var bBoxAfterDrag = shapeNodeAfterDrag.getBoundingClientRect();
+
+                        assertShapeSize(shapeNodeAfterDrag, 25, 35);
+                        expect(bBoxAfterDrag.top).toBe(bBoxBeforeDrag.top - 10, 'top');
+                        expect(bBoxAfterDrag.right).toBe(bBoxBeforeDrag.right + 25, 'right');
+                        expect(bBoxAfterDrag.bottom).toBe(bBoxBeforeDrag.bottom, 'bottom');
+                        expect(bBoxAfterDrag.left).toBe(bBoxBeforeDrag.left + 25, 'left');
+
+                        done();
+                    });
+              });
+        });
+
+        it('can be resized by dragging the end point', function(done) {
+            Plotly.plot(gd, data, layout, {editable: true})
+              .then(function() {
+                  var shapeNodeBeforeDrag = getFirstShapeNode();
+                  var bBoxBeforeDrag = shapeNodeBeforeDrag.getBoundingClientRect();
+
+                  var dragSensitiveElement = getResizeLineOverEndPointElement();
+                  drag(dragSensitiveElement, 50, -10)
+                    .then(function() {
+                        var shapeNodeAfterDrag = getFirstShapeNode();
+                        var bBoxAfterDrag = shapeNodeAfterDrag.getBoundingClientRect();
+
+                        assertShapeSize(shapeNodeAfterDrag, 75, 15);
+                        expect(bBoxAfterDrag.top).toBe(bBoxBeforeDrag.top, 'top');
+                        expect(bBoxAfterDrag.right).toBe(bBoxBeforeDrag.right + 50, 'right');
+                        expect(bBoxAfterDrag.bottom).toBe(bBoxBeforeDrag.bottom - 10, 'bottom');
+                        expect(bBoxAfterDrag.left).toBe(bBoxBeforeDrag.left, 'left');
+
+                        done();
+                    });
+              });
         });
     });
 
@@ -1187,8 +1308,8 @@ describe('@flaky Test shapes', function() {
     ];
 
     testCases.forEach(function(testCase) {
-        it(testCase.title + 'should be draggable', function(done) {
-            setupLayout(testCase);
+        it(testCase.title + ' should be draggable', function(done) {
+            setupLayout(testCase, [{type: 'line'}, {type: 'rect'}, {type: 'circle'}, {type: 'path'}]);
             testDragEachShape(done);
         });
     });
@@ -1196,16 +1317,28 @@ describe('@flaky Test shapes', function() {
     testCases.forEach(function(testCase) {
         resizeDirections.forEach(function(direction) {
             var testTitle = testCase.title +
-                'should be resizeable over direction ' +
+                ' should be resizeable over direction ' +
                 direction;
             it(testTitle, function(done) {
-                setupLayout(testCase);
+                // Exclude line because it has a different resize behavior
+                setupLayout(testCase, [{type: 'rect'}, {type: 'circle'}, {type: 'path'}]);
                 testResizeEachShape(direction, done);
             });
         });
     });
 
-    function setupLayout(testCase) {
+    testCases.forEach(function(testCase) {
+        ['start', 'end'].forEach(function(linePoint) {
+            var testTitle = 'Line shape ' + testCase.title +
+              ' should be resizable by dragging the ' + linePoint + ' point';
+            it(testTitle, function(done) {
+                setupLayout(testCase, [{type: 'line'}]);
+                testLineResize(linePoint, done);
+            });
+        });
+    });
+
+    function setupLayout(testCase, layoutShapes) {
         Lib.extendDeep(layout, testCase);
 
         var xrange = testCase.xaxis ? testCase.xaxis.range : [0.25, 0.75],
@@ -1241,25 +1374,18 @@ describe('@flaky Test shapes', function() {
             x1y1 = x1 + ',' + y1,
             x1y0 = x1 + ',' + y0;
 
-        var layoutShapes = [
-            { type: 'line' },
-            { type: 'rect' },
-            { type: 'circle' },
-            {}  // path
-        ];
-
         layoutShapes.forEach(function(s) {
             s.xref = xref;
             s.yref = yref;
 
-            if(s.type) {
+            if(s.type === 'path') {
+                s.path = 'M' + x0y0 + 'L' + x1y1 + 'L' + x1y0 + 'Z';
+            }
+            else {
                 s.x0 = x0;
                 s.x1 = x1;
                 s.y0 = y0;
                 s.y1 = y1;
-            }
-            else {
-                s.path = 'M' + x0y0 + 'L' + x1y1 + 'L' + x1y0 + 'Z';
             }
         });
 
@@ -1277,7 +1403,9 @@ describe('@flaky Test shapes', function() {
             var dx = 100,
                 dy = 100;
             promise = promise.then(function() {
-                var node = getShapeNode(index);
+                var node = layoutShape.type === 'line' ?
+                  getMoveLineDragElement(index) :
+                  getShapeNode(index);
                 expect(node).not.toBe(null);
 
                 return (layoutShape.path) ?
@@ -1294,7 +1422,9 @@ describe('@flaky Test shapes', function() {
 
         var layoutShapes = gd.layout.shapes;
 
-        expect(layoutShapes.length).toBe(4);  // line, rect, circle and path
+        // Only rect, circle and path.
+        // Hint: line has different resize behavior.
+        expect(layoutShapes.length).toBe(3);
 
         layoutShapes.forEach(function(layoutShape, index) {
             if(layoutShape.path) return;
@@ -1429,6 +1559,38 @@ describe('@flaky Test shapes', function() {
                     .toBeCloseTo(dx);
             }
         });
+    }
+
+    function testLineResize(pointToMove, done) {
+        var promise = Plotly.plot(gd, data, layout, config);
+        var layoutShape = gd.layout.shapes[0];
+
+        var xa = Axes.getFromId(gd, layoutShape.xref),
+            ya = Axes.getFromId(gd, layoutShape.yref),
+            x2p = helpers.getDataToPixel(gd, xa),
+            y2p = helpers.getDataToPixel(gd, ya, true);
+
+
+        promise = promise.then(function() {
+            var dragHandle = pointToMove === 'start' ?
+              getResizeLineOverStartPointElement() :
+              getResizeLineOverEndPointElement();
+
+            var initialCoordinates = getShapeCoordinates(layoutShape, x2p, y2p);
+            return drag(dragHandle, 10, 10).then(function() {
+                var finalCoordinates = getShapeCoordinates(layoutShape, x2p, y2p);
+
+                if(pointToMove === 'start') {
+                    expect(finalCoordinates.x0 - initialCoordinates.x0).toBeCloseTo(10);
+                    expect(finalCoordinates.y0 - initialCoordinates.y0).toBeCloseTo(10);
+                } else {
+                    expect(finalCoordinates.x1 - initialCoordinates.x1).toBeCloseTo(10);
+                    expect(finalCoordinates.y1 - initialCoordinates.y1).toBeCloseTo(10);
+                }
+            });
+        });
+
+        return promise.then(done);
     }
 
     function getPathCoordinates(pathString, x2p, y2p) {

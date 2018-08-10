@@ -3,6 +3,7 @@ var Lib = require('@src/lib');
 
 var Box = require('@src/traces/box');
 
+var d3 = require('d3');
 var createGraphDiv = require('../assets/create_graph_div');
 var destroyGraphDiv = require('../assets/destroy_graph_div');
 var failTest = require('../assets/fail_test');
@@ -343,6 +344,93 @@ describe('Box edge cases', function() {
             });
             expect(outliers.length).toBe(1);
             expect(outliers[0].x).toBe(0);
+        })
+        .catch(failTest)
+        .then(done);
+    });
+});
+
+describe('Test box restyle:', function() {
+    var gd;
+
+    beforeEach(function() {
+        gd = createGraphDiv();
+    });
+
+    afterEach(destroyGraphDiv);
+
+    it('should be able to add/remove innner parts', function(done) {
+        var fig = Lib.extendDeep({}, require('@mocks/box_plot_jitter.json'));
+        // start with just 1 box
+        delete fig.data[0].boxpoints;
+
+        function _assertOne(msg, exp, trace3, k, query) {
+            expect(trace3.selectAll(query).size())
+                .toBe(exp[k] || 0, k + ' - ' + msg);
+        }
+
+        function _assert(msg, exp) {
+            var trace3 = d3.select(gd).select('.boxlayer > .trace');
+            _assertOne(msg, exp, trace3, 'boxCnt', 'path.box');
+            _assertOne(msg, exp, trace3, 'meanlineCnt', 'path.mean');
+            _assertOne(msg, exp, trace3, 'ptsCnt', 'path.point');
+        }
+
+        Plotly.plot(gd, fig)
+        .then(function() {
+            _assert('base', {boxCnt: 1});
+        })
+        .then(function() { return Plotly.restyle(gd, 'boxmean', true); })
+        .then(function() {
+            _assert('with meanline', {boxCnt: 1, meanlineCnt: 1});
+        })
+        .then(function() { return Plotly.restyle(gd, 'boxmean', 'sd'); })
+        .then(function() {
+            _assert('with mean+sd line', {boxCnt: 1, meanlineCnt: 1});
+        })
+        .then(function() { return Plotly.restyle(gd, 'boxpoints', 'all'); })
+        .then(function() {
+            _assert('with mean+sd line + pts', {boxCnt: 1, meanlineCnt: 1, ptsCnt: 9});
+        })
+        .then(function() { return Plotly.restyle(gd, 'boxmean', false); })
+        .then(function() {
+            _assert('with pts', {boxCnt: 1, ptsCnt: 9});
+        })
+        .catch(failTest)
+        .then(done);
+    });
+
+    it('should update axis range accordingly on calc edits', function(done) {
+        function _assert(msg, xrng, yrng) {
+            var fullLayout = gd._fullLayout;
+            expect(fullLayout.xaxis.range).toBeCloseToArray(xrng, 2, msg + ' xrng');
+            expect(fullLayout.yaxis.range).toBeCloseToArray(yrng, 2, msg + ' yrng');
+        }
+
+        Plotly.plot(gd, [{
+            type: 'box',
+            y: [0, 1, 1, 1, 1, 2, 2, 3, 5, 6, 10]
+        }], {
+            xaxis: {range: [-0.5, 0.5]},
+            yaxis: {range: [-0.5, 10.5]}
+        })
+        .then(function() {
+            _assert('auto rng / no boxpoints', [-0.5, 0.5], [-0.5, 10.5]);
+            return Plotly.restyle(gd, 'boxpoints', 'all');
+        })
+        .then(function() {
+            _assert('set rng / all boxpoints', [-0.5, 0.5], [-0.5, 10.5]);
+            return Plotly.relayout(gd, {
+                'xaxis.autorange': true,
+                'yaxis.autorange': true
+            });
+        })
+        .then(function() {
+            _assert('auto rng / all boxpoints', [-0.695, 0.5], [-0.555, 10.555]);
+            return Plotly.restyle(gd, 'boxpoints', false);
+        })
+        .then(function() {
+            _assert('auto rng / no boxpoints', [-0.5, 0.5], [-0.555, 10.555]);
         })
         .catch(failTest)
         .then(done);

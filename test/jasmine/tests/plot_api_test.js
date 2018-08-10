@@ -20,6 +20,7 @@ var destroyGraphDiv = require('../assets/destroy_graph_div');
 var failTest = require('../assets/fail_test');
 var checkTicks = require('../assets/custom_assertions').checkTicks;
 var supplyAllDefaults = require('../assets/supply_defaults');
+var mockLists = require('../assets/mock_lists');
 
 describe('Test plot api', function() {
     'use strict';
@@ -520,7 +521,8 @@ describe('Test plot api', function() {
             'doCamera',
             'doAutoRangeAndConstraints',
             'drawData',
-            'finalDraw'
+            'finalDraw',
+            'drawMarginPushers'
         ];
 
         var gd;
@@ -538,6 +540,7 @@ describe('Test plot api', function() {
 
             supplyAllDefaults(gd);
             Plots.doCalcdata(gd);
+            gd.emit = function() {};
             return gd;
         }
 
@@ -643,21 +646,23 @@ describe('Test plot api', function() {
                 });
             }
 
-            var trace = {y: [1, 2, 1]};
-
             var specs = [
                 ['relayout', ['xaxis.range[0]', 0]],
                 ['relayout', ['xaxis.range[1]', 3]],
                 ['relayout', ['xaxis.range', [-1, 5]]],
                 ['update', [{}, {'xaxis.range': [-1, 10]}]],
-                ['react', [[trace], {xaxis: {range: [0, 1]}}]]
+
+                ['relayout', ['xaxis.autorange', true]],
+                ['update', [{}, {'xaxis.autorange': true}]]
             ];
 
             specs.forEach(function(s) {
-                // create 'real' div for Plotly.react to work
-                gd = createGraphDiv();
-                Plotly.plot(gd, [trace], {xaxis: {range: [1, 2]}});
-                mock(gd);
+                gd = mock({
+                    data: [{y: [1, 2, 1]}],
+                    layout: {
+                        xaxis: {range: [1, 2]}
+                    }
+                });
 
                 Plotly[s[0]](gd, s[1][0], s[1][1]);
 
@@ -665,9 +670,22 @@ describe('Test plot api', function() {
                     'Plotly.', s[0],
                     '(gd, ', JSON.stringify(s[1][0]), ', ', JSON.stringify(s[1][1]), ')'
                 ].join(''));
-
-                destroyGraphDiv();
             });
+        });
+
+        it('should trigger calc on axis range updates when constraints are present', function() {
+            gd = mock({
+                data: [{
+                    y: [1, 2, 1]
+                }],
+                layout: {
+                    xaxis: {constrain: 'domain'},
+                    yaxis: {scaleanchor: 'x'}
+                }
+            });
+
+            Plotly.relayout(gd, 'xaxis.range[0]', 0);
+            expect(gd.calcdata).toBeUndefined();
         });
     });
 
@@ -686,6 +704,7 @@ describe('Test plot api', function() {
             gd.calcdata = gd._fullData.map(function(trace) {
                 return [{x: 1, y: 1, trace: trace}];
             });
+            gd.emit = function() {};
         }
 
         it('calls Scatter.arraysToCalcdata and Plots.style on scatter styling', function() {
@@ -1485,9 +1504,7 @@ describe('Test plot api', function() {
         it('should work when newIndices is undefined', function() {
             Plotly.addTraces(gd, [{'name': 'c'}, {'name': 'd'}]);
             expect(gd.data[2].name).toBeDefined();
-            expect(gd.data[2].uid).toBeDefined();
             expect(gd.data[3].name).toBeDefined();
-            expect(gd.data[3].uid).toBeDefined();
             expect(plotApi.redraw).toHaveBeenCalled();
             expect(plotApi.moveTraces).not.toHaveBeenCalled();
         });
@@ -1495,9 +1512,7 @@ describe('Test plot api', function() {
         it('should work when newIndices is defined', function() {
             Plotly.addTraces(gd, [{'name': 'c'}, {'name': 'd'}], [1, 3]);
             expect(gd.data[2].name).toBeDefined();
-            expect(gd.data[2].uid).toBeDefined();
             expect(gd.data[3].name).toBeDefined();
-            expect(gd.data[3].uid).toBeDefined();
             expect(plotApi.redraw).not.toHaveBeenCalled();
             expect(plotApi.moveTraces).toHaveBeenCalledWith(gd, [-2, -1], [1, 3]);
         });
@@ -1505,9 +1520,7 @@ describe('Test plot api', function() {
         it('should work when newIndices has negative indices', function() {
             Plotly.addTraces(gd, [{'name': 'c'}, {'name': 'd'}], [-3, -1]);
             expect(gd.data[2].name).toBeDefined();
-            expect(gd.data[2].uid).toBeDefined();
             expect(gd.data[3].name).toBeDefined();
-            expect(gd.data[3].uid).toBeDefined();
             expect(plotApi.redraw).not.toHaveBeenCalled();
             expect(plotApi.moveTraces).toHaveBeenCalledWith(gd, [-2, -1], [-3, -1]);
         });
@@ -1515,7 +1528,6 @@ describe('Test plot api', function() {
         it('should work when newIndices is an integer', function() {
             Plotly.addTraces(gd, {'name': 'c'}, 0);
             expect(gd.data[2].name).toBeDefined();
-            expect(gd.data[2].uid).toBeDefined();
             expect(plotApi.redraw).not.toHaveBeenCalled();
             expect(plotApi.moveTraces).toHaveBeenCalledWith(gd, [-1], [0]);
         });
@@ -2548,7 +2560,7 @@ describe('Test plot api', function() {
         });
     });
 
-    describe('Plotly.react', function() {
+    describe('@noCIdep Plotly.react', function() {
         var mockedMethods = [
             'doTraceStyle',
             'doColorBars',
@@ -2560,10 +2572,13 @@ describe('Test plot api', function() {
         ];
 
         var gd;
-        var plotCalls;
+        var afterPlotCnt;
 
         beforeEach(function() {
             gd = createGraphDiv();
+
+            spyOn(plotApi, 'plot').and.callThrough();
+            spyOn(Registry, 'call').and.callThrough();
 
             mockedMethods.forEach(function(m) {
                 spyOn(subroutines, m).and.callThrough();
@@ -2578,13 +2593,14 @@ describe('Test plot api', function() {
         afterEach(destroyGraphDiv);
 
         function countPlots() {
-            plotCalls = 0;
-
-            gd.on('plotly_afterplot', function() { plotCalls++; });
+            plotApi.plot.calls.reset();
             subroutines.layoutStyles.calls.reset();
             annotations.draw.calls.reset();
             annotations.drawOne.calls.reset();
             images.draw.calls.reset();
+
+            afterPlotCnt = 0;
+            gd.on('plotly_afterplot', function() { afterPlotCnt++; });
         }
 
         function countCalls(counts) {
@@ -2596,8 +2612,14 @@ describe('Test plot api', function() {
                 subroutines[m].calls.reset();
             });
 
-            expect(plotCalls).toBe(counts.plot || 0, 'calls to Plotly.plot');
-            plotCalls = 0;
+            // calls to Plotly.plot via plot_api.js or Registry.call('plot')
+            var plotCalls = plotApi.plot.calls.count() +
+                Registry.call.calls.all()
+                    .filter(function(d) { return d.args[0] === 'plot'; })
+                    .length;
+            expect(plotCalls).toBe(counts.plot || 0, 'Plotly.plot calls');
+            plotApi.plot.calls.reset();
+            Registry.call.calls.reset();
 
             // only consider annotation and image draw calls if we *don't* do a full plot.
             if(!counts.plot) {
@@ -2608,6 +2630,9 @@ describe('Test plot api', function() {
             annotations.draw.calls.reset();
             annotations.drawOne.calls.reset();
             images.draw.calls.reset();
+
+            expect(afterPlotCnt).toBe(1, 'plotly_afterplot should be called only once per edit');
+            afterPlotCnt = 0;
         }
 
         it('can add / remove traces', function(done) {
@@ -2648,6 +2673,7 @@ describe('Test plot api', function() {
             .then(function() {
                 // didn't pick it up, as we modified in place!!!
                 expect(d3.selectAll('.point').size()).toBe(3);
+                countCalls({plot: 0});
 
                 data[0].y = [1, 2, 3, 4, 5];
                 return Plotly.react(gd, data, layout);
@@ -2655,7 +2681,6 @@ describe('Test plot api', function() {
             .then(function() {
                 // new object, we picked it up!
                 expect(d3.selectAll('.point').size()).toBe(5);
-
                 countCalls({plot: 1});
             })
             .catch(failTest)
@@ -2677,6 +2702,7 @@ describe('Test plot api', function() {
             .then(function() {
                 // didn't pick it up, as we didn't modify datarevision
                 expect(d3.selectAll('.point').size()).toBe(3);
+                countCalls({plot: 0});
 
                 data[0].y.push(5);
                 layout.datarevision = 'bananas';
@@ -2753,6 +2779,24 @@ describe('Test plot api', function() {
             })
             .then(function() {
                 countCalls({doColorBars: 1, plot: 1});
+            })
+            .catch(failTest)
+            .then(done);
+        });
+
+        it('picks up minimal sequence for cartesian axis range updates', function(done) {
+            var data = [{y: [1, 2, 1]}];
+            var layout = {xaxis: {range: [1, 2]}};
+            var layout2 = {xaxis: {range: [0, 1]}};
+
+            Plotly.newPlot(gd, data, layout)
+            .then(countPlots)
+            .then(function() {
+                return Plotly.react(gd, data, layout2);
+            })
+            .then(function() {
+                expect(subroutines.doTicksRelayout).toHaveBeenCalledTimes(1);
+                expect(subroutines.layoutStyles).not.toHaveBeenCalled();
             })
             .catch(failTest)
             .then(done);
@@ -2845,7 +2889,7 @@ describe('Test plot api', function() {
                     sizex: 1,
                     sizey: 1
                 }];
-                Plotly.react(gd, data, layout);
+                return Plotly.react(gd, data, layout);
             })
             .then(function() {
                 countCalls({imageDraw: 1});
@@ -2859,7 +2903,7 @@ describe('Test plot api', function() {
 
                 layout.images[0].y = 0.8;
                 layout.images[0].sizey = 0.4;
-                Plotly.react(gd, data, layout);
+                return Plotly.react(gd, data, layout);
             })
             .then(function() {
                 countCalls({imageDraw: 1});
@@ -3190,61 +3234,6 @@ describe('Test plot api', function() {
             .then(done);
         });
 
-        var svgMockList = [
-            ['1', require('@mocks/1.json')],
-            ['4', require('@mocks/4.json')],
-            ['5', require('@mocks/5.json')],
-            ['10', require('@mocks/10.json')],
-            ['11', require('@mocks/11.json')],
-            ['17', require('@mocks/17.json')],
-            ['21', require('@mocks/21.json')],
-            ['22', require('@mocks/22.json')],
-            ['airfoil', require('@mocks/airfoil.json')],
-            ['annotations-autorange', require('@mocks/annotations-autorange.json')],
-            ['axes_enumerated_ticks', require('@mocks/axes_enumerated_ticks.json')],
-            ['axes_visible-false', require('@mocks/axes_visible-false.json')],
-            ['bar_and_histogram', require('@mocks/bar_and_histogram.json')],
-            ['basic_error_bar', require('@mocks/basic_error_bar.json')],
-            ['binding', require('@mocks/binding.json')],
-            ['cheater_smooth', require('@mocks/cheater_smooth.json')],
-            ['finance_style', require('@mocks/finance_style.json')],
-            ['geo_first', require('@mocks/geo_first.json')],
-            ['layout_image', require('@mocks/layout_image.json')],
-            ['layout-colorway', require('@mocks/layout-colorway.json')],
-            ['polar_categories', require('@mocks/polar_categories.json')],
-            ['polar_direction', require('@mocks/polar_direction.json')],
-            ['range_selector_style', require('@mocks/range_selector_style.json')],
-            ['range_slider_multiple', require('@mocks/range_slider_multiple.json')],
-            ['sankey_energy', require('@mocks/sankey_energy.json')],
-            ['scattercarpet', require('@mocks/scattercarpet.json')],
-            ['shapes', require('@mocks/shapes.json')],
-            ['splom_iris', require('@mocks/splom_iris.json')],
-            ['table_wrapped_birds', require('@mocks/table_wrapped_birds.json')],
-            ['ternary_fill', require('@mocks/ternary_fill.json')],
-            ['text_chart_arrays', require('@mocks/text_chart_arrays.json')],
-            ['transforms', require('@mocks/transforms.json')],
-            ['updatemenus', require('@mocks/updatemenus.json')],
-            ['violin_side-by-side', require('@mocks/violin_side-by-side.json')],
-            ['world-cals', require('@mocks/world-cals.json')],
-            ['typed arrays', {
-                data: [{
-                    x: new Float32Array([1, 2, 3]),
-                    y: new Float32Array([1, 2, 1])
-                }]
-            }]
-        ];
-
-        var glMockList = [
-            ['gl2d_heatmapgl', require('@mocks/gl2d_heatmapgl.json')],
-            ['gl2d_line_dash', require('@mocks/gl2d_line_dash.json')],
-            ['gl2d_parcoords_2', require('@mocks/gl2d_parcoords_2.json')],
-            ['gl2d_pointcloud-basic', require('@mocks/gl2d_pointcloud-basic.json')],
-            ['gl3d_annotations', require('@mocks/gl3d_annotations.json')],
-            ['gl3d_set-ranges', require('@mocks/gl3d_set-ranges.json')],
-            ['gl3d_world-cals', require('@mocks/gl3d_world-cals.json')],
-            ['glpolar_style', require('@mocks/glpolar_style.json')],
-        ];
-
         // make sure we've included every trace type in this suite
         var typesTested = {};
         var itemType;
@@ -3343,24 +3332,25 @@ describe('Test plot api', function() {
             .then(done);
         }
 
-        svgMockList.forEach(function(mockSpec) {
+        mockLists.svg.forEach(function(mockSpec) {
             it('can redraw "' + mockSpec[0] + '" with no changes as a noop (svg mocks)', function(done) {
                 _runReactMock(mockSpec, done);
             });
         });
 
-        glMockList.forEach(function(mockSpec) {
+        mockLists.gl.forEach(function(mockSpec) {
             it('can redraw "' + mockSpec[0] + '" with no changes as a noop (gl mocks)', function(done) {
                 _runReactMock(mockSpec, done);
             });
         });
 
-        it('@noCI can redraw scattermapbox with no changes as a noop', function(done) {
-            Plotly.setPlotConfig({
-                mapboxAccessToken: require('@build/credentials.json').MAPBOX_ACCESS_TOKEN
+        mockLists.mapbox.forEach(function(mockSpec) {
+            it('@noCI can redraw "' + mockSpec[0] + '" with no changes as a noop (mapbpox mocks)', function(done) {
+                Plotly.setPlotConfig({
+                    mapboxAccessToken: require('@build/credentials.json').MAPBOX_ACCESS_TOKEN
+                });
+                _runReactMock(mockSpec, done);
             });
-
-            _runReactMock(['scattermapbox', require('@mocks/mapbox_bubbles-text.json')], done);
         });
 
         // since CI breaks up gl/svg types, and drops scattermapbox, this test won't work there

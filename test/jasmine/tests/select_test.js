@@ -42,11 +42,13 @@ function drag(path, options) {
     mouseEvent('mouseup', path[len - 1][0], path[len - 1][1], options);
 }
 
-function assertSelectionNodes(cornerCnt, outlineCnt) {
+function assertSelectionNodes(cornerCnt, outlineCnt, _msg) {
+    var msg = _msg ? ' - ' + _msg : '';
+
     expect(d3.selectAll('.zoomlayer > .zoombox-corners').size())
-        .toBe(cornerCnt, 'selection corner count');
+        .toBe(cornerCnt, 'selection corner count' + msg);
     expect(d3.selectAll('.zoomlayer > .select-outline').size())
-        .toBe(outlineCnt, 'selection outline count');
+        .toBe(outlineCnt, 'selection outline count' + msg);
 }
 
 var selectingCnt, selectingData, selectedCnt, selectedData, deselectCnt, doubleClickData;
@@ -537,16 +539,27 @@ describe('@flaky Test select box and lasso in general:', function() {
         mockCopy.layout.dragmode = 'select';
         mockCopy.config = {scrollZoom: true};
 
-        Plotly.plot(gd, mockCopy).then(function() {
+        function _drag() {
             resetEvents(gd);
             drag(selectPath);
             return selectedPromise;
-        })
-        .then(function() {
+        }
+
+        function _scroll() {
             mouseEvent('mousemove', selectPath[0][0], selectPath[0][1]);
             mouseEvent('scroll', selectPath[0][0], selectPath[0][1], {deltaX: 0, deltaY: -20});
-        })
+        }
+
+        Plotly.plot(gd, mockCopy)
+        .then(_drag)
+        .then(_scroll)
         .then(function() {
+            assertSelectionNodes(0, 0);
+        })
+        .then(_drag)
+        .then(_scroll)
+        .then(function() {
+            // make sure it works the 2nd time aroung
             assertSelectionNodes(0, 0);
         })
         .catch(failTest)
@@ -612,9 +625,251 @@ describe('@flaky Test select box and lasso in general:', function() {
         })
         .catch(failTest)
         .then(done);
-
     });
 
+    it('should clear selected points on double click only on pan/lasso modes', function(done) {
+        var gd = createGraphDiv();
+        var fig = Lib.extendDeep({}, require('@mocks/0.json'));
+        fig.data = [fig.data[0]];
+        fig.layout.xaxis.autorange = false;
+        fig.layout.xaxis.range = [2, 8];
+        fig.layout.yaxis.autorange = false;
+        fig.layout.yaxis.range = [0, 3];
+
+        function _assert(msg, exp) {
+            expect(gd.layout.xaxis.range)
+                .toBeCloseToArray(exp.xrng, 2, 'xaxis range - ' + msg);
+            expect(gd.layout.yaxis.range)
+                .toBeCloseToArray(exp.yrng, 2, 'yaxis range - ' + msg);
+
+            if(exp.selpts === null) {
+                expect('selectedpoints' in gd.data[0])
+                    .toBe(false, 'cleared selectedpoints - ' + msg);
+            } else {
+                expect(gd.data[0].selectedpoints)
+                    .toBeCloseToArray(exp.selpts, 2, 'selectedpoints - ' + msg);
+            }
+        }
+
+        Plotly.plot(gd, fig).then(function() {
+            _assert('base', {
+                xrng: [2, 8],
+                yrng: [0, 3],
+                selpts: null
+            });
+            return Plotly.relayout(gd, 'xaxis.range', [0, 10]);
+        })
+        .then(function() {
+            _assert('after xrng relayout', {
+                xrng: [0, 10],
+                yrng: [0, 3],
+                selpts: null
+            });
+            return doubleClick(200, 200);
+        })
+        .then(function() {
+            _assert('after double-click under dragmode zoom', {
+                xrng: [2, 8],
+                yrng: [0, 3],
+                selpts: null
+            });
+            return Plotly.relayout(gd, 'dragmode', 'select');
+        })
+        .then(function() {
+            _assert('after relayout to select', {
+                xrng: [2, 8],
+                yrng: [0, 3],
+                selpts: null
+            });
+            return drag([[100, 100], [400, 400]]);
+        })
+        .then(function() {
+            _assert('after selection', {
+                xrng: [2, 8],
+                yrng: [0, 3],
+                selpts: [40, 41, 42, 43, 44, 45, 46, 47, 48]
+            });
+            return doubleClick(200, 200);
+        })
+        .then(function() {
+            _assert('after double-click under dragmode select', {
+                xrng: [2, 8],
+                yrng: [0, 3],
+                selpts: null
+            });
+            return drag([[100, 100], [400, 400]]);
+        })
+        .then(function() {
+            _assert('after selection 2', {
+                xrng: [2, 8],
+                yrng: [0, 3],
+                selpts: [40, 41, 42, 43, 44, 45, 46, 47, 48]
+            });
+            return Plotly.relayout(gd, 'dragmode', 'pan');
+        })
+        .then(function() {
+            _assert('after relayout to pan', {
+                xrng: [2, 8],
+                yrng: [0, 3],
+                selpts: [40, 41, 42, 43, 44, 45, 46, 47, 48]
+            });
+            return Plotly.relayout(gd, 'yaxis.range', [0, 20]);
+        })
+        .then(function() {
+            _assert('after yrng relayout', {
+                xrng: [2, 8],
+                yrng: [0, 20],
+                selpts: [40, 41, 42, 43, 44, 45, 46, 47, 48]
+            });
+            return doubleClick(200, 200);
+        })
+        .then(function() {
+            _assert('after double-click under dragmode pan', {
+                xrng: [2, 8],
+                yrng: [0, 3],
+                // N.B. does not clear selection!
+                selpts: [40, 41, 42, 43, 44, 45, 46, 47, 48]
+            });
+        })
+        .catch(failTest)
+        .then(done);
+    });
+
+    it('should remember selection polygons from previous select/lasso mode', function(done) {
+        var gd = createGraphDiv();
+        var path1 = [[150, 150], [170, 170]];
+        var path2 = [[193, 193], [213, 193]];
+
+        var fig = Lib.extendDeep({}, mock);
+        fig.layout.margin = {l: 0, t: 0, r: 0, b: 0};
+        fig.layout.width = 500;
+        fig.layout.height = 500;
+        fig.layout.dragmode = 'select';
+        fig.config = {scrollZoom: true};
+
+        // d attr to array of segment [x,y]
+        function outline2coords(outline) {
+            if(!outline.size()) return [[]];
+
+            return outline.attr('d')
+                .replace(/Z/g, '')
+                .split('M')
+                .filter(Boolean)
+                .map(function(s) {
+                    return s.split('L')
+                        .map(function(s) { return s.split(',').map(Number); });
+                })
+                .reduce(function(a, b) { return a.concat(b); });
+        }
+
+        function _assert(msg, exp) {
+            var outline = d3.select(gd).select('.zoomlayer').select('.select-outline-1');
+
+            if(exp.outline) {
+                expect(outline2coords(outline)).toBeCloseTo2DArray(exp.outline, 2, msg);
+            } else {
+                assertSelectionNodes(0, 0, msg);
+            }
+        }
+
+        function _drag(path, opts) {
+            return function() {
+                resetEvents(gd);
+                drag(path, opts);
+                return selectedPromise;
+            };
+        }
+
+        Plotly.plot(gd, fig)
+        .then(function() { _assert('base', {outline: false}); })
+        .then(_drag(path1))
+        .then(function() {
+            _assert('select path1', {
+                outline: [[150, 150], [150, 170], [170, 170], [170, 150], [150, 150]]
+            });
+        })
+        .then(_drag(path2))
+        .then(function() {
+            _assert('select path2', {
+                outline: [[193, 0], [193, 500], [213, 500], [213, 0], [193, 0]]
+            });
+        })
+        .then(_drag(path1))
+        .then(_drag(path2, {shiftKey: true}))
+        .then(function() {
+            _assert('select path1+path2', {
+                outline: [
+                    [170, 170], [170, 150], [150, 150], [150, 170], [170, 170],
+                    [213, 500], [213, 0], [193, 0], [193, 500], [213, 500]
+                ]
+            });
+        })
+        .then(function() {
+            return Plotly.relayout(gd, 'dragmode', 'lasso');
+        })
+        .then(function() {
+            // N.B. all relayout calls clear the selection outline at the moment,
+            // perhaps we could make an exception for select <-> lasso ?
+            _assert('after relayout -> lasso', {outline: false});
+        })
+        .then(_drag(lassoPath, {shiftKey: true}))
+        .then(function() {
+            // merged with previous 'select' polygon
+            _assert('after shift lasso', {
+                outline: [
+                    [170, 170], [170, 150], [150, 150], [150, 170], [170, 170],
+                    [213, 500], [213, 0], [193, 0], [193, 500], [213, 500],
+                    [335, 243], [328, 169], [316, 171], [318, 239], [335, 243]
+                ]
+            });
+        })
+        .then(_drag(lassoPath))
+        .then(function() {
+            _assert('after lasso (no-shift)', {
+                outline: [[316, 171], [318, 239], [335, 243], [328, 169], [316, 171]]
+            });
+        })
+        .then(function() {
+            return Plotly.relayout(gd, 'dragmode', 'pan');
+        })
+        .then(function() {
+            _assert('after relayout -> pan', {outline: false});
+            drag(path2);
+            _assert('after pan', {outline: false});
+            return Plotly.relayout(gd, 'dragmode', 'select');
+        })
+        .then(function() {
+            _assert('after relayout back to select', {outline: false});
+        })
+        .then(_drag(path1, {shiftKey: true}))
+        .then(function() {
+            // this used to merged 'lasso' polygons before (see #2669)
+            _assert('shift select path1 after pan', {
+                outline: [[150, 150], [150, 170], [170, 170], [170, 150], [150, 150]]
+            });
+        })
+        .then(_drag(path2, {shiftKey: true}))
+        .then(function() {
+            _assert('shift select path1+path2 after pan', {
+                outline: [
+                    [170, 170], [170, 150], [150, 150], [150, 170], [170, 170],
+                    [213, 500], [213, 0], [193, 0], [193, 500], [213, 500]
+                ]
+            });
+        })
+        .then(function() {
+            mouseEvent('mousemove', 200, 200);
+            mouseEvent('scroll', 200, 200, {deltaX: 0, deltaY: -20});
+        })
+        .then(_drag(path1, {shiftKey: true}))
+        .then(function() {
+            _assert('shift select path1 after scroll', {
+                outline: [[150, 150], [150, 170], [170, 170], [170, 150], [150, 150]]
+            });
+        })
+        .catch(failTest)
+        .then(done);
+    });
 });
 
 describe('@flaky Test select box and lasso per trace:', function() {
@@ -640,9 +895,9 @@ describe('@flaky Test select box and lasso per trace:', function() {
                 keys.forEach(function(k, j) {
                     var msgFull = msg + 'selected pt ' + i + ' - ' + k + ' val';
 
-                    if(typeof e[j] === 'number') {
+                    if(typeof p[k] === 'number' && typeof e[j] === 'number') {
                         expect(p[k]).toBeCloseTo(e[j], 1, msgFull);
-                    } else if(Array.isArray(e[j])) {
+                    } else if(Array.isArray(p[k]) && Array.isArray(e[j])) {
                         expect(p[k]).toBeCloseToArray(e[j], 1, msgFull);
                     } else {
                         expect(p[k]).toBe(e[j], msgFull);
@@ -896,11 +1151,23 @@ describe('@flaky Test select box and lasso per trace:', function() {
         var assertRanges = makeAssertRanges('geo');
         var assertLassoPoints = makeAssertLassoPoints('geo');
 
+        function assertNodeOpacity(exp) {
+            var traces = d3.select(gd).selectAll('.scatterlayer > .trace');
+            expect(traces.size()).toBe(Object.keys(exp).length, 'correct # of trace <g>');
+
+            traces.each(function(_, i) {
+                d3.select(this).selectAll('path.point').each(function(_, j) {
+                    expect(Number(this.style.opacity))
+                        .toBe(exp[i][j], 'node opacity - trace ' + i + ' pt ' + j);
+                });
+            });
+        }
+
         var fig = {
             data: [{
                 type: 'scattergeo',
-                lon: [10, 20, 30],
-                lat: [10, 20, 30]
+                lon: [10, 20, 30, null],
+                lat: [10, 20, 30, null]
             }, {
                 type: 'scattergeo',
                 lon: [-10, -20, -30],
@@ -922,6 +1189,7 @@ describe('@flaky Test select box and lasso per trace:', function() {
                 function() {
                     assertPoints([[10, 10], [20, 20], [-10, 10], [-20, 20]]);
                     assertSelectedPoints({0: [0, 1], 1: [0, 1]});
+                    assertNodeOpacity({0: [1, 1, 0.2], 1: [1, 1, 0.2]});
                     assertRanges([[-28.13, 61.88], [28.13, -50.64]]);
                 },
                 null, BOXEVENTS, 'scattergeo select'
@@ -936,11 +1204,31 @@ describe('@flaky Test select box and lasso per trace:', function() {
                 function() {
                     assertPoints([[-10, 10], [-20, 20], [-30, 30]]);
                     assertSelectedPoints({0: [], 1: [0, 1, 2]});
+                    assertNodeOpacity({0: [0.2, 0.2, 0.2], 1: [1, 1, 1]});
                     assertLassoPoints([
                         [-56.25, 61.88], [-56.24, 5.63], [0, 5.63], [0, 61.88], [-56.25, 61.88]
                     ]);
                 },
                 null, LASSOEVENTS, 'scattergeo lasso'
+            );
+        })
+        .then(function() {
+            // some projection types can't handle BADNUM during c2p,
+            // make they are skipped here
+            return Plotly.relayout(gd, 'geo.projection.type', 'robinson');
+        })
+        .then(function() {
+            return _run(
+                [[300, 200], [300, 300], [400, 300], [400, 200], [300, 200]],
+                function() {
+                    assertPoints([[-10, 10], [-20, 20], [-30, 30]]);
+                    assertSelectedPoints({0: [], 1: [0, 1, 2]});
+                    assertNodeOpacity({0: [0.2, 0.2, 0.2], 1: [1, 1, 1]});
+                    assertLassoPoints([
+                        [-67.40, 55.07], [-56.33, 4.968], [0, 4.968], [0, 55.07], [-67.40, 55.07]
+                    ]);
+                },
+                null, LASSOEVENTS, 'scattergeo lasso (on robinson projection)'
             );
         })
         .then(function() {

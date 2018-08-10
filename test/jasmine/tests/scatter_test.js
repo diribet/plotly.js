@@ -8,7 +8,7 @@ var Plotly = require('@lib/index');
 var createGraphDiv = require('../assets/create_graph_div');
 var destroyGraphDiv = require('../assets/destroy_graph_div');
 var customAssertions = require('../assets/custom_assertions');
-var fail = require('../assets/fail_test');
+var failTest = require('../assets/fail_test');
 
 var assertClip = customAssertions.assertClip;
 var assertNodeDisplay = customAssertions.assertNodeDisplay;
@@ -345,6 +345,12 @@ describe('Test scatter', function() {
         });
 
         it('should not collapse straight lines if simplify is false', function() {
+            var ptsIn = [[0, 0], [5, 10], [13, 26], [15, 30], [15, 30], [15, 30], [15, 30]];
+            var ptsOut = callLinePoints(ptsIn, {simplify: false});
+            expect(ptsOut).toEqual([ptsIn]);
+        });
+
+        it('should not collapse duplicate end points if simplify is false', function() {
             var ptsIn = [[0, 0], [5, 10], [13, 26], [15, 30], [22, 16], [28, 4], [30, 0]];
             var ptsOut = callLinePoints(ptsIn, {simplify: false});
             expect(ptsOut).toEqual([ptsIn]);
@@ -405,6 +411,10 @@ describe('Test scatter', function() {
 
         // TODO: test coarser decimation outside plot, and removing very near duplicates from the four of a cluster
 
+        function reverseXY(v) { return [v[1], v[0]]; }
+
+        function reverseXY2(v) { return v.map(reverseXY); }
+
         it('should clip extreme points without changing on-screen paths', function() {
             var ptsIn = [
                 // first bunch: rays going in/out in many directions
@@ -458,8 +468,6 @@ describe('Test scatter', function() {
                 [[2100, 2100], [-2000, 2100], [-2000, -2000], [2100, -2000], [2100, 2100]]
             ];
 
-            function reverseXY(v) { return [v[1], v[0]]; }
-
             ptsIn.forEach(function(ptsIni, i) {
                 // disable clustering for these tests
                 var ptsOut = callLinePoints(ptsIni, {simplify: false});
@@ -471,6 +479,47 @@ describe('Test scatter', function() {
                 expect(ptsOut2.length).toBe(1, i);
                 expect(ptsOut2[0]).toBeCloseTo2DArray(ptsExpected[i].map(reverseXY), 1, i);
             });
+        });
+
+        it('works when far off-screen points cross the viewport', function() {
+            function _check(ptsIn, ptsExpected) {
+                var ptsOut = callLinePoints(ptsIn);
+                expect(JSON.stringify(ptsOut)).toEqual(JSON.stringify([ptsExpected]));
+
+                var ptsOut2 = callLinePoints(ptsIn.map(reverseXY)).map(reverseXY2);
+                expect(JSON.stringify(ptsOut2)).toEqual(JSON.stringify([ptsExpected]));
+            }
+
+            // first cross the viewport horizontally/vertically
+            _check([
+                [-822, 20], [-802, 2], [-801.5, 1.1], [-800, 0],
+                [900, 0], [901.5, 1.1], [902, 2], [922, 20]
+            ], [
+                // all that's really important here (and the next check) is that
+                // the points [-800, 0] and [900, 0] are connected. What we do
+                // with other points beyond those doesn't matter too much.
+                [-822, 20], [-800, 0],
+                [900, 0], [922, 20]
+            ]);
+
+            _check([
+                [-804, 4], [-802, 2], [-801.5, 1.1], [-800, 0],
+                [900, 0], [901.5, 1.1], [902, 2], [904, 4]
+            ], [
+                [-804, 4], [-800, 0],
+                [900, 0]
+            ]);
+
+            // now cross the viewport diagonally
+            _check([
+                [-801, 925], [-800, 902], [-800.5, 901.1], [-800, 900],
+                [900, -800], [900.5, -801.1], [900, -802], [901, -825]
+            ], [
+                // similarly here, we just care that
+                // [-800, 900] connects to [900, -800]
+                [-801, 925], [-800, 900],
+                [900, -800], [901, -825]
+            ]);
         });
     });
 
@@ -512,7 +561,7 @@ describe('end-to-end scatter tests', function() {
                 expect(d3.select(this).classed('plotly-customdata')).toBe(false);
             });
 
-        }).catch(fail).then(done);
+        }).catch(failTest).then(done);
     });
 
     it('adds "textpoint" class to scatter text points', function(done) {
@@ -523,7 +572,7 @@ describe('end-to-end scatter tests', function() {
             text: ['a', 'b', 'c']
         }]).then(function() {
             expect(Plotly.d3.selectAll('.textpoint').size()).toBe(3);
-        }).catch(fail).then(done);
+        }).catch(failTest).then(done);
     });
 
     it('should remove all point and text nodes on blank data', function(done) {
@@ -576,7 +625,7 @@ describe('end-to-end scatter tests', function() {
             assertNodeCnt(3, 3);
             assertText(['A', 'B', 'C']);
         })
-        .catch(fail)
+        .catch(failTest)
         .then(done);
     });
 
@@ -634,7 +683,7 @@ describe('end-to-end scatter tests', function() {
                 ['apple', 'banana', 'clementine']
             );
         })
-        .catch(fail)
+        .catch(failTest)
         .then(done);
     });
 
@@ -678,7 +727,7 @@ describe('end-to-end scatter tests', function() {
                 ['apple', 'banana', 'clementine']
             );
         })
-        .catch(fail)
+        .catch(failTest)
         .then(done);
     });
 
@@ -714,7 +763,7 @@ describe('end-to-end scatter tests', function() {
                 ['apple', 'banana', 'dragon fruit']
             );
         })
-        .catch(fail)
+        .catch(failTest)
         .then(done);
     });
 
@@ -736,7 +785,7 @@ describe('end-to-end scatter tests', function() {
             );
         }).then(function() {
             expect(fill()).toEqual('rgb(0, 0, 255)');
-        }).catch(fail).then(done);
+        }).catch(failTest).then(done);
     });
 
     it('clears fills tonext when either trace is emptied out', function(done) {
@@ -779,7 +828,7 @@ describe('end-to-end scatter tests', function() {
         .then(function() {
             checkFill(false, 'null out both traces');
         })
-        .catch(fail)
+        .catch(failTest)
         .then(done);
     });
 
@@ -826,7 +875,105 @@ describe('end-to-end scatter tests', function() {
                 [40, 30, 20]
             );
         })
-        .catch(fail)
+        .catch(failTest)
+        .then(done);
+    });
+
+    function assertAxisRanges(msg, xrng, yrng) {
+        var fullLayout = gd._fullLayout;
+        expect(fullLayout.xaxis.range).toBeCloseToArray(xrng, 2, msg + ' xrng');
+        expect(fullLayout.yaxis.range).toBeCloseToArray(yrng, 2, msg + ' yrng');
+    }
+
+    var schema = Plotly.PlotSchema.get();
+
+    it('should update axis range accordingly on marker.size edits', function(done) {
+        // edit types are important to this test
+        expect(schema.traces.scatter.attributes.marker.size.editType)
+            .toBe('calc', 'marker.size editType');
+        expect(schema.layout.layoutAttributes.xaxis.autorange.editType)
+            .toBe('axrange', 'ax autorange editType');
+
+        Plotly.plot(gd, [{ y: [1, 2, 1] }])
+        .then(function() {
+            assertAxisRanges('auto rng / base marker.size', [-0.13, 2.13], [0.93, 2.07]);
+            return Plotly.relayout(gd, {
+                'xaxis.range': [0, 2],
+                'yaxis.range': [0, 2]
+            });
+        })
+        .then(function() {
+            assertAxisRanges('set rng / base marker.size', [0, 2], [0, 2]);
+            return Plotly.restyle(gd, 'marker.size', 50);
+        })
+        .then(function() {
+            assertAxisRanges('set rng / big marker.size', [0, 2], [0, 2]);
+            return Plotly.relayout(gd, {
+                'xaxis.autorange': true,
+                'yaxis.autorange': true
+            });
+        })
+        .then(function() {
+            assertAxisRanges('auto rng / big marker.size', [-0.28, 2.28], [0.75, 2.25]);
+            return Plotly.restyle(gd, 'marker.size', null);
+        })
+        .then(function() {
+            assertAxisRanges('auto rng / base marker.size', [-0.13, 2.13], [0.93, 2.07]);
+        })
+        .catch(failTest)
+        .then(done);
+    });
+
+    it('should update axis range according to visible edits', function(done) {
+        Plotly.plot(gd, [
+            {x: [1, 2, 3], y: [1, 2, 1]},
+            {x: [4, 5, 6], y: [-1, -2, -1]}
+        ])
+        .then(function() {
+            assertAxisRanges('both visible', [0.676, 6.323], [-2.29, 2.29]);
+            return Plotly.restyle(gd, 'visible', false, [1]);
+        })
+        .then(function() {
+            assertAxisRanges('visible [true,false]', [0.87, 3.128], [0.926, 2.07]);
+            return Plotly.restyle(gd, 'visible', false, [0]);
+        })
+        .then(function() {
+            assertAxisRanges('both invisible', [0.87, 3.128], [0.926, 2.07]);
+            return Plotly.restyle(gd, 'visible', true, [1]);
+        })
+        .then(function() {
+            assertAxisRanges('visible [false,true]', [3.871, 6.128], [-2.07, -0.926]);
+            return Plotly.restyle(gd, 'visible', true);
+        })
+        .then(function() {
+            assertAxisRanges('back to both visible', [0.676, 6.323], [-2.29, 2.29]);
+        })
+        .catch(failTest)
+        .then(done);
+    });
+
+    it('should be able to start from visible:false', function(done) {
+        function _assert(msg, cnt) {
+            var layer = d3.select(gd).select('g.scatterlayer');
+            expect(layer.selectAll('.point').size()).toBe(cnt, msg + '- scatter pts cnt');
+        }
+
+        Plotly.plot(gd, [{
+            visible: false,
+            y: [1, 2, 1]
+        }])
+        .then(function() {
+            _assert('visible:false', 0);
+            return Plotly.restyle(gd, 'visible', true);
+        })
+        .then(function() {
+            _assert('visible:true', 3);
+            return Plotly.restyle(gd, 'visible', false);
+        })
+        .then(function() {
+            _assert('back to visible:false', 0);
+        })
+        .catch(failTest)
         .then(done);
     });
 });
@@ -895,7 +1042,7 @@ describe('scatter hoverPoints', function() {
             expect(pts[1].text).toEqual('banana', 'hover text');
             expect(pts[2].text).toEqual('orange', 'hover text');
         })
-        .catch(fail)
+        .catch(failTest)
         .then(done);
     });
 });
@@ -1024,7 +1171,7 @@ describe('Test Scatter.style', function() {
                 'selected pt 1 w/ set unselected.marker.opacity'
             );
         })
-        .catch(fail)
+        .catch(failTest)
         .then(done);
     });
 
@@ -1111,7 +1258,7 @@ describe('Test Scatter.style', function() {
                 'selected pts 0-2 w/ set selected.marker.color'
             );
         })
-        .catch(fail)
+        .catch(failTest)
         .then(done);
     });
 
@@ -1155,7 +1302,7 @@ describe('Test Scatter.style', function() {
                 'selected pt 0 w/ set unselected.marker.size'
             );
         })
-        .catch(fail)
+        .catch(failTest)
         .then(done);
     });
 
@@ -1238,7 +1385,7 @@ describe('Test Scatter.style', function() {
                 'selected pts 0-2 w/ set selected.textfont.color'
             );
         })
-        .catch(fail)
+        .catch(failTest)
         .then(done);
     });
 });
@@ -1384,7 +1531,7 @@ describe('Test scatter *clipnaxis*:', function() {
                 [true, 1]
             );
         })
-        .catch(fail)
+        .catch(failTest)
         .then(done);
     });
 });

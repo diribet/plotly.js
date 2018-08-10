@@ -100,10 +100,8 @@ drawing.hideOutsideRangePoint = function(d, sel, xa, ya, xcalendar, ycalendar) {
     );
 };
 
-drawing.hideOutsideRangePoints = function(traceGroups, subplot, selector) {
+drawing.hideOutsideRangePoints = function(traceGroups, subplot) {
     if(!subplot._hasClipOnAxisFalse) return;
-
-    selector = selector || '.point,.textpoint';
 
     var xa = subplot.xaxis;
     var ya = subplot.yaxis;
@@ -112,6 +110,7 @@ drawing.hideOutsideRangePoints = function(traceGroups, subplot, selector) {
         var trace = d[0].trace;
         var xcalendar = trace.xcalendar;
         var ycalendar = trace.ycalendar;
+        var selector = trace.type === 'bar' ? '.bartext' : '.point,.textpoint';
 
         traceGroups.selectAll(selector).each(function(d) {
             drawing.hideOutsideRangePoint(d, d3.select(this), xa, ya, xcalendar, ycalendar);
@@ -374,9 +373,14 @@ drawing.singlePointStyle = function(d, sel, trace, fns, gd) {
         lineColor = markerLine.outliercolor;
         fillColor = marker.outliercolor;
     } else {
-        lineWidth = (d.mlw + 1 || markerLine.width + 1 ||
+        var markerLineWidth = (markerLine || {}).width;
+
+        lineWidth = (
+            d.mlw + 1 ||
+            markerLineWidth + 1 ||
             // TODO: we need the latter for legends... can we get rid of it?
-            (d.trace ? d.trace.marker.line.width : 0) + 1) - 1;
+            (d.trace ? (d.trace.marker.line || {}).width : 0) + 1
+        ) - 1 || 0;
 
         if('mlc' in d) lineColor = d.mlcc = fns.lineScale(d.mlc);
         // weird case: array wasn't long enough to apply to every point
@@ -592,19 +596,24 @@ drawing.selectedPointStyle = function(s, trace) {
 };
 
 drawing.tryColorscale = function(marker, prefix) {
-    var cont = prefix ? Lib.nestedProperty(marker, prefix).get() : marker,
-        scl = cont.colorscale,
-        colorArray = cont.color;
+    var cont = prefix ? Lib.nestedProperty(marker, prefix).get() : marker;
 
-    if(scl && Lib.isArrayOrTypedArray(colorArray)) {
-        return Colorscale.makeColorScaleFunc(
-            Colorscale.extractScale(scl, cont.cmin, cont.cmax)
-        );
+    if(cont) {
+        var scl = cont.colorscale;
+        var colorArray = cont.color;
+
+        if(scl && Lib.isArrayOrTypedArray(colorArray)) {
+            return Colorscale.makeColorScaleFunc(
+                Colorscale.extractScale(scl, cont.cmin, cont.cmax)
+            );
+        }
     }
-    else return Lib.identity;
+    return Lib.identity;
 };
 
-var TEXTOFFSETSIGN = {start: 1, end: -1, middle: 0, bottom: 1, top: -1};
+var TEXTOFFSETSIGN = {
+    start: 1, end: -1, middle: 0, bottom: 1, top: -1
+};
 
 function textPointPosition(s, textPosition, fontSize, markerRadius) {
     var group = d3.select(s.node().parentNode);
@@ -624,7 +633,7 @@ function textPointPosition(s, textPosition, fontSize, markerRadius) {
     var numLines = (svgTextUtils.lineCount(s) - 1) * LINE_SPACING + 1;
     var dx = TEXTOFFSETSIGN[h] * r;
     var dy = fontSize * 0.75 + TEXTOFFSETSIGN[v] * r +
-            (TEXTOFFSETSIGN[v] - 1) * numLines * fontSize / 2;
+        (TEXTOFFSETSIGN[v] - 1) * numLines * fontSize / 2;
 
     // fix the overall text group position
     s.attr('text-anchor', h);
@@ -651,7 +660,7 @@ drawing.textPointStyle = function(s, trace, gd) {
         var p = d3.select(this);
         var text = Lib.extractOption(d, trace, 'tx', 'text');
 
-        if(!text) {
+        if(!text && text !== 0) {
             p.remove();
             return;
         }
@@ -1057,38 +1066,32 @@ drawing.setScale = function(element, x, y) {
     return transform;
 };
 
-drawing.setPointGroupScale = function(selection, x, y) {
-    var t, scale, re;
+var SCALE_RE = /\s*sc.*/;
 
-    x = x || 1;
-    y = y || 1;
+drawing.setPointGroupScale = function(selection, xScale, yScale) {
+    xScale = xScale || 1;
+    yScale = yScale || 1;
 
-    if(x === 1 && y === 1) {
-        scale = '';
-    } else {
-        // The same scale transform for every point:
-        scale = ' scale(' + x + ',' + y + ')';
-    }
+    if(!selection) return;
 
-    // A regex to strip any existing scale:
-    re = /\s*sc.*/;
+    // The same scale transform for every point:
+    var scale = (xScale === 1 && yScale === 1) ?
+        '' :
+        ' scale(' + xScale + ',' + yScale + ')';
 
     selection.each(function() {
-        // Get the transform:
-        t = (this.getAttribute('transform') || '').replace(re, '');
+        var t = (this.getAttribute('transform') || '').replace(SCALE_RE, '');
         t += scale;
         t = t.trim();
-
-        // Append the scale transform
         this.setAttribute('transform', t);
     });
-
-    return scale;
 };
 
 var TEXT_POINT_LAST_TRANSLATION_RE = /translate\([^)]*\)\s*$/;
 
 drawing.setTextPointsScale = function(selection, xScale, yScale) {
+    if(!selection) return;
+
     selection.each(function() {
         var transforms;
         var el = d3.select(this);

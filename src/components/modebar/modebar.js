@@ -10,6 +10,7 @@
 'use strict';
 
 var d3 = require('d3');
+var isNumeric = require('fast-isnumeric');
 
 var Lib = require('../../lib');
 var Icons = require('../../../build/ploticon');
@@ -155,7 +156,13 @@ proto.createButton = function(config) {
     button.setAttribute('data-toggle', config.toggle || false);
     if(config.toggle) d3.select(button).classed('active', true);
 
-    button.appendChild(this.createIcon(config.icon || Icons.question, config.name));
+    var icon = config.icon;
+    if(typeof icon === 'function') {
+        button.appendChild(icon());
+    }
+    else {
+        button.appendChild(this.createIcon(icon || Icons.question));
+    }
     button.setAttribute('data-gravity', config.gravity || 'n');
 
     return button;
@@ -168,8 +175,10 @@ proto.createButton = function(config) {
  * @Param {string} thisIcon.path
  * @Return {HTMLelement}
  */
-proto.createIcon = function(thisIcon, name) {
-    var iconHeight = thisIcon.ascent - thisIcon.descent,
+proto.createIcon = function(thisIcon) {
+    var iconHeight = isNumeric(thisIcon.height) ?
+            Number(thisIcon.height) :
+            thisIcon.ascent - thisIcon.descent,
         svgNS = 'http://www.w3.org/2000/svg',
         icon = document.createElementNS(svgNS, 'svg');
 
@@ -179,12 +188,16 @@ proto.createIcon = function(thisIcon, name) {
 
     if (thisIcon.path) {
         var path = document.createElementNS(svgNS, 'path');
-        var transform = name === 'toggleSpikelines' ?
-			'matrix(1.5 0 0 -1.5 0 ' + thisIcon.ascent + ')' :
-			'matrix(1 0 0 -1 0 ' + thisIcon.ascent + ')';
-
 		path.setAttribute('d', thisIcon.path);
-		path.setAttribute('transform', transform);
+
+        if(thisIcon.transform) {
+            path.setAttribute('transform', thisIcon.transform);
+        }
+        else if(thisIcon.ascent !== undefined) {
+            // Legacy icon transform calculation
+            path.setAttribute('transform', 'matrix(1 0 0 -1 0 ' + thisIcon.ascent + ')');
+        }
+
         icon.appendChild(path);
     }
 
