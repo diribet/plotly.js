@@ -126,7 +126,9 @@ module.exports = function calc(gd, trace) {
     	// additional padding for outliers out of scale markers
     	paddingOptions.ppad = 16;
     }
-    Axes.expand(valAxis, minMaxValues, paddingOptions);
+	
+	var extremes = Axes.findExtremes(valAxis, minMaxValues, paddingOptions);
+    trace._extremes[valAxis._id] = extremes;
 
 
     function calculateWidths(data) {
