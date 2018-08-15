@@ -1,0 +1,117 @@
+{
+	"data": [
+		{
+			"type": "scatter",
+			"mode": "lines+markers",
+			"hoverinfo": "all",
+			"x": [
+				1524830400000,
+				1524830580000,
+				1524830760000,
+				1524830402000
+				],
+			"y": [
+				3.19,
+				3.46,
+				12.11,
+				3.71
+			],
+			"line": {
+				"color": "#3838fc",
+				"width": 1
+			},
+			"marker": {
+				"symbol": "circle",
+				"opacity": 1,
+				"size": [20, 20, 20],
+				"color": ["#1DD132", "#000000", "#1DD132"],
+				"line": {
+					"width": 0
+				}
+			}
+		},
+		{
+			"type": "scatter",
+			"mode": "lines+markers",
+			"hoverinfo": "all",
+			"x": [
+				1524830402000,
+				1524830582000,
+				1524830762000
+				],
+			"y": [
+				1.19,
+				1.46,
+				1.11
+			],
+			"line": {
+				"color": "#1118fc",
+				"width": 1
+			},
+			"marker": {
+				"symbol": "circle",
+				"opacity": 1,
+				"size": 20,
+				"line": {
+					"width": 0
+				}
+			}
+		}
+	],
+	"layout": {
+		"buzna": "buzna",
+		"font": {
+			"family": "Roboto, Helvetica, Arial",
+			"size": 0
+		},
+		"xaxis": {
+			"type": "date",
+			"zeroline": false,
+			"automargin": true,
+			"tickformat": "%H:%M %H:%M:%S",
+			"hoverformat": "%d.%m.%y %H:%M:%S",
+			"showspikes": true,
+			"spikethickness": 1.2,
+			"spikedash": "solid",
+			"spikecolor": "#aba6a2",
+			"spikemode": "across",
+			"spikesnap": "cursor"
+		},
+		"yaxis": {
+			"exponentformat": "none",
+			"automargin": true,
+			"separatethousands": true
+		},
+		"margin": {
+			"l": 30,
+			"r": 10,
+			"t": 36,
+			"b": 26
+		},
+		"annotations": [
+			{
+				"text": "1",
+				"x": 1524830580000,
+				"y": 1,
+				"yref": "paper",
+				"xanchor": "center",
+				"yanchor": "bottom",
+				"font": {
+				  "size": 11,
+				  "color": "#000000"
+				},
+				"borderwidth": 1,
+				"borderpad": 0,
+				"bordercolor": "#FF0F0F",
+				"bgcolor": "#FFB3B3",
+				"showarrow": false
+			}
+		],
+		"autosize": true,
+		"spikedistance": -1,
+		"height": 400,
+		"outliers": {
+			"visible": true
+		}
+	}
+}
