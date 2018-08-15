@@ -79,7 +79,7 @@ module.exports = function calc(gd, trace) {
     for (i = 0; i < cd.length; i++) {
     	box = cd[i];
 
-		box.showOutliersText = fullLayout.showOutliersText;
+		box.outliersHoverText = fullLayout.outliersHoverText;
 		box.scaleIgnoresOutliers = fullLayout.scaleIgnoresOutliers;
 
     	box.loc = 0; // lower outliers count

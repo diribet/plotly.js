@@ -92,17 +92,20 @@ module.exports = function hoverPoints(pointData, xval, yval, hovermode) {
 		closeData.push(pointData);
     	
     } else if (hoverOutliersMark(xval, yval, di, trace.orientation) && valAxis.autorange == true) {
-    	
-    	// tooltip is placed in center of box
-    	pointData[posLetter + '0'] = pointData[posLetter + '1'] = posAxis.c2p(di.pos + t.bPos, true);
-    	
-    	// show outliers tooltip
-		pointData[valLetter + '0'] = pointData[valLetter + '1'] = valAxis.c2p(val, true);
-		pointData.text = di.showOutliersText;
-		pointData.attr = 'outliersMark';
-		pointData.outliersMark = true;
-		pointData.color = 'rgba(255, 0, 0, 0.3)';
-		closeData.push(pointData);
+        var outliersHoverText = pointData.text = di.outliersHoverText;
+
+        if (outliersHoverText) {
+            // tooltip is placed in center of box
+            pointData[posLetter + '0'] = pointData[posLetter + '1'] = posAxis.c2p(di.pos + t.bPos, true);
+                    
+            // show outliers tooltip
+            pointData[valLetter + '0'] = pointData[valLetter + '1'] = valAxis.c2p(val, true);
+            pointData.text = outliersHoverText;
+            pointData.attr = 'outliersMark';
+            pointData.outliersMark = true;
+            pointData.color = 'rgba(255, 0, 0, 0.3)';
+            closeData.push(pointData);
+        }
     	
     } else {
     	// box plots: each "point" gets many labels

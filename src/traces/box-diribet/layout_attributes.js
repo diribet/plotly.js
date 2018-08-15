@@ -65,19 +65,5 @@ module.exports = {
         role: 'style',
         editType: 'plot',
         description: 'Margin between probability density line and box boundary.'
-    },
-    scaleIgnoresOutliers: {
-        valType: 'boolean',
-        dflt: true,
-        role: 'style',
-        editType: 'calc',
-        description: 'Whether the scale of the axis should contain outliers or not.'
-    },
-    showOutliersText: {
-        valType: 'string',
-        dflt: 'Show outliers.',
-        role: 'style',
-        editType: 'plot',
-        description: 'Text that is displayed on hover over outliers marker.'
     }    
 };

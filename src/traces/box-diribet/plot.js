@@ -28,10 +28,6 @@ module.exports = function plot(gd, plotinfo, cdbox, boxLayer) {
 		plotinfo._hideDensityCallback = function(event) {
 			setHoverIndex(event, false, gd);
 		};
-
-		plotinfo._showOutliersCallback = function(event) {
-			showOutliers(event, gd);
-		};
 	}
 
 	boxLayer.selectAll('g.trace.boxes').remove();
@@ -377,9 +373,6 @@ module.exports = function plot(gd, plotinfo, cdbox, boxLayer) {
 
         	plotOutliersMark('loc', lowerMarkPos, lowerTextAnchor);
         	plotOutliersMark('uoc', upperMarkPos, upperTextAnchor);
-
-            gd.removeListener('plotly_click', plotinfo._showOutliersCallback);
-            gd.on('plotly_click', plotinfo._showOutliersCallback)
         }
 
         // draw invalid (not normalizable boxes)
@@ -413,14 +406,4 @@ function setHoverIndex(event, setIndex, gd) {
 
 	gd.data[traceNumber].hoverindex = setIndex ? pointNumber : null;
 	Plotly.redraw(gd);
-}
-
-function showOutliers(event, gd) {
-	if (event.points && event.points.length > 0) {
-		var hoverPoint = event.points[0];
-		if (hoverPoint.outliersMark) {
-			var update = { 'scaleIgnoresOutliers': false };
-			Plotly.relayout(gd, update);
-		}
-	}
 }
