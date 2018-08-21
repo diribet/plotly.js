@@ -58,7 +58,7 @@ module.exports = {
         max: 1,
         dflt: 0.5,
         role: 'style',
-        editType: 'calcIfAutorange',
+        editType: 'calc',
         description: [
             'Sets the width of the whiskers relative to',
             'the box\' width.',
@@ -82,7 +82,7 @@ module.exports = {
         opacity: extendFlat({}, scatterMarkerAttrs.opacity,
             {arrayOk: false, dflt: 1, editType: 'style'}),
         size: extendFlat({}, scatterMarkerAttrs.size,
-            {arrayOk: false, editType: 'calcIfAutorange'}),
+            {arrayOk: false, editType: 'calc'}),
         color: extendFlat({}, scatterMarkerAttrs.color,
             {arrayOk: false, editType: 'style'}),
         line: {
@@ -99,7 +99,7 @@ module.exports = {
         opacity: extendFlat({}, scatterMarkerAttrs.opacity,
             {arrayOk: false, dflt: 1, editType: 'style'}),
         size: extendFlat({}, scatterMarkerAttrs.size,
-            {arrayOk: false, dflt: 10, editType: 'calcIfAutorange'}),
+            {arrayOk: false, dflt: 10, editType: 'calc'}),
         color: extendFlat({}, scatterMarkerAttrs.color,
             {arrayOk: false, dflt: '#568ed5', editType: 'style'}),
         line: {
@@ -116,7 +116,7 @@ module.exports = {
         opacity: extendFlat({}, scatterMarkerAttrs.opacity,
             {arrayOk: false, dflt: 1, editType: 'style'}),
         size: extendFlat({}, scatterMarkerAttrs.size,
-            {arrayOk: false, dflt: 20, editType: 'calcIfAutorange'}),
+            {arrayOk: false, dflt: 20, editType: 'calc'}),
         color: extendFlat({}, scatterMarkerAttrs.color,
             {arrayOk: false, dflt: '#ff8888', editType: 'style'}),
         line: {
