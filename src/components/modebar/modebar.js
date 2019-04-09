@@ -156,6 +156,13 @@ proto.createButton = function(config) {
     button.setAttribute('data-toggle', config.toggle || false);
     if(config.toggle) d3.select(button).classed('active', true);
 
+    if (typeof config.isActive === 'function') {
+        var active = config.isActive(_this.graphInfo);
+        if (active) {
+            d3.select(button).classed('active', true);
+        }
+    }
+
     var icon = config.icon;
     if(typeof icon === 'function') {
         button.appendChild(icon());
@@ -219,32 +226,51 @@ proto.createIcon = function(thisIcon) {
  */
 proto.updateActiveButton = function(buttonClicked) {
     var fullLayout = this.graphInfo._fullLayout,
+        _this = this,
         dataAttrClicked = (buttonClicked !== undefined) ?
             buttonClicked.getAttribute('data-attr') :
             null;
 
-    this.buttonElements.forEach(function(button) {
-        var thisval = button.getAttribute('data-val') || true,
-            dataAttr = button.getAttribute('data-attr'),
-            isToggleButton = (button.getAttribute('data-toggle') === 'true'),
-            button3 = d3.select(button);
+    this.buttons.forEach(function(buttonGroup) {
+        buttonGroup.forEach(function(buttonConfig) {
+            var button = _this.findButtonElement(buttonConfig),
+                button3 = d3.select(button);
 
-        // Use 'data-toggle' and 'buttonClicked' to toggle buttons
-        // that have no one-to-one equivalent in fullLayout
-        if(isToggleButton) {
-            if(dataAttr === dataAttrClicked) {
-                button3.classed('active', !button3.classed('active'));
+            if (typeof buttonConfig.isActive === 'function') {
+                var active = buttonConfig.isActive(_this.graphInfo);
+                button3.classed('active', active);
+            } else {
+                var thisval = button.getAttribute('data-val') || true,
+                    dataAttr = button.getAttribute('data-attr'),
+                    isToggleButton = (button.getAttribute('data-toggle') === 'true');
+
+                // Use 'data-toggle' and 'buttonClicked' to toggle buttons
+                // that have no one-to-one equivalent in fullLayout
+                if(isToggleButton) {
+                    if(dataAttr === dataAttrClicked) {
+                        button3.classed('active', !button3.classed('active'));
+                    }
+                }
+                else {
+                    var val = (dataAttr === null) ?
+                            dataAttr :
+                            Lib.nestedProperty(fullLayout, dataAttr).get();
+
+                    button3.classed('active', val === thisval);
+                }
             }
-        }
-        else {
-            var val = (dataAttr === null) ?
-                dataAttr :
-                Lib.nestedProperty(fullLayout, dataAttr).get();
-
-            button3.classed('active', val === thisval);
-        }
-
+        });
     });
+};
+
+proto.findButtonElement = function(button) {
+    for (var i = 0; i < this.buttonsNames.length; i++) {
+        if (this.buttonsNames[i] === button.name) {
+            return this.buttonElements[i];
+        }
+    }
+
+    return null;
 };
 
 /**
