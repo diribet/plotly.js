@@ -1,5 +1,5 @@
 {
-  "name": "plotly.js",
+  "name": "@diribet/plotly.js",
   "version": "1.41.3",
   "description": "The open source javascript graphing library that powers plotly",
   "license": "MIT",
@@ -11,6 +11,9 @@
   },
   "bugs": {
     "url": "https://github.com/plotly/plotly.js/issues"
+  },
+  "publishConfig": {
+    "registry": "https://ci.diribet.com/nexus/repository/diribet-npm/"
   },
   "author": "Plotly, Inc.",
   "keywords": [
@@ -45,8 +48,7 @@
     "start": "npm run start-test_dashboard",
     "baseline": "node tasks/baseline.js",
     "preversion": "check-node-version --node 10 --npm 6 && npm-link-check && npm ls --prod",
-    "version": "npm run build && git add -A dist src build",
-    "postversion": "node -e \"console.log('Version bumped and committed. If ok, run: git push && git push --tags')\"",
+    "version": "npm run bundle",
     "postpublish": "node tasks/sync_packages.js"
   },
   "browserify": {

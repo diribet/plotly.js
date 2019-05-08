@@ -12,8 +12,10 @@ var pathToTopojsonSrc = path.join(
     path.dirname(require.resolve('sane-topojson')), 'dist/'
 );
 
+// we need to build only the chystat bundle
 var partialBundleNames = [
-    'basic', 'cartesian', 'geo', 'gl3d', 'gl2d', 'mapbox', 'finance', 'chystat'
+    // 'basic', 'cartesian', 'geo', 'gl3d', 'gl2d', 'mapbox', 'finance',
+    'chystat'
 ];
 
 var partialBundlePaths = partialBundleNames.map(function(name) {

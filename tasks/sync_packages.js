@@ -38,12 +38,13 @@ packagesSpecs.forEach(function(d) {
 
     function writePackageJSON(cb) {
         var cnt = {
-            name: d.name,
+            name: '@diribet/' + d.name,
             version: pkg.version,
             description: d.desc,
             license: pkg.license,
             main: d.main,
             repository: pkg.repository,
+            publishConfig: pkg.publishConfig,
             bugs: pkg.bugs,
             author: pkg.author,
             keywords: pkg.keywords,
