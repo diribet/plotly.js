@@ -42,12 +42,12 @@ constants.partialBundlePaths
     .forEach(syncPartialBundlePkg);
 
 // sync "locales" package
-syncLocalesPkg({
-    name: 'plotly.js-locales',
-    dir: path.join(constants.pathToLib, 'locales'),
-    main: 'index.js',
-    desc: 'Ready-to-use plotly.js locales',
-});
+// syncLocalesPkg({
+//     name: 'plotly.js-locales',
+//     dir: path.join(constants.pathToLib, 'locales'),
+//     main: 'index.js',
+//     desc: 'Ready-to-use plotly.js locales',
+// });
 
 function syncPartialBundlePkg(d) {
     var pkgPath = path.join(constants.pathToBuild, d.name);
@@ -155,7 +155,7 @@ function syncLocalesPkg(d) {
 
     function writePackageJSON(cb) {
         var cnt = {
-            name: d.name,
+            name: '@diribet/' + d.name,
             version: pkg.version,
             description: d.desc,
             license: pkg.license,
