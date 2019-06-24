@@ -1,6 +1,7 @@
 'use strict';
 
 var d3 = require('d3');
+var negateIf = require('./negate_if');
 
 exports.assertDims = function(dims) {
     var traces = d3.selectAll('.trace');
@@ -59,9 +60,7 @@ exports.assertHoverLabelStyle = function(g, expectation, msg, textSelector) {
     expect(textStyle.fill).toBe(expectation.fontColor, msg + ': font.color');
 };
 
-function assertLabelContent(label, expectation, msg) {
-    if(!expectation) expectation = '';
-
+function getLabelContent(label) {
     var lines = label.selectAll('tspan.line');
     var content = [];
 
@@ -77,8 +76,15 @@ function assertLabelContent(label, expectation, msg) {
     } else {
         fill(label);
     }
+    return content.join('\n');
+}
 
-    expect(content.join('\n')).toBe(expectation, msg + ': text content');
+function assertLabelContent(label, expectation, msg) {
+    if(!expectation) expectation = '';
+
+    var content = getLabelContent(label);
+
+    expect(content).toBe(expectation, msg + ': text content');
 }
 
 function count(selector) {
@@ -117,10 +123,8 @@ exports.assertHoverLabelContent = function(expectation, msg) {
         assertLabelContent(nameSel, expectation.name, ptMsg + ' (name)');
 
         if('isRotated' in expectation) {
-            expect(g.attr('transform').match(reRotate))
-                .negateIf(expectation.isRotated)
+            negateIf(expectation.isRotated, expect(g.attr('transform').match(reRotate)))
                 .toBe(null, ptMsg + ' should be rotated');
-
         }
     } else if(ptCnt > 1) {
         if(!Array.isArray(expectation.nums) || !Array.isArray(expectation.name)) {
@@ -130,35 +134,62 @@ exports.assertHoverLabelContent = function(expectation, msg) {
         expect(ptCnt)
             .toBe(expectation.name.length, ptMsg + ' # of visible labels');
 
-        var bboxes = [];
+        var observed = [];
+        var expected = expectation.nums.map(function(num, i) {
+            return {
+                num: num,
+                name: expectation.name[i],
+                order: (expectation.hOrder || expectation.vOrder || []).indexOf(i)
+            };
+        });
         d3.selectAll(ptSelector).each(function(_, i) {
             var g = d3.select(this);
             var numsSel = g.select('text.nums');
             var nameSel = g.select('text.name');
 
-            assertLabelContent(numsSel, expectation.nums[i], ptMsg + ' (nums ' + i + ')');
-            assertLabelContent(nameSel, expectation.name[i], ptMsg + ' (name ' + i + ')');
+            // Label selection can be out of order... dunno why, but on AJ's Mac,
+            // just for certain box and violin cases, the order looks correct but
+            // it's different from what we see in CI (and presumably on
+            // other systems) which looks wrong.
+            // Anyway we don't *really* care about the order within the selection,
+            // we just care that each label is correct. So collect all the info
+            // about each label, and sort both observed and expected identically.
+            observed.push({
+                num: getLabelContent(numsSel),
+                name: getLabelContent(nameSel),
+                bbox: this.getBoundingClientRect(),
+                order: -1
+            });
 
             if('isRotated' in expectation) {
-                expect(g.attr('transform').match(reRotate))
-                    .negateIf(expectation.isRotated)
+                negateIf(expectation.isRotated, expect(g.attr('transform').match(reRotate)))
                     .toBe(null, ptMsg + ' ' + i + ' should be rotated');
             }
-
-            bboxes.push({bbox: this.getBoundingClientRect(), index: i});
         });
-        if(expectation.vOrder) {
-            bboxes.sort(function(a, b) {
-                return (a.bbox.top + a.bbox.bottom - b.bbox.top - b.bbox.bottom) / 2;
+        if(expectation.vOrder || expectation.hOrder) {
+            var o2 = observed.slice();
+            o2.sort(function(a, b) {
+                return expectation.vOrder ?
+                    (a.bbox.top + a.bbox.bottom - b.bbox.top - b.bbox.bottom) / 2 :
+                    (b.bbox.left + b.bbox.right - a.bbox.left - a.bbox.right) / 2;
             });
-            expect(bboxes.map(function(d) { return d.index; })).toEqual(expectation.vOrder);
-        }
-        if(expectation.hOrder) {
-            bboxes.sort(function(a, b) {
-                return (b.bbox.left + b.bbox.right - a.bbox.left - a.bbox.right) / 2;
+            o2.forEach(function(item, i) {
+                item.order = i;
+                delete item.bbox;
             });
-            expect(bboxes.map(function(d) { return d.index; })).toEqual(expectation.hOrder);
         }
+        observed.sort(labelSorter);
+        expected.sort(labelSorter);
+        // don't use .toEqual here because we want the message
+        expect(observed.length).toBe(expected.length, ptMsg);
+        observed.forEach(function(obsi, i) {
+            var expi = expected[i];
+            expect(obsi.num).toBe(expi.num, ptMsg + ' (nums ' + i + ')');
+            expect(obsi.name).toBe(expi.name, ptMsg + ' (name ' + i + ')');
+            if(expectation.vOrder || expectation.hOrder) {
+                expect(obsi.order).toBe(expi.order, ptMsg + ' (order ' + i + ')');
+            }
+        });
     } else {
         if(expectation.nums) {
             fail(ptMsg + ': expecting *nums* labels, did not find any.');
@@ -181,6 +212,12 @@ exports.assertHoverLabelContent = function(expectation, msg) {
     }
 };
 
+function labelSorter(a, b) {
+    if(a.name !== b.name) return a.name > b.name ? 1 : -1;
+    if(a.num !== b.num) return a.num > b.num ? 1 : -1;
+    return a.order - b.order;
+}
+
 exports.assertClip = function(sel, isClipped, size, msg) {
     expect(sel.size()).toBe(size, msg + ' clip path (selection size)');
 
@@ -188,14 +225,13 @@ exports.assertClip = function(sel, isClipped, size, msg) {
         var clipPath = d3.select(this).attr('clip-path');
 
         if(isClipped) {
-            expect(String(clipPath).substr(0, 4))
-                .toBe('url(', msg + ' clip path ' + '(item ' + i + ')');
+            expect(String(clipPath).substr(0, 5))
+                .toBe('url(\'', msg + ' clip path ' + '(item ' + i + ')');
         } else {
             expect(clipPath)
                 .toBe(null, msg + ' clip path ' + '(item ' + i + ')');
         }
     });
-
 };
 
 exports.assertNodeDisplay = function(sel, expectation, msg) {
@@ -246,9 +282,6 @@ exports.assertElemInside = function(elem, container, msg) {
  * quick plot area dimension check: test width and/or height of the inner
  * plot area (single subplot) to verify that the margins are as expected
  *
- * Note: if you use margin.pad on the plot, width and height will be larger
- * than you expected by twice that padding.
- *
  * opts can have keys (all optional):
  *   width (exact width match)
  *   height (exact height match)
@@ -261,7 +294,7 @@ exports.assertPlotSize = function(opts, msg) {
     var widthLessThan = opts.widthLessThan;
     var heightLessThan = opts.heightLessThan;
 
-    var plotBB = d3.select('.bglayer .bg').node().getBoundingClientRect();
+    var plotBB = d3.select('.plotclip > rect').node().getBoundingClientRect();
     var actualWidth = plotBB.width;
     var actualHeight = plotBB.height;
 
@@ -288,11 +321,9 @@ exports.assertNodeOrder = function(selectorBehind, selectorInFront, msg) {
     var nodeInFront = document.querySelector(selectorInFront);
     if(!nodeBehind) {
         fail(selectorBehind + ' not found (' + msg + ')');
-    }
-    else if(!nodeInFront) {
+    } else if(!nodeInFront) {
         fail(selectorInFront + ' not found (' + msg + ')');
-    }
-    else {
+    } else {
         var parentsBehind = getParents(nodeBehind);
         var parentsInFront = getParents(nodeInFront);
 
@@ -302,8 +333,7 @@ exports.assertNodeOrder = function(selectorBehind, selectorInFront, msg) {
         for(var i = 0; i < parentsBehind.length; i++) {
             if(parentsBehind[i] === parentsInFront[i]) {
                 commonParent = parentsBehind[i];
-            }
-            else {
+            } else {
                 siblingBehind = parentsBehind[i];
                 siblingInFront = parentsInFront[i];
                 break;

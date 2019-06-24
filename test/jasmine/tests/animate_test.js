@@ -313,7 +313,8 @@ describe('Test animate API', function() {
 
             it('emits plotly_animated as each animation in a sequence completes', function(done) {
                 var completed = 0;
-                var test1 = 0, test2 = 0;
+                var test1 = 0;
+                var test2 = 0;
                 gd.on('plotly_animated', function() {
                     completed++;
                     if(completed === 1) {
@@ -553,7 +554,6 @@ describe('Test animate API', function() {
             }).then(function() {
                 expect(frames).toEqual(['frame0', 'frame1', null, null]);
             }).catch(failTest).then(done);
-
         });
     });
 
@@ -568,7 +568,6 @@ describe('Test animate API', function() {
 
                 // Transition timing:
                 expect(Plots.transition.calls.argsFor(0)[5].duration).toEqual(50);
-
             }).catch(failTest).then(done);
         });
 
@@ -584,7 +583,6 @@ describe('Test animate API', function() {
                 // Transition timing:
                 expect(Plots.transition.calls.argsFor(0)[5].duration).toEqual(50);
                 expect(Plots.transition.calls.argsFor(1)[5].duration).toEqual(40);
-
             }).catch(failTest).then(done);
         });
     });
@@ -781,7 +779,6 @@ describe('non-animatable fallback', function() {
         }).then(function() {
             expect(gd.data[0].y).toEqual([6, 4, 5]);
         }).catch(failTest).then(done);
-
     });
 });
 

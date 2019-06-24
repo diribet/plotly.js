@@ -8,12 +8,15 @@ var Plotly = require('@lib/index');
 var createGraphDiv = require('../assets/create_graph_div');
 var destroyGraphDiv = require('../assets/destroy_graph_div');
 var customAssertions = require('../assets/custom_assertions');
+var negateIf = require('../assets/negate_if');
 var failTest = require('../assets/fail_test');
 var transitions = require('../assets/transitions');
 
 var assertClip = customAssertions.assertClip;
 var assertNodeDisplay = customAssertions.assertNodeDisplay;
 var assertMultiNodeOrder = customAssertions.assertMultiNodeOrder;
+var checkEventData = require('../assets/check_event_data');
+var constants = require('@src/traces/scatter/constants');
 
 var getOpacity = function(node) { return Number(node.style.opacity); };
 var getFillOpacity = function(node) { return Number(node.style['fill-opacity']); };
@@ -28,11 +31,11 @@ describe('Test scatter', function() {
     'use strict';
 
     describe('supplyDefaults', function() {
-        var traceIn,
-            traceOut;
+        var traceIn;
+        var traceOut;
 
-        var defaultColor = '#444',
-            layout = {};
+        var defaultColor = '#444';
+        var layout = {};
 
         var supplyDefaults = Scatter.supplyDefaults;
 
@@ -157,11 +160,12 @@ describe('Test scatter', function() {
         });
 
         describe('selected / unselected attribute containers', function() {
-            function _supply(patch) { traceIn = Lib.extendFlat({
-                mode: 'markers',
-                x: [1, 2, 3],
-                y: [2, 1, 2]
-            }, patch);
+            function _supply(patch) {
+                traceIn = Lib.extendFlat({
+                    mode: 'markers',
+                    x: [1, 2, 3],
+                    y: [2, 1, 2]
+                }, patch);
                 traceOut = {visible: true};
                 supplyDefaults(traceIn, traceOut, defaultColor, layout);
             }
@@ -201,61 +205,126 @@ describe('Test scatter', function() {
             });
         });
 
+        describe('should find correct coordinate length', function() {
+            function _supply() {
+                supplyDefaults(traceIn, traceOut, defaultColor, layout);
+            }
+
+            it('- x 2d', function() {
+                traceIn = {
+                    x: [
+                        ['1', '2', '1', '2', '1', '2'],
+                        ['a', 'a', 'b', 'b']
+                    ],
+                };
+                _supply();
+                expect(traceOut._length).toBe(4);
+            });
+
+            it('- y 2d', function() {
+                traceIn = {
+                    y: [
+                        ['1', '2', '1', '2', '1', '2'],
+                        ['a', 'a', 'b', 'b']
+                    ],
+                };
+                _supply();
+                expect(traceOut._length).toBe(4);
+            });
+
+            it('- x 2d / y 1d', function() {
+                traceIn = {
+                    x: [
+                        ['1', '2', '1', '2', '1', '2'],
+                        ['a', 'a', 'b', 'b']
+                    ],
+                    y: [1, 2, 3, 4, 5, 6]
+                };
+                _supply();
+                expect(traceOut._length).toBe(4);
+            });
+
+            it('- x 1d / y 2d', function() {
+                traceIn = {
+                    y: [
+                        ['1', '2', '1', '2', '1', '2'],
+                        ['a', 'a', 'b', 'b']
+                    ],
+                    x: [1, 2, 3, 4, 5, 6]
+                };
+                _supply();
+                expect(traceOut._length).toBe(4);
+            });
+
+            it('- x 2d / y 2d', function() {
+                traceIn = {
+                    x: [
+                        ['1', '2', '1', '2', '1', '2'],
+                        ['a', 'a', 'b', 'b', 'c', 'c']
+                    ],
+                    y: [
+                        ['1', '2', '1', '2', '1', '2'],
+                        ['a', 'a', 'b', 'b', 'c', 'c', 'd', 'd']
+                    ]
+                };
+                _supply();
+                expect(traceOut._length).toBe(6);
+            });
+        });
     });
 
     describe('isBubble', function() {
         it('should return true when marker.size is an Array', function() {
             var trace = {
-                    marker: {
-                        size: [1, 4, 2, 10]
-                    }
-                },
-                isBubble = Scatter.isBubble(trace);
+                marker: {
+                    size: [1, 4, 2, 10]
+                }
+            };
+            var isBubble = Scatter.isBubble(trace);
 
             expect(isBubble).toBe(true);
         });
 
         it('should return false when marker.size is an number', function() {
             var trace = {
-                    marker: {
-                        size: 10
-                    }
-                },
-                isBubble = Scatter.isBubble(trace);
+                marker: {
+                    size: 10
+                }
+            };
+            var isBubble = Scatter.isBubble(trace);
 
             expect(isBubble).toBe(false);
         });
 
         it('should return false when marker.size is not defined', function() {
             var trace = {
-                    marker: {
-                        color: 'red'
-                    }
-                },
-                isBubble = Scatter.isBubble(trace);
+                marker: {
+                    color: 'red'
+                }
+            };
+            var isBubble = Scatter.isBubble(trace);
 
             expect(isBubble).toBe(false);
         });
 
         it('should return false when marker is not defined', function() {
             var trace = {
-                    line: {
-                        color: 'red'
-                    }
-                },
-                isBubble = Scatter.isBubble(trace);
+                line: {
+                    color: 'red'
+                }
+            };
+            var isBubble = Scatter.isBubble(trace);
 
             expect(isBubble).toBe(false);
         });
-
     });
 
     describe('makeBubbleSizeFn', function() {
         var markerSizes = [
-                0, '1', 2.21321321, 'not-a-number',
-                100, 1000.213213, 1e7, undefined, null, -100
-            ],
-            trace = { marker: {} };
+            0, '1', 2.21321321, 'not-a-number',
+            100, 1000.213213, 1e7, undefined, null, -100
+        ];
+        var trace = { marker: {} };
 
         var sizeFn, expected;
 
@@ -306,15 +375,15 @@ describe('Test scatter', function() {
 
     describe('linePoints', function() {
         // test axes are unit-scaled and 100 units long
-        var ax = {_length: 100, c2p: Lib.identity},
-            baseOpts = {
-                xaxis: ax,
-                yaxis: ax,
-                connectGaps: false,
-                baseTolerance: 1,
-                shape: 'linear',
-                simplify: true
-            };
+        var ax = {_length: 100, c2p: Lib.identity};
+        var baseOpts = {
+            xaxis: ax,
+            yaxis: ax,
+            connectGaps: false,
+            baseTolerance: 1,
+            shape: 'linear',
+            simplify: true
+        };
 
         function makeCalcData(ptsIn) {
             return ptsIn.map(function(pt) {
@@ -524,7 +593,6 @@ describe('Test scatter', function() {
             ]);
         });
     });
-
 });
 
 describe('end-to-end scatter tests', function() {
@@ -562,7 +630,6 @@ describe('end-to-end scatter tests', function() {
             points.each(function() {
                 expect(d3.select(this).classed('plotly-customdata')).toBe(false);
             });
-
         }).catch(failTest).then(done);
     });
 
@@ -664,50 +731,53 @@ describe('end-to-end scatter tests', function() {
             {y: [3, 4], text: 'c'}
         ]);
 
-        function setMode(i) { return function() {
-            return Plotly.restyle(gd, cases[indices[i]].edit);
-        }; }
+        function setMode(i) {
+            return function() {
+                return Plotly.restyle(gd, cases[indices[i]].edit);
+            };
+        }
 
-        function testOrdering(i) { return function() {
-            var name = cases[indices[i]].name;
-            var hasFills = name.indexOf('fill') !== -1;
-            var hasLines = name.indexOf('lines') !== -1;
-            var hasMarkers = name.indexOf('markers') !== -1;
-            var hasText = name.indexOf('text') !== -1;
-            var tracei, prefix;
+        function testOrdering(i) {
+            return function() {
+                var name = cases[indices[i]].name;
+                var hasFills = name.indexOf('fill') !== -1;
+                var hasLines = name.indexOf('lines') !== -1;
+                var hasMarkers = name.indexOf('markers') !== -1;
+                var hasText = name.indexOf('text') !== -1;
+                var tracei, prefix;
 
             // construct the expected ordering based on case name
-            var selectorArray = [];
-            for(tracei = 0; tracei < 3; tracei++) {
-                prefix = '.xy .trace:nth-child(' + (tracei + 1) + ') ';
+                var selectorArray = [];
+                for(tracei = 0; tracei < 3; tracei++) {
+                    prefix = '.xy .trace:nth-child(' + (tracei + 1) + ') ';
 
                 // two fills are attached to the first trace, one to the second
-                if(hasFills) {
-                    if(tracei === 0) {
-                        selectorArray.push(
+                    if(hasFills) {
+                        if(tracei === 0) {
+                            selectorArray.push(
                             prefix + 'g:first-child>.js-fill',
                             prefix + 'g:last-child>.js-fill');
+                        } else if(tracei === 1) selectorArray.push(prefix + 'g:last-child>.js-fill');
                     }
-                    else if(tracei === 1) selectorArray.push(prefix + 'g:last-child>.js-fill');
+                    if(hasLines) selectorArray.push(prefix + '.js-line');
+                    if(hasMarkers) selectorArray.push(prefix + '.point');
+                    if(hasText) selectorArray.push(prefix + '.textpoint');
                 }
-                if(hasLines) selectorArray.push(prefix + '.js-line');
-                if(hasMarkers) selectorArray.push(prefix + '.point');
-                if(hasText) selectorArray.push(prefix + '.textpoint');
-            }
 
             // ordering in the legend
-            for(tracei = 0; tracei < 3; tracei++) {
-                prefix = '.legend .traces:nth-child(' + (tracei + 1) + ') ';
-                if(hasFills) selectorArray.push(prefix + '.js-fill');
-                if(hasLines) selectorArray.push(prefix + '.js-line');
-                if(hasMarkers) selectorArray.push(prefix + '.scatterpts');
-                if(hasText) selectorArray.push(prefix + '.pointtext');
-            }
+                for(tracei = 0; tracei < 3; tracei++) {
+                    prefix = '.legend .traces:nth-child(' + (tracei + 1) + ') ';
+                    if(hasFills) selectorArray.push(prefix + '.js-fill');
+                    if(hasLines) selectorArray.push(prefix + '.js-line');
+                    if(hasMarkers) selectorArray.push(prefix + '.scatterpts');
+                    if(hasText) selectorArray.push(prefix + '.pointtext');
+                }
 
-            var msg = i ? ('from ' + cases[indices[i - 1]].name + ' to ') : 'from default to ';
-            msg += name;
-            assertMultiNodeOrder(selectorArray, msg);
-        }; }
+                var msg = i ? ('from ' + cases[indices[i - 1]].name + ' to ') : 'from default to ';
+                msg += name;
+                assertMultiNodeOrder(selectorArray, msg);
+            };
+        }
 
         for(i = 0; i < indices.length; i++) {
             p = p.then(setMode(i)).then(testOrdering(i));
@@ -883,7 +953,7 @@ describe('end-to-end scatter tests', function() {
         function checkFill(visible, msg) {
             var fillSelection = d3.select(gd).selectAll('.scatterlayer .js-fill');
             expect(fillSelection.size()).toBe(1, msg);
-            expect(fillSelection.attr('d')).negateIf(visible).toBe('M0,0Z', msg);
+            negateIf(visible, expect(fillSelection.attr('d'))).toBe('M0,0Z', msg);
         }
 
         Plotly.newPlot(gd, [trace0, trace1, trace2], {}, {scrollZoom: true})
@@ -987,6 +1057,19 @@ describe('end-to-end scatter tests', function() {
                 ['rgb(0, 255, 0)', 'rgb(0, 0, 255)', 'rgb(255, 0, 0)'],
                 [40, 30, 20]
             );
+
+            return Plotly.relayout(gd, 'showlegend', true);
+        })
+        .then(function() {
+            _assert(
+                ['rgb(0, 255, 0)', 'rgb(0, 0, 255)', 'rgb(255, 0, 0)'],
+                [40, 30, 20]
+            );
+
+            var legendPts = d3.select('.legend').selectAll('.scatterpts');
+            expect(legendPts.size()).toBe(1, '# legend items');
+            expect(getColor(legendPts.node())).toBe('rgb(0, 0, 0)', 'legend pt color');
+            expect(getMarkerSize(legendPts.node())).toBe(16, 'legend pt size');
         })
         .catch(failTest)
         .then(done);
@@ -1085,6 +1168,20 @@ describe('end-to-end scatter tests', function() {
         })
         .then(function() {
             _assert('back to visible:false', 0);
+        })
+        .catch(failTest)
+        .then(done);
+    });
+
+    it('should not error out when segment-less marker-less fill traces', function(done) {
+        Plotly.plot(gd, [{
+            x: [1, 2, 3, 4],
+            y: [null, null, null, null],
+            fill: 'tonexty'
+        }])
+        .then(function() {
+            expect(d3.selectAll('.js-fill').size()).toBe(1, 'js-fill is there');
+            expect(d3.select('.js-fill').attr('d')).toBe('M0,0Z', 'js-fill has an empty path');
         })
         .catch(failTest)
         .then(done);
@@ -1252,7 +1349,6 @@ describe('stacked area', function() {
 });
 
 describe('scatter hoverPoints', function() {
-
     afterEach(destroyGraphDiv);
 
     function _hover(gd, xval, yval, hovermode) {
@@ -1807,4 +1903,18 @@ describe('Test scatter *clipnaxis*:', function() {
         .catch(failTest)
         .then(done);
     });
+});
+
+describe('event data', function() {
+    var mock = require('@mocks/scatter-colorscale-colorbar');
+    var mockCopy = Lib.extendDeep({}, mock);
+
+    var marker = mockCopy.data[0].marker;
+    marker.opacity = [];
+    marker.symbol = [];
+    for(var i = 0; i < mockCopy.data[0].y.length; ++i) {
+        marker.opacity.push(0.5);
+        marker.symbol.push('square');
+    }
+    checkEventData(mockCopy, 540, 260, constants.eventDataKeys);
 });

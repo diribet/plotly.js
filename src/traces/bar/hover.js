@@ -1,5 +1,5 @@
 /**
-* Copyright 2012-2018, Plotly, Inc.
+* Copyright 2012-2019, Plotly, Inc.
 * All rights reserved.
 *
 * This source code is licensed under the MIT license found in the
@@ -12,13 +12,30 @@
 var Fx = require('../../components/fx');
 var Registry = require('../../registry');
 var Color = require('../../components/color');
-var fillHoverText = require('../scatter/fill_hover_text');
+
+var fillText = require('../../lib').fillText;
 
 function hoverPoints(pointData, xval, yval, hovermode) {
+    var barPointData = hoverOnBars(pointData, xval, yval, hovermode);
+
+    if(barPointData) {
+        var cd = barPointData.cd;
+        var trace = cd[0].trace;
+        var di = cd[barPointData.index];
+
+        barPointData.color = getTraceColor(trace, di);
+        Registry.getComponentMethod('errorbars', 'hoverInfo')(di, trace, barPointData);
+
+        return [barPointData];
+    }
+}
+
+function hoverOnBars(pointData, xval, yval, hovermode) {
     var cd = pointData.cd;
     var trace = cd[0].trace;
     var t = cd[0].t;
     var isClosest = (hovermode === 'closest');
+    var isWaterfall = (trace.type === 'waterfall');
     var maxHoverDistance = pointData.maxHoverDistance;
     var maxSpikeDistance = pointData.maxSpikeDistance;
 
@@ -67,10 +84,17 @@ function hoverPoints(pointData, xval, yval, hovermode) {
     }
 
     function sizeFn(di) {
+        var v = sizeVal;
+        var b = di.b;
+        var s = di[sizeLetter];
+
+        if(isWaterfall) {
+            s += Math.abs(di.rawS || 0);
+        }
+
         // add a gradient so hovering near the end of a
         // bar makes it a little closer match
-        return Fx.inbox(di.b - sizeVal, di[sizeLetter] - sizeVal,
-            maxHoverDistance + (di[sizeLetter] - sizeVal) / (di[sizeLetter] - di.b) - 1);
+        return Fx.inbox(b - v, s - v, maxHoverDistance + (s - v) / (s - b) - 1);
     }
 
     if(trace.orientation === 'h') {
@@ -80,8 +104,7 @@ function hoverPoints(pointData, xval, yval, hovermode) {
         sizeLetter = 'x';
         dx = sizeFn;
         dy = positionFn;
-    }
-    else {
+    } else {
         posVal = xval;
         sizeVal = yval;
         posLetter = 'x';
@@ -133,11 +156,10 @@ function hoverPoints(pointData, xval, yval, hovermode) {
     // in case of bars shifted within groups
     pointData[posLetter + 'Spike'] = pa.c2p(di.p, true);
 
-    pointData.color = getTraceColor(trace, di);
-    fillHoverText(di, trace, pointData);
-    Registry.getComponentMethod('errorbars', 'hoverInfo')(di, trace, pointData);
+    fillText(di, trace, pointData);
+    pointData.hovertemplate = trace.hovertemplate;
 
-    return [pointData];
+    return pointData;
 }
 
 function getTraceColor(trace, di) {
@@ -151,5 +173,6 @@ function getTraceColor(trace, di) {
 
 module.exports = {
     hoverPoints: hoverPoints,
+    hoverOnBars: hoverOnBars,
     getTraceColor: getTraceColor
 };

@@ -18,14 +18,14 @@ describe('Test choropleth', function() {
     'use strict';
 
     describe('supplyDefaults', function() {
-        var traceIn,
-            traceOut;
+        var traceIn;
+        var traceOut;
 
-        var defaultColor = '#444',
-            layout = {
-                font: Plots.layoutAttributes.font,
-                _dfltTitle: {colorbar: 'cb'}
-            };
+        var defaultColor = '#444';
+        var layout = {
+            font: Plots.layoutAttributes.font,
+            _dfltTitle: {colorbar: 'cb'}
+        };
 
         beforeEach(function() {
             traceOut = {};
@@ -114,6 +114,18 @@ describe('Test choropleth hover:', function() {
         .then(done);
     });
 
+    it('should use the hovertemplate', function(done) {
+        var fig = Lib.extendDeep({}, require('@mocks/geo_first.json'));
+        fig.data[1].hovertemplate = 'tpl %{z}<extra>x</extra>';
+
+        run(
+            [400, 160],
+            fig,
+            ['tpl 10', 'x']
+        )
+        .then(done);
+    });
+
     it('should generate hover label info (\'text\' single value case)', function(done) {
         var fig = Lib.extendDeep({}, require('@mocks/geo_first.json'));
         fig.data[1].text = 'tExT';
@@ -130,6 +142,20 @@ describe('Test choropleth hover:', function() {
     it('should generate hover label info (\'text\' array case)', function(done) {
         var fig = Lib.extendDeep({}, require('@mocks/geo_first.json'));
         fig.data[1].text = ['tExT', 'TeXt', '-text-'];
+        fig.data[1].hoverinfo = 'text';
+
+        run(
+            [400, 160],
+            fig,
+            ['-text-', null]
+        )
+        .then(done);
+    });
+
+    it('should generate hover labels from `hovertext`', function(done) {
+        var fig = Lib.extendDeep({}, require('@mocks/geo_first.json'));
+        fig.data[1].hovertext = ['tExT', 'TeXt', '-text-'];
+        fig.data[1].text = ['N', 'O', 'P'];
         fig.data[1].hoverinfo = 'text';
 
         run(
@@ -173,6 +199,31 @@ describe('Test choropleth hover:', function() {
             ['RUS', 'trace 1']
         )
         .then(done);
+    });
+
+    describe('should preserve z formatting hovetemplate equivalence', function() {
+        var base = function() {
+            return {
+                data: [{
+                    type: 'choropleth',
+                    locations: ['RUS'],
+                    z: [10.02132132143214321]
+                }]
+            };
+        };
+
+        var pos = [400, 160];
+        var exp = ['10.02132', 'RUS'];
+
+        it('- base case (truncate z decimals)', function(done) {
+            run(pos, base(), exp).then(done);
+        });
+
+        it('- hovertemplate case (same z truncation)', function(done) {
+            var fig = base();
+            fig.hovertemplate = '%{z}<extra>%{location}</extra>';
+            run(pos, fig, exp).then(done);
+        });
     });
 });
 

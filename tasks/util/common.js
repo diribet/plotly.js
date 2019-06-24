@@ -25,8 +25,7 @@ exports.writeFile = function(filePath, content, cb) {
 exports.doesDirExist = function(dirPath) {
     try {
         if(fs.statSync(dirPath).isDirectory()) return true;
-    }
-    catch(e) {
+    } catch(e) {
         return false;
     }
 
@@ -36,8 +35,7 @@ exports.doesDirExist = function(dirPath) {
 exports.doesFileExist = function(filePath) {
     try {
         if(fs.statSync(filePath).isFile()) return true;
-    }
-    catch(e) {
+    } catch(e) {
         return false;
     }
 
@@ -56,8 +54,8 @@ exports.getTimeLastModified = function(filePath) {
         throw new Error(filePath + ' does not exist');
     }
 
-    var stats = fs.statSync(filePath),
-        formattedTime = exports.formatTime(stats.mtime);
+    var stats = fs.statSync(filePath);
+    var formattedTime = exports.formatTime(stats.mtime);
 
     return formattedTime;
 };

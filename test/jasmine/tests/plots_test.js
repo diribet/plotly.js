@@ -1,6 +1,7 @@
 var Plotly = require('@lib/index');
 var Plots = require('@src/plots/plots');
 var Lib = require('@src/lib');
+var Registry = require('@src/registry');
 
 var d3 = require('d3');
 var createGraphDiv = require('../assets/create_graph_div');
@@ -13,12 +14,12 @@ describe('Test Plots', function() {
 
     describe('Plots.supplyDefaults', function() {
         it('should not throw an error when gd is a plain object', function() {
-            var height = 100,
-                gd = {
-                    layout: {
-                        height: height
-                    }
-                };
+            var height = 100;
+            var gd = {
+                layout: {
+                    height: height
+                }
+            };
 
             supplyAllDefaults(gd);
             expect(gd.layout.height).toBe(height);
@@ -83,9 +84,9 @@ describe('Test Plots', function() {
             expect(gd._fullLayout.someFunc).toBe(oldFullLayout.someFunc);
 
             expect(gd._fullLayout.xaxis.c2p)
-                .not.toBe(oldFullLayout.xaxis.c2p, '(set during ax.setScale');
+                .not.toBe(oldFullLayout.xaxis.c2p, '(set during setConvert)');
             expect(gd._fullLayout.yaxis._m)
-                .not.toBe(oldFullLayout.yaxis._m, '(set during ax.setScale');
+                .toBe(oldFullLayout.yaxis._m, '(we don\'t run ax.setScale here)');
         });
 
         it('should include the correct reference to user data', function() {
@@ -154,24 +155,24 @@ describe('Test Plots', function() {
             testSanitizeMarginsHasBeenCalledOnlyOnce(gd);
         });
 
-        it('should sort base plot modules on fullLayout object', function() {
-            var gd = Lib.extendDeep({}, require('@mocks/plot_types.json'));
-            gd.data.unshift({type: 'scattergl'});
-            gd.data.push({type: 'splom'});
-
+        it('should accept trace uids as non-empty strings or numbers', function() {
+            var gd = {
+                data: [{}, {uid: false}, {uid: 'my-id'}, {uid: ''}, {uid: 0}, {uid: 2}]
+            };
             supplyAllDefaults(gd);
-            var names = gd._fullLayout._basePlotModules.map(function(m) {
-                return m.name;
-            });
 
-            expect(names).toEqual([
-                'splom',
-                'cartesian',
-                'gl3d',
-                'geo',
-                'pie',
-                'ternary'
-            ]);
+            var traceUids = gd._fullLayout._traceUids;
+            expect(traceUids.length).toBe(6, '# of trace uids');
+            expect(traceUids[2]).toBe('my-id');
+            expect(traceUids[4]).toBe('0');
+            expect(traceUids[5]).toBe('2');
+
+            var indicesOfRandomUid = [0, 1, 3];
+            indicesOfRandomUid.forEach(function(ind) {
+                var msg = 'fullData[' + ind + '].uid';
+                expect(typeof traceUids[ind]).toBe('string', msg + 'is a string');
+                expect(traceUids[ind].length).toBe(6, msg + 'is of length 6');
+            });
         });
     });
 
@@ -238,12 +239,11 @@ describe('Test Plots', function() {
             supplyLayoutDefaults(layoutIn, layoutOut);
             expect(layoutOut.margin).toEqual(expected);
         });
-
     });
 
     describe('Plots.supplyTraceDefaults', function() {
-        var supplyTraceDefaults = Plots.supplyTraceDefaults,
-            layout = {_subplots: {cartesian: ['xy'], xaxis: ['x'], yaxis: ['y']}};
+        var supplyTraceDefaults = Plots.supplyTraceDefaults;
+        var layout = {_subplots: {cartesian: ['xy'], xaxis: ['x'], yaxis: ['y']}};
 
         var traceIn, traceOut;
 
@@ -270,6 +270,14 @@ describe('Test Plots', function() {
                 traceIn = { hoverinfo: 'name' };
                 traceOut = supplyTraceDefaults(traceIn, {type: 'scatter'}, 0, layout);
                 expect(traceOut.hoverinfo).toEqual('name');
+            });
+
+            it('only if hovertemplate is not defined', function() {
+                layout._dataLength = 1;
+
+                traceIn = {};
+                traceOut = supplyTraceDefaults(traceIn, {type: 'scatter', hovertemplate: '%{y}'}, 0, layout);
+                expect(traceOut.hoverinfo).toBeUndefined();
             });
         });
     });
@@ -310,10 +318,10 @@ describe('Test Plots', function() {
             it('should resize the plot clip', function() {
                 var uid = gd._fullLayout._uid;
 
-                var plotClip = document.getElementById('clip' + uid + 'xyplot'),
-                    clipRect = plotClip.children[0],
-                    clipWidth = +clipRect.getAttribute('width'),
-                    clipHeight = +clipRect.getAttribute('height');
+                var plotClip = document.getElementById('clip' + uid + 'xyplot');
+                var clipRect = plotClip.children[0];
+                var clipWidth = +clipRect.getAttribute('width');
+                var clipHeight = +clipRect.getAttribute('height');
 
                 expect(clipWidth).toBe(240);
                 expect(clipHeight).toBe(220);
@@ -321,12 +329,12 @@ describe('Test Plots', function() {
 
             it('should resize the main svgs', function() {
                 var mainSvgs = document.getElementsByClassName('main-svg');
-                expect(mainSvgs.length).toBe(2);
+                expect(mainSvgs.length).toBe(3);
 
                 for(var i = 0; i < mainSvgs.length; i++) {
-                    var svg = mainSvgs[i],
-                        svgWidth = +svg.getAttribute('width'),
-                        svgHeight = +svg.getAttribute('height');
+                    var svg = mainSvgs[i];
+                    var svgWidth = +svg.getAttribute('width');
+                    var svgHeight = +svg.getAttribute('height');
 
                     expect(svgWidth).toBe(400);
                     expect(svgHeight).toBe(400);
@@ -335,10 +343,10 @@ describe('Test Plots', function() {
 
             it('should update the axis scales', function() {
                 var mainSvgs = document.getElementsByClassName('main-svg');
-                expect(mainSvgs.length).toBe(2);
+                expect(mainSvgs.length).toBe(3);
 
-                var fullLayout = gd._fullLayout,
-                    plotinfo = fullLayout._plots.xy;
+                var fullLayout = gd._fullLayout;
+                var plotinfo = fullLayout._plots.xy;
 
                 expect(fullLayout.xaxis._length).toEqual(240);
                 expect(fullLayout.yaxis._length).toEqual(220);
@@ -349,7 +357,7 @@ describe('Test Plots', function() {
 
             it('should allow resizing by plot ID', function(done) {
                 var mainSvgs = document.getElementsByClassName('main-svg');
-                expect(mainSvgs.length).toBe(2);
+                expect(mainSvgs.length).toBe(3);
 
                 expect(typeof gd.id).toBe('string');
                 expect(gd.id).toBeTruthy();
@@ -398,10 +406,10 @@ describe('Test Plots', function() {
             // because _dragging and _dragged were not cleared by purge.
             gd._dragging = true;
             gd._dragged = true;
+            gd._dragdata = true;
             gd._hoverdata = true;
             gd._snapshotInProgress = true;
             gd._editing = true;
-            gd._replotPending = true;
             gd._mouseDownTime = true;
             gd._legendMouseDownTime = true;
         });
@@ -420,8 +428,8 @@ describe('Test Plots', function() {
                 'empty', 'fid', 'undoqueue', 'undonum', 'autoplay', 'changed',
                 '_promises', '_redrawTimer', 'firstscatter',
                 '_transitionData', '_transitioning', '_hmpixcount', '_hmlumcount',
-                '_dragging', '_dragged', '_hoverdata', '_snapshotInProgress', '_editing',
-                '_replotPending', '_mouseDownTime', '_legendMouseDownTime'
+                '_dragging', '_dragged', '_dragdata', '_hoverdata', '_snapshotInProgress', '_editing',
+                '_mouseDownTime', '_legendMouseDownTime'
             ];
 
             Plots.purge(gd);
@@ -433,7 +441,6 @@ describe('Test Plots', function() {
     });
 
     describe('extendObjectWithContainers', function() {
-
         function assert(dest, src, expected) {
             Plots.extendObjectWithContainers(dest, src, ['container']);
             expect(dest).toEqual(expected);
@@ -624,7 +631,6 @@ describe('Test Plots', function() {
     });
 
     describe('Plots.generalUpdatePerTraceModule', function() {
-
         function _update(subplotCalcData, traceHashOld) {
             var gd = {};
             var subplot = { traceHash: traceHashOld || {} };
@@ -926,6 +932,74 @@ describe('Test Plots', function() {
             })
             .then(function() {
                 assertSubplots({pie: 1}, 'just pie');
+            })
+            .catch(failTest)
+            .then(done);
+        });
+    });
+
+    describe('Test Plots.doAutoMargin', function() {
+        afterEach(destroyGraphDiv);
+
+        it('should trigger a replot when necessary', function(done) {
+            var gd = createGraphDiv();
+            var r0;
+            var w0;
+
+            function _assert(msg, exp) {
+                var fullLayout = gd._fullLayout;
+
+                expect(fullLayout._size.r).toBe(exp.r);
+                expect(fullLayout._size.w).toBe(exp.w);
+
+                expect(Registry.call).toHaveBeenCalledTimes(exp.plotCallCnt);
+                Registry.call.calls.reset();
+            }
+
+            Plotly.newPlot(gd, [{
+                y: [1, 2, 1],
+                name: 'A trace name long enough to push the right margin'
+            }], {
+                showlegend: true
+            })
+            .then(function() {
+                r0 = gd._fullLayout._size.r;
+                w0 = gd._fullLayout._size.w;
+                spyOn(Registry, 'call');
+            })
+            .then(function() {
+                return Plots.doAutoMargin(gd);
+            })
+            .then(function() {
+                _assert('after doAutoMargin() with identical margins', {
+                    r: r0,
+                    w: w0,
+                    plotCallCnt: 0
+                });
+            })
+            .then(function() {
+                gd._fullLayout._pushmargin.legend.r.size += 2;
+                return Plots.doAutoMargin(gd);
+            })
+            .then(function() {
+                _assert('after doAutoMargin() with bigger margins', {
+                    r: r0 + 2,
+                    w: w0 - 2,
+                    plotCallCnt: 1
+                });
+            })
+            .then(function() {
+                gd._fullLayout._pushmargin.legend.r.size += 1;
+                return Plots.doAutoMargin(gd);
+            })
+            .then(function() {
+                // see https://github.com/plotly/plotly.js/issues/3561#issuecomment-485953778
+                // for more info
+                _assert('after doAutoMargin() with bigger margins under tolerance', {
+                    r: r0 + 3,
+                    w: w0 - 3,
+                    plotCallCnt: 0
+                });
             })
             .catch(failTest)
             .then(done);

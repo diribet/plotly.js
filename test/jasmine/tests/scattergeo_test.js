@@ -19,8 +19,8 @@ describe('Test scattergeo defaults', function() {
     var traceIn,
         traceOut;
 
-    var defaultColor = '#444',
-        layout = {};
+    var defaultColor = '#444';
+    var layout = {};
 
     beforeEach(function() {
         traceOut = {};
@@ -88,9 +88,8 @@ describe('Test scattergeo defaults', function() {
 });
 
 describe('Test scattergeo calc', function() {
-
     function _calc(opts) {
-        var base = { type: 'scattermapbox' };
+        var base = { type: 'scattergeo' };
         var trace = Lib.extendFlat({}, base, opts);
         var gd = { data: [trace] };
 
@@ -291,6 +290,25 @@ describe('Test scattergeo hover', function() {
         .then(done);
     });
 
+    it('should use the hovertemplate', function(done) {
+        Plotly.restyle(gd, 'hovertemplate', 'tpl %{lat}<extra>x</extra>').then(function() {
+            check([381, 221], ['tpl 10', 'x']);
+        })
+        .catch(failTest)
+        .then(done);
+    });
+
+    it('should not hide hover label when hovertemplate', function(done) {
+        Plotly.restyle(gd, {
+            name: '',
+            hovertemplate: 'tpl %{lat}<extra>x</extra>'
+        }).then(function() {
+            check([381, 221], ['tpl 10', 'x']);
+        })
+        .catch(failTest)
+        .then(done);
+    });
+
     it('should generate hover label info (\'text\' single value case)', function(done) {
         Plotly.restyle(gd, 'text', 'text').then(function() {
             check([381, 221], ['(10°, 10°)\ntext', null]);
@@ -339,6 +357,32 @@ describe('Test scattergeo hover', function() {
         })
         .catch(failTest)
         .then(done);
+    });
+
+    describe('should preserve lon/lat formatting hovetemplate equivalence', function() {
+        var pos = [381, 221];
+        var exp = ['(10.00012°, 10.00088°)\nA'];
+
+        it('- base case (truncate z decimals)', function(done) {
+            Plotly.restyle(gd, {
+                lon: [[10.0001221321]],
+                lat: [[10.00087683]]
+            })
+            .then(function() { check(pos, exp); })
+            .catch(failTest)
+            .then(done);
+        });
+
+        it('- hovertemplate case (same lon/lat truncation)', function(done) {
+            Plotly.restyle(gd, {
+                lon: [[10.0001221321]],
+                lat: [[10.00087683]],
+                hovertemplate: '(%{lon}°, %{lat}°)<br>%{text}<extra></extra>'
+            })
+            .then(function() { check(pos, exp); })
+            .catch(failTest)
+            .then(done);
+        });
     });
 });
 

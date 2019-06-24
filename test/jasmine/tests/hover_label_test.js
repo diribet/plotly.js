@@ -248,7 +248,7 @@ describe('hover info', function() {
 
             assertHoverLabelContent({
                 nums: '1\nhover text',
-                name: '&lt;img src=x o...',
+                name: '',
                 axis: '0.388'
             });
         });
@@ -498,7 +498,6 @@ describe('hover info', function() {
         });
 
         it('render only non-hoverinfo \'none\' hover labels', function(done) {
-
             Plotly.restyle(gd, 'hoverinfo', ['none', 'name']).then(function() {
                 Fx.hover('graph', evt, 'xy');
 
@@ -655,6 +654,18 @@ describe('hover info', function() {
                     name: 'one'
                 });
             })
+            .then(function() {
+                return Plotly.restyle(gd, 'hovertext', [
+                    [['A', 'B', 'C'], ['X', 'Y', 'Z']]
+                ], [1]);
+            })
+            .then(function() {
+                _hover(gd, 250, 100);
+                assertHoverLabelContent({
+                    nums: 'x: 1\ny: 3\nz: 2\nY',
+                    name: 'two'
+                });
+            })
             .catch(failTest)
             .then(done);
         });
@@ -766,6 +777,83 @@ describe('hover info', function() {
                     name: 'one'
                 });
             })
+            .then(function() {
+                return Plotly.restyle(gd, 'hovertext', [
+                    [['A', 'B', 'C'], ['X', 'Y', 'Z']]
+                ]);
+            })
+            .then(function() {
+                _hover(gd, 250, 50);
+                assertHoverLabelContent({
+                    nums: 'x: 1\ny: 3\nz: 2\nY',
+                    name: 'two'
+                });
+            })
+            .then(function() {
+                return Plotly.restyle(gd, 'hovertemplate', '(%{x},%{y}) -- %{z}<extra>trace %{data.name}</extra>');
+            })
+            .then(function() {
+                _hover(gd, 250, 50);
+                assertHoverLabelContent({
+                    nums: '(1,3) -- 2',
+                    name: 'trace two'
+                });
+
+                _hover(gd, 250, 300);
+                assertHoverLabelContent({
+                    nums: '(1,1) -- 5.56',
+                    name: 'trace one'
+                });
+            })
+            .then(function() {
+                return Plotly.restyle(gd, 'hoverlabel.namelength', 2);
+            })
+            .then(function() {
+                _hover(gd, 250, 50);
+                assertHoverLabelContent({
+                    nums: '(1,3) -- 2',
+                    name: 'tr'
+                });
+
+                _hover(gd, 250, 300);
+                assertHoverLabelContent({
+                    nums: '(1,1) -- 5.56',
+                    name: 'tr'
+                });
+            })
+            .then(function() {
+                var nl = [[0, 0, 0], [0, 0, 0]];
+                return Plotly.restyle(gd, 'hoverlabel.namelength', [nl, nl]);
+            })
+            .then(function() {
+                _hover(gd, 250, 50);
+                assertHoverLabelContent({
+                    nums: '(1,3) -- 2',
+                    name: ''
+                });
+
+                _hover(gd, 250, 300);
+                assertHoverLabelContent({
+                    nums: '(1,1) -- 5.56',
+                    name: ''
+                });
+            })
+            .then(function() {
+                return Plotly.restyle(gd, 'hovertemplate', null);
+            })
+            .then(function() {
+                _hover(gd, 250, 50);
+                assertHoverLabelContent({
+                    nums: 'x: 1\ny: 3\nz: 2\nY',
+                    name: ''
+                });
+
+                _hover(gd, 250, 300);
+                assertHoverLabelContent({
+                    nums: 'x: 1\ny: 1\nz: 5.56\nY',
+                    name: ''
+                });
+            })
             .catch(failTest)
             .then(done);
         });
@@ -840,44 +928,6 @@ describe('hover info', function() {
             .then(done);
         });
 
-        it('should display correct label content with specified format - histogram2d', function(done) {
-            Plotly.plot(gd, [{
-                type: 'histogram2d',
-                x: [0, 1, 2, 0, 1, 2, 1],
-                y: [0, 0, 0, 1, 1, 1, 1],
-                z: [1.11111, 2.2222, 3.3333, 4.4444, 4.4444, 6.6666, 1.1111],
-                histfunc: 'sum',
-                name: 'one',
-                zhoverformat: '.2f',
-                showscale: false
-            }, {
-                type: 'histogram2d',
-                x: [0, 1, 2, 0, 1, 2, 1, 2, 0, 1, 2],
-                y: [2, 2, 2, 3, 3, 3, 2, 2, 3, 3, 2],
-                name: 'two',
-                showscale: false
-            }], {
-                width: 500,
-                height: 400,
-                margin: {l: 0, t: 0, r: 0, b: 0}
-            })
-            .then(function() {
-                _hover(gd, 250, 100);
-                assertHoverLabelContent({
-                    nums: 'x: 1\ny: 3\nz: 2',
-                    name: 'two'
-                });
-
-                _hover(gd, 250, 300);
-                assertHoverLabelContent({
-                    nums: 'x: 1\ny: 1\nz: 5.56',
-                    name: 'one'
-                });
-            })
-            .catch(failTest)
-            .then(done);
-        });
-
         it('should display correct label content with specified format - histogram2dcontour', function(done) {
             Plotly.plot(gd, [{
                 type: 'histogram2dcontour',
@@ -912,6 +962,22 @@ describe('hover info', function() {
                     name: 'one'
                 });
             })
+            .then(function() {
+                return Plotly.restyle(gd, 'hovertemplate', 'f(%{x:.1f}, %{y:.1f})=%{z}<extra></extra>');
+            })
+            .then(function() {
+                _hover(gd, 250, 50);
+                assertHoverLabelContent({
+                    nums: 'f(1.0, 3.0)=2',
+                    name: ''
+                });
+
+                _hover(gd, 250, 270);
+                assertHoverLabelContent({
+                    nums: 'f(1.0, 1.0)=5.56',
+                    name: ''
+                });
+            })
             .catch(failTest)
             .then(done);
         });
@@ -942,7 +1008,6 @@ describe('hover info', function() {
     describe('histogram hover info', function() {
         it('shows the data range when bins have multiple values', function(done) {
             var gd = createGraphDiv();
-            var pts;
 
             Plotly.plot(gd, [{
                 x: [0, 2, 3, 4, 5, 6, 7],
@@ -954,23 +1019,46 @@ describe('hover info', function() {
                 margin: {l: 0, t: 0, r: 0, b: 0}
             })
             .then(function() {
-                gd.on('plotly_hover', function(e) { pts = e.points; });
+                var pts = null;
+                gd.once('plotly_hover', function(e) { pts = e.points; });
 
                 _hoverNatural(gd, 250, 200);
-                assertHoverLabelContent({
-                    nums: '3',
-                    axis: '3 - 5'
-                });
-            })
-            .then(function() {
+                assertHoverLabelContent({nums: '3', axis: '3 - 5'});
+                if(pts === null) fail('no hover evt triggered');
                 expect(pts.length).toBe(1);
-                var pt = pts[0];
 
+                var pt = pts[0];
                 expect(pt.curveNumber).toBe(0);
                 expect(pt.binNumber).toBe(1);
                 expect(pt.pointNumbers).toEqual([2, 3, 4]);
                 expect(pt.x).toBe(4);
                 expect(pt.y).toBe(3);
+                expect(pt.data).toBe(gd.data[0]);
+                expect(pt.fullData).toBe(gd._fullData[0]);
+                expect(pt.xaxis).toBe(gd._fullLayout.xaxis);
+                expect(pt.yaxis).toBe(gd._fullLayout.yaxis);
+            })
+            .then(function() {
+                var pts = null;
+                gd.once('plotly_hover', function(e) { pts = e.points; });
+
+                _hoverNatural(gd, 250, 200);
+                expect(pts).toBe(null, 'should not emit hover event on same pt');
+            })
+            .then(function() {
+                var pts = null;
+                gd.once('plotly_hover', function(e) { pts = e.points; });
+
+                _hoverNatural(gd, 350, 200);
+                assertHoverLabelContent({nums: '2', axis: '6 - 8'});
+                expect(pts.length).toBe(1);
+
+                var pt = pts[0];
+                expect(pt.curveNumber).toBe(0);
+                expect(pt.binNumber).toBe(2);
+                expect(pt.pointNumbers).toEqual([5, 6]);
+                expect(pt.x).toBe(7);
+                expect(pt.y).toBe(2);
                 expect(pt.data).toBe(gd.data[0]);
                 expect(pt.fullData).toBe(gd._fullData[0]);
                 expect(pt.xaxis).toBe(gd._fullLayout.xaxis);
@@ -1001,6 +1089,14 @@ describe('hover info', function() {
                     axis: '3.3'
                 });
             })
+            .then(function() { return Plotly.restyle(gd, 'hovertext', 'LOOK'); })
+            .then(function() {
+                _hover(gd, 250, 200);
+                assertHoverLabelContent({
+                    nums: '3\nLOOK',
+                    axis: '3.3'
+                });
+            })
             .catch(failTest)
             .then(done);
         });
@@ -1027,56 +1123,6 @@ describe('hover info', function() {
                 assertHoverLabelContent({
                     nums: '6',
                     axis: 'soup - nuts'
-                });
-            })
-            .catch(failTest)
-            .then(done);
-        });
-    });
-
-    describe('histogram2d hover info', function() {
-        it('shows the data range when bins have multiple values', function(done) {
-            var gd = createGraphDiv();
-
-            Plotly.plot(gd, [{
-                x: [0, 2, 3, 4, 5, 6, 7],
-                y: [1, 3, 4, 5, 6, 7, 8],
-                xbins: {start: -0.5, end: 8.5, size: 3},
-                ybins: {start: 0.5, end: 9.5, size: 3},
-                type: 'histogram2d'
-            }], {
-                width: 500,
-                height: 400,
-                margin: {l: 0, t: 0, r: 0, b: 0}
-            })
-            .then(function() {
-                _hover(gd, 250, 200);
-                assertHoverLabelContent({
-                    nums: 'x: 3 - 5\ny: 4 - 6\nz: 3'
-                });
-            })
-            .catch(failTest)
-            .then(done);
-        });
-
-        it('shows the exact data when bins have single values', function(done) {
-            var gd = createGraphDiv();
-
-            Plotly.plot(gd, [{
-                x: [0, 0, 3.3, 3.3, 3.3, 7, 7],
-                y: [2, 2, 4.2, 4.2, 4.2, 8.8, 8.8],
-                xbins: {start: -0.5, end: 8.5, size: 3},
-                ybins: {start: 0.5, end: 9.5, size: 3},
-                type: 'histogram2d'
-            }], {
-                width: 500,
-                height: 400,
-                margin: {l: 0, t: 0, r: 0, b: 0}
-            })
-            .then(function() {
-                _hover(gd, 250, 200);
-                assertHoverLabelContent({
-                    nums: 'x: 3.3\ny: 4.2\nz: 3'
                 });
             })
             .catch(failTest)
@@ -1154,6 +1200,60 @@ describe('hover info', function() {
                 .then(done);
             });
 
+            it('shows correct labels in split mode', function(done) {
+                var pts;
+                Plotly.plot(gd, financeMock({
+                    customdata: [11, 22, 33],
+                    hoverlabel: {
+                        split: true
+                    }
+                }))
+                .then(function() {
+                    gd.on('plotly_hover', function(e) { pts = e.points; });
+
+                    _hoverNatural(gd, 150, 150);
+                    assertHoverLabelContent({
+                        nums: ['high: 4', 'open: 2', 'close: 3', 'low: 1'],
+                        name: ['', '', '', ''],
+                        axis: 'Jan 2, 2011'
+                    });
+                })
+                .then(function() {
+                    expect(pts).toBeDefined();
+                    expect(pts.length).toBe(4);
+                    expect(pts[0]).toEqual(jasmine.objectContaining({
+                        x: '2011-01-02',
+                        high: 4,
+                        customdata: 22,
+                    }));
+                    expect(pts[1]).toEqual(jasmine.objectContaining({
+                        x: '2011-01-02',
+                        open: 2,
+                        customdata: 22,
+                    }));
+                    expect(pts[2]).toEqual(jasmine.objectContaining({
+                        x: '2011-01-02',
+                        close: 3,
+                        customdata: 22,
+                    }));
+                    expect(pts[3]).toEqual(jasmine.objectContaining({
+                        x: '2011-01-02',
+                        low: 1,
+                        customdata: 22,
+                    }));
+                })
+                .then(function() {
+                    _hoverNatural(gd, 200, 150);
+                    assertHoverLabelContent({
+                        nums: ['high: 5', 'open: 3', 'close: 2\nlow: 2'],
+                        name: ['', '', ''],
+                        axis: 'Jan 3, 2011'
+                    });
+                })
+                .catch(failTest)
+                .then(done);
+            });
+
             it('shows text iff text is in hoverinfo', function(done) {
                 Plotly.plot(gd, financeMock({text: ['A', 'B', 'C']}))
                 .then(function() {
@@ -1189,14 +1289,14 @@ describe('hover info', function() {
 
     describe('hoverformat', function() {
         var data = [{
-                x: [1, 2, 3],
-                y: [0.12345, 0.23456, 0.34567]
-            }],
-            layout = {
-                yaxis: { showticklabels: true, hoverformat: ',.2r' },
-                width: 600,
-                height: 400
-            };
+            x: [1, 2, 3],
+            y: [0.12345, 0.23456, 0.34567]
+        }];
+        var layout = {
+            yaxis: { showticklabels: true, hoverformat: ',.2r' },
+            width: 600,
+            height: 400
+        };
 
         beforeEach(function() {
             this.gd = createGraphDiv();
@@ -1226,16 +1326,16 @@ describe('hover info', function() {
 
     describe('textmode', function() {
         var data = [{
-                x: [1, 2, 3, 4],
-                y: [2, 3, 4, 5],
-                mode: 'text',
-                hoverinfo: 'text',
-                text: ['test', null, 42, undefined]
-            }],
-            layout = {
-                width: 600,
-                height: 400
-            };
+            x: [1, 2, 3, 4],
+            y: [2, 3, 4, 5],
+            mode: 'text',
+            hoverinfo: 'text',
+            text: ['test', null, 42, undefined]
+        }];
+        var layout = {
+            width: 600,
+            height: 400
+        };
 
         beforeEach(function(done) {
             Plotly.plot(createGraphDiv(), data, layout).then(done);
@@ -1356,117 +1456,49 @@ describe('hover info', function() {
             .catch(failTest)
             .then(done);
         });
-
     });
 
-    function hoverInfoNodes(traceName) {
-        var g = d3.selectAll('g.hoverlayer g.hovertext').filter(function() {
-            return !d3.select(this).select('[data-unformatted="' + traceName + '"]').empty();
-        });
-
-        return {
-            primaryText: g.select('text:not([data-unformatted="' + traceName + '"])').node(),
-            primaryBox: g.select('path').node(),
-            secondaryText: g.select('[data-unformatted="' + traceName + '"]').node(),
-            secondaryBox: g.select('rect').node()
-        };
-    }
-
-    function ensureCentered(hoverInfoNodes) {
-        expect(hoverInfoNodes.primaryText.getAttribute('text-anchor')).toBe('middle');
-        expect(hoverInfoNodes.secondaryText.getAttribute('text-anchor')).toBe('middle');
-        return hoverInfoNodes;
-    }
-
-    function assertLabelsInsideBoxes(nodes, msgPrefix) {
-        var msgPrefixFmt = msgPrefix ? '[' + msgPrefix + '] ' : '';
-
-        assertElemInside(nodes.primaryText, nodes.primaryBox,
-          msgPrefixFmt + 'Primary text inside box');
-        assertElemInside(nodes.secondaryText, nodes.secondaryBox,
-          msgPrefixFmt + 'Secondary text inside box');
-    }
-
-    function assertSecondaryRightToPrimaryBox(nodes, msgPrefix) {
-        var msgPrefixFmt = msgPrefix ? '[' + msgPrefix + '] ' : '';
-
-        assertElemRightTo(nodes.secondaryBox, nodes.primaryBox,
-          msgPrefixFmt + 'Secondary box right to primary box');
-        assertElemTopsAligned(nodes.secondaryBox, nodes.primaryBox,
-          msgPrefixFmt + 'Top edges of primary and secondary boxes aligned');
-    }
-
-    describe('centered', function() {
-        var trace1 = {
-            x: ['giraffes'],
-            y: [5],
-            name: 'LA Zoo',
-            type: 'bar',
-            text: ['Way too long hover info!']
-        };
-        var trace2 = {
-            x: ['giraffes'],
-            y: [5],
-            name: 'SF Zoo',
-            type: 'bar',
-            text: ['San Francisco']
-        };
-        var data = [trace1, trace2];
-        var layout = {width: 600, height: 300, barmode: 'stack'};
-
+    describe('alignment while avoiding overlaps:', function() {
         var gd;
 
-        beforeEach(function(done) {
-            gd = createGraphDiv();
-            Plotly.plot(gd, data, layout).then(done);
-        });
+        beforeEach(function() { gd = createGraphDiv(); });
 
-        it('renders labels inside boxes', function() {
-            _hover(gd, 300, 150);
+        function hoverInfoNodes(traceName) {
+            var g = d3.selectAll('g.hoverlayer g.hovertext').filter(function() {
+                return !d3.select(this).select('[data-unformatted="' + traceName + '"]').empty();
+            });
 
-            var nodes = ensureCentered(hoverInfoNodes('LA Zoo'));
-            assertLabelsInsideBoxes(nodes);
-        });
+            return {
+                primaryText: g.select('text:not([data-unformatted="' + traceName + '"])').node(),
+                primaryBox: g.select('path').node(),
+                secondaryText: g.select('[data-unformatted="' + traceName + '"]').node(),
+                secondaryBox: g.select('rect').node()
+            };
+        }
 
-        it('renders secondary info box right to primary info box', function() {
-            _hover(gd, 300, 150);
+        function ensureCentered(hoverInfoNodes) {
+            expect(hoverInfoNodes.primaryText.getAttribute('text-anchor')).toBe('middle');
+            expect(hoverInfoNodes.secondaryText.getAttribute('text-anchor')).toBe('middle');
+            return hoverInfoNodes;
+        }
 
-            var nodes = ensureCentered(hoverInfoNodes('LA Zoo'));
-            assertSecondaryRightToPrimaryBox(nodes);
-        });
-    });
+        function assertLabelsInsideBoxes(nodes, msgPrefix) {
+            var msgPrefixFmt = msgPrefix ? '[' + msgPrefix + '] ' : '';
 
-    describe('centered', function() {
-        var trace1 = {
-            x: ['giraffes'],
-            y: [5],
-            name: 'LA Zoo',
-            type: 'bar',
-            text: ['Way too long hover info!']
-        };
-        var trace2 = {
-            x: ['giraffes'],
-            y: [5],
-            name: 'SF Zoo',
-            type: 'bar',
-            text: ['Way too looooong hover info!']
-        };
-        var trace3 = {
-            x: ['giraffes'],
-            y: [5],
-            name: 'NY Zoo',
-            type: 'bar',
-            text: ['New York']
-        };
-        var data = [trace1, trace2, trace3];
-        var layout = {width: 600, height: 300};
+            assertElemInside(nodes.primaryText, nodes.primaryBox,
+              msgPrefixFmt + 'Primary text inside box');
+            assertElemInside(nodes.secondaryText, nodes.secondaryBox,
+              msgPrefixFmt + 'Secondary text inside box');
+        }
 
-        var gd;
+        function assertSecondaryRightToPrimaryBox(nodes, msgPrefix) {
+            var msgPrefixFmt = msgPrefix ? '[' + msgPrefix + '] ' : '';
 
-        beforeEach(function(done) {
-            gd = createGraphDiv();
-            Plotly.plot(gd, data, layout).then(done);
-        });
+            assertElemRightTo(nodes.secondaryBox, nodes.primaryBox,
+              msgPrefixFmt + 'Secondary box right to primary box');
+            assertElemTopsAligned(nodes.secondaryBox, nodes.primaryBox,
+              msgPrefixFmt + 'Top edges of primary and secondary boxes aligned');
+        }
 
         function calcLineOverlap(minA, maxA, minB, maxB) {
             expect(minA).toBeLessThan(maxA);
@@ -1476,24 +1508,518 @@ describe('hover info', function() {
             return Math.max(0, overlap);
         }
 
-        it('stacks nicely upon each other', function() {
-            _hover(gd, 300, 150);
+        it('centered-aligned, should render labels inside boxes', function(done) {
+            var trace1 = {
+                x: ['giraffes'],
+                y: [5],
+                name: 'LA Zoo',
+                type: 'bar',
+                text: ['Way too long hover info!']
+            };
+            var trace2 = {
+                x: ['giraffes'],
+                y: [5],
+                name: 'SF Zoo',
+                type: 'bar',
+                text: ['San Francisco']
+            };
+            var data = [trace1, trace2];
+            var layout = {width: 600, height: 300, barmode: 'stack'};
 
-            var nodesLA = ensureCentered(hoverInfoNodes('LA Zoo'));
-            var nodesSF = ensureCentered(hoverInfoNodes('SF Zoo'));
-
-            // Ensure layout correct
-            assertLabelsInsideBoxes(nodesLA, 'LA Zoo');
-            assertLabelsInsideBoxes(nodesSF, 'SF Zoo');
-            assertSecondaryRightToPrimaryBox(nodesLA, 'LA Zoo');
-            assertSecondaryRightToPrimaryBox(nodesSF, 'SF Zoo');
-
-            // Ensure stacking, finally
-            var boxLABB = nodesLA.primaryBox.getBoundingClientRect();
-            var boxSFBB = nodesSF.primaryBox.getBoundingClientRect();
-            expect(calcLineOverlap(boxLABB.top, boxLABB.bottom, boxSFBB.top, boxSFBB.bottom))
-              .toBeWithin(0, 1); // Be robust against floating point arithmetic and subtle future layout changes
+            Plotly.plot(gd, data, layout)
+            .then(function() { _hover(gd, 300, 150); })
+            .then(function() {
+                var nodes = ensureCentered(hoverInfoNodes('LA Zoo'));
+                assertLabelsInsideBoxes(nodes);
+                assertSecondaryRightToPrimaryBox(nodes);
+            })
+            .catch(failTest)
+            .then(done);
         });
+
+        it('centered-aligned, should stack nicely upon each other', function(done) {
+            var trace1 = {
+                x: ['giraffes'],
+                y: [5],
+                name: 'LA Zoo',
+                type: 'bar',
+                text: ['Way too long hover info!']
+            };
+            var trace2 = {
+                x: ['giraffes'],
+                y: [5],
+                name: 'SF Zoo',
+                type: 'bar',
+                text: ['Way too looooong hover info!']
+            };
+            var trace3 = {
+                x: ['giraffes'],
+                y: [5],
+                name: 'NY Zoo',
+                type: 'bar',
+                text: ['New York']
+            };
+            var data = [trace1, trace2, trace3];
+            var layout = {width: 600, height: 300};
+
+            Plotly.plot(gd, data, layout)
+            .then(function() { _hover(gd, 300, 150); })
+            .then(function() {
+                var nodesLA = ensureCentered(hoverInfoNodes('LA Zoo'));
+                var nodesSF = ensureCentered(hoverInfoNodes('SF Zoo'));
+
+                // Ensure layout correct
+                assertLabelsInsideBoxes(nodesLA, 'LA Zoo');
+                assertLabelsInsideBoxes(nodesSF, 'SF Zoo');
+                assertSecondaryRightToPrimaryBox(nodesLA, 'LA Zoo');
+                assertSecondaryRightToPrimaryBox(nodesSF, 'SF Zoo');
+
+                // Ensure stacking, finally
+                var boxLABB = nodesLA.primaryBox.getBoundingClientRect();
+                var boxSFBB = nodesSF.primaryBox.getBoundingClientRect();
+
+                // Be robust against floating point arithmetic and subtle future layout changes
+                expect(calcLineOverlap(boxLABB.top, boxLABB.bottom, boxSFBB.top, boxSFBB.bottom))
+                  .toBeWithin(0, 1);
+            })
+            .catch(failTest)
+            .then(done);
+        });
+
+        it('should stack multi-line trace-name labels nicely', function(done) {
+            var name = 'Multi<br>line<br>trace<br>name';
+            var name2 = 'Multi<br>line<br>trace<br>name2';
+
+            Plotly.plot(gd, [{
+                y: [1, 2, 1],
+                name: name,
+                hoverlabel: {namelength: -1},
+                hoverinfo: 'x+y+name'
+            }, {
+                y: [1, 2, 1],
+                name: name2,
+                hoverinfo: 'x+y+name',
+                hoverlabel: {namelength: -1}
+            }], {
+                width: 600,
+                height: 300
+            })
+            .then(function() { _hoverNatural(gd, 209, 12); })
+            .then(function() {
+                var nodes = hoverInfoNodes(name);
+                var nodes2 = hoverInfoNodes(name2);
+
+                assertLabelsInsideBoxes(nodes, 'trace 0');
+                assertLabelsInsideBoxes(nodes2, 'trace 2');
+                assertSecondaryRightToPrimaryBox(nodes, 'trace 0');
+                assertSecondaryRightToPrimaryBox(nodes2, 'trace 2');
+
+                var primaryBB = nodes.primaryBox.getBoundingClientRect();
+                var primaryBB2 = nodes2.primaryBox.getBoundingClientRect();
+                expect(calcLineOverlap(primaryBB.top, primaryBB.bottom, primaryBB2.top, primaryBB2.bottom))
+                  .toBeWithin(0, 1);
+
+                // there's a bit of a gap in the secondary as they do have
+                // a border (for now)
+                var secondaryBB = nodes.secondaryBox.getBoundingClientRect();
+                var secondaryBB2 = nodes2.secondaryBox.getBoundingClientRect();
+                expect(calcLineOverlap(secondaryBB.top, secondaryBB.bottom, secondaryBB2.top, secondaryBB2.bottom))
+                  .toBeWithin(2, 1);
+            })
+            .catch(failTest)
+            .then(done);
+        });
+
+        it('should avoid overlaps on *too close* pts are filtered out', function(done) {
+            Plotly.plot(gd, [
+                {name: 'A', x: [9, 10], y: [9, 10]},
+                {name: 'B', x: [8, 9], y: [9, 10]},
+                {name: 'C', x: [9, 10], y: [10, 11]}
+            ], {
+                xaxis: {range: [0, 100]},
+                yaxis: {range: [0, 100]},
+                width: 700,
+                height: 450
+            })
+            .then(function() { _hover(gd, 67, 239); })
+            .then(function() {
+                var nodesA = hoverInfoNodes('A');
+                var nodesC = hoverInfoNodes('C');
+
+                // Ensure layout correct
+                assertLabelsInsideBoxes(nodesA, 'A');
+                assertLabelsInsideBoxes(nodesC, 'C');
+                assertSecondaryRightToPrimaryBox(nodesA, 'A');
+                assertSecondaryRightToPrimaryBox(nodesC, 'C');
+
+                // Ensure stacking, finally
+                var boxA = nodesA.primaryBox.getBoundingClientRect();
+                var boxC = nodesC.primaryBox.getBoundingClientRect();
+
+                // Be robust against floating point arithmetic and subtle future layout changes
+                expect(calcLineOverlap(boxA.top, boxA.bottom, boxC.top, boxC.bottom))
+                  .toBeWithin(0, 1);
+            })
+            .catch(failTest)
+            .then(done);
+        });
+    });
+
+    describe('hovertemplate', function() {
+        var mockCopy;
+
+        beforeEach(function(done) {
+            mockCopy = Lib.extendDeep({}, mock);
+            Plotly.plot(createGraphDiv(), mockCopy.data, mockCopy.layout).then(done);
+        });
+
+        afterEach(function() {
+            Plotly.purge('graph');
+            destroyGraphDiv();
+        });
+
+        it('should format labels according to a template string', function(done) {
+            var gd = document.getElementById('graph');
+            Plotly.restyle(gd, 'hovertemplate', '%{y:$.2f}<extra>trace 0</extra>')
+            .then(function() {
+                Fx.hover('graph', evt, 'xy');
+
+                var hoverTrace = gd._hoverdata[0];
+
+                expect(hoverTrace.curveNumber).toEqual(0);
+                expect(hoverTrace.pointNumber).toEqual(17);
+                expect(hoverTrace.x).toEqual(0.388);
+                expect(hoverTrace.y).toEqual(1);
+
+                assertHoverLabelContent({
+                    nums: '$1.00',
+                    name: 'trace 0',
+                    axis: '0.388'
+                });
+            })
+            .catch(failTest)
+            .then(done);
+        });
+
+        it('should format labels according to a template string and locale', function(done) {
+            var gd = document.getElementById('graph');
+            mockCopy.layout.separators = undefined;
+            Plotly.newPlot(gd, mockCopy.data, mockCopy.layout, {
+                locale: 'fr-eu',
+                locales: {
+                    'fr-eu': {
+                        format: {
+                            currency: ['€', ''],
+                            decimal: ',',
+                            thousands: ' ',
+                            grouping: [3]
+                        }
+                    }
+                }
+            })
+            .then(function() {
+                Plotly.restyle(gd, 'hovertemplate', '%{y:$010,.2f}<extra>trace 0</extra>');
+            })
+            .then(function() {
+                Fx.hover('graph', evt, 'xy');
+
+                var hoverTrace = gd._hoverdata[0];
+
+                expect(hoverTrace.curveNumber).toEqual(0);
+                expect(hoverTrace.pointNumber).toEqual(17);
+                expect(hoverTrace.x).toEqual(0.388);
+                expect(hoverTrace.y).toEqual(1);
+
+                assertHoverLabelContent({
+                    nums: '€000 001,00',
+                    name: 'trace 0',
+                    axis: '0,388'
+                });
+            })
+            .catch(failTest)
+            .then(done);
+        });
+
+        it('should format secondary label with extra tag', function(done) {
+            var gd = document.getElementById('graph');
+            Plotly.restyle(gd, 'hovertemplate', '<extra>trace 20 %{y:$.2f}</extra>')
+            .then(function() {
+                Fx.hover('graph', evt, 'xy');
+
+                var hoverTrace = gd._hoverdata[0];
+
+                expect(hoverTrace.curveNumber).toEqual(0);
+                expect(hoverTrace.pointNumber).toEqual(17);
+                expect(hoverTrace.x).toEqual(0.388);
+                expect(hoverTrace.y).toEqual(1);
+
+                assertHoverLabelContent({
+                    nums: '',
+                    name: 'trace 20 $1.00',
+                    axis: '0.388'
+                });
+            })
+            .catch(failTest)
+            .then(done);
+        });
+
+        it('should support pseudo-html', function(done) {
+            var gd = document.getElementById('graph');
+            Plotly.restyle(gd, 'hovertemplate', '<b>%{y:$.2f}</b><br>%{fullData.name}<extra></extra>')
+            .then(function() {
+                Fx.hover('graph', evt, 'xy');
+
+                var hoverTrace = gd._hoverdata[0];
+
+                expect(hoverTrace.curveNumber).toEqual(0);
+                expect(hoverTrace.pointNumber).toEqual(17);
+                expect(hoverTrace.x).toEqual(0.388);
+                expect(hoverTrace.y).toEqual(1);
+
+                assertHoverLabelContent({
+                    nums: '<tspan style="font-weight:bold">$1.00</tspan>\nPV learning curve.txt',
+                    name: '',
+                    axis: '0.388'
+                });
+            })
+            .catch(failTest)
+            .then(done);
+        });
+
+        it('should support array', function(done) {
+            var gd = document.getElementById('graph');
+            var templates = [];
+            for(var i = 0; i < mockCopy.data[0].y.length; i++) {
+                templates[i] = 'hovertemplate ' + i + ':%{y:$.2f}<extra></extra>';
+            }
+            Plotly.restyle(gd, 'hovertemplate', [templates])
+            .then(function() {
+                Fx.hover('graph', evt, 'xy');
+
+                var hoverTrace = gd._hoverdata[0];
+
+                expect(hoverTrace.curveNumber).toEqual(0);
+                expect(hoverTrace.pointNumber).toEqual(17);
+                expect(hoverTrace.x).toEqual(0.388);
+                expect(hoverTrace.y).toEqual(1);
+
+                assertHoverLabelContent({
+                    nums: 'hovertemplate 17:$1.00',
+                    name: '',
+                    axis: '0.388'
+                });
+            })
+            .catch(failTest)
+            .then(done);
+        });
+
+        it('should contain the axis names', function(done) {
+            var gd = document.getElementById('graph');
+            Plotly.restyle(gd, 'hovertemplate',
+              '%{yaxis.title.text}:%{y:$.2f}<br>%{xaxis.title.text}:%{x:0.4f}<extra></extra>')
+            .then(function() {
+                Fx.hover('graph', evt, 'xy');
+
+                var hoverTrace = gd._hoverdata[0];
+
+                expect(hoverTrace.curveNumber).toEqual(0);
+                expect(hoverTrace.pointNumber).toEqual(17);
+                expect(hoverTrace.x).toEqual(0.388);
+                expect(hoverTrace.y).toEqual(1);
+
+                assertHoverLabelContent({
+                    nums: 'Cost ($/W​<tspan style="font-size:70%" dy="0.3em">P</tspan><tspan dy="-0.21em">​</tspan>):$1.00\nCumulative Production (GW):0.3880',
+                    name: '',
+                    axis: '0.388'
+                });
+            })
+            .catch(failTest)
+            .then(done);
+        });
+
+        it('should work with layout.meta references', function(done) {
+            var gd = document.getElementById('graph');
+
+            Plotly.update(gd,
+                {hovertemplate: 'TRACE -- %{meta[0]}<extra>%{meta[1]}</extra>'},
+                {meta: ['A', '$$$']}
+            ).then(function() {
+                Fx.hover('graph', evt, 'xy');
+
+                assertHoverLabelContent({
+                    nums: 'TRACE -- A',
+                    name: '$$$',
+                    axis: '0.388'
+                });
+            })
+            .catch(failTest)
+            .then(done);
+        });
+
+        it('should work with trace meta references', function(done) {
+            var gd = document.getElementById('graph');
+
+            Plotly.update(gd, {
+                meta: {yname: 'Yy', xname: 'Xx'},
+                hovertemplate: 'TRACE -- %{meta.yname}<extra>%{meta.xname}</extra>'
+            })
+            .then(function() {
+                Fx.hover('graph', evt, 'xy');
+
+                assertHoverLabelContent({
+                    nums: 'TRACE -- Yy',
+                    name: 'Xx',
+                    axis: '0.388'
+                });
+            })
+            .catch(failTest)
+            .then(done);
+        });
+    });
+
+    it('should work with trace.name linked to layout.meta', function(done) {
+        var gd = createGraphDiv();
+
+        Plotly.plot(gd, [{
+            y: [1, 1, 1],
+            name: '%{meta[0]}',
+            marker: {size: 40}
+        }, {
+            y: [1]
+        }], {
+            meta: ['yo!'],
+            width: 400,
+            height: 400
+        })
+        .then(function() { _hoverNatural(gd, 200, 200); })
+        .then(function() {
+            assertHoverLabelContent({
+                nums: '1',
+                name: 'yo!',
+                axis: '2'
+            });
+        })
+        .catch(failTest)
+        .then(done);
+    });
+
+    it('should fallback to regular hover content when hoveron does not support hovertemplate', function(done) {
+        var gd = createGraphDiv();
+        var fig = Lib.extendDeep({}, require('@mocks/scatter_fill_self_next.json'));
+
+        fig.data.forEach(function(trace) {
+            trace.hoveron = 'points+fills';
+            trace.hovertemplate = '%{x} | %{y}';
+        });
+
+        fig.layout.hovermode = 'closest';
+        fig.layout.showlegend = false;
+        fig.layout.margin = {t: 0, b: 0, l: 0, r: 0};
+
+        Plotly.plot(gd, fig)
+        .then(function() { _hoverNatural(gd, 180, 200); })
+        .then(function() {
+            assertHoverLabelContent({
+                nums: 'trace 1',
+                name: ''
+            }, 'hovering on a fill');
+        })
+        .then(function() { _hoverNatural(gd, 50, 95); })
+        .then(function() {
+            assertHoverLabelContent({
+                nums: '0 | 5',
+                name: 'trace 1'
+            }, 'hovering on a pt');
+        })
+        .catch(failTest)
+        .then(done);
+    });
+
+    it('should honor *hoverlabel.align', function(done) {
+        var gd = createGraphDiv();
+
+        function _assert(msg, exp) {
+            var tx = d3.select('g.hovertext').select('text');
+            expect(tx.attr('text-anchor')).toBe(exp.textAnchor, 'text anchor|' + msg);
+            expect(Number(tx.attr('x'))).toBeWithin(exp.posX, 3, 'x position|' + msg);
+        }
+
+        Plotly.plot(gd, [{
+            y: [1, 2, 1],
+            text: 'LONG TEXT'
+        }], {
+            xaxis: {range: [0, 2]},
+            margin: {l: 0, t: 0, b: 0, r: 0},
+            hovermode: 'closest',
+            width: 400,
+            height: 400
+        })
+        .then(function() { _hoverNatural(gd, 0, 395); })
+        .then(function() { _assert('base left pt', {textAnchor: 'start', posX: 9}); })
+        .then(function() { _hoverNatural(gd, 395, 395); })
+        .then(function() { _assert('base right pt', {textAnchor: 'end', posX: -9}); })
+        .then(function() {
+            return Plotly.relayout(gd, 'hoverlabel.align', 'left');
+        })
+        .then(function() { _hoverNatural(gd, 0, 395); })
+        .then(function() { _assert('align:left left pt', {textAnchor: 'start', posX: 9}); })
+        .then(function() { _hoverNatural(gd, 395, 395); })
+        .then(function() { _assert('align:left right pt', {textAnchor: 'start', posX: -84.73}); })
+        .then(function() {
+            return Plotly.restyle(gd, 'hoverlabel.align', 'right');
+        })
+        .then(function() { _hoverNatural(gd, 0, 395); })
+        .then(function() { _assert('align:right left pt', {textAnchor: 'end', posX: 84.73}); })
+        .then(function() { _hoverNatural(gd, 395, 395); })
+        .then(function() { _assert('align:right right pt', {textAnchor: 'end', posX: -9}); })
+        .then(function() {
+            return Plotly.restyle(gd, 'hoverlabel.align', [['right', 'auto', 'left']]);
+        })
+        .then(function() { _hoverNatural(gd, 0, 395); })
+        .then(function() { _assert('arrayOk align:right left pt', {textAnchor: 'end', posX: 84.73}); })
+        .then(function() { _hoverNatural(gd, 395, 395); })
+        .then(function() { _assert('arrayOk align:left right pt', {textAnchor: 'start', posX: -84.73}); })
+        .catch(failTest)
+        .then(done);
+    });
+
+    it('should honor *hoverlabel.align (centered label case)', function(done) {
+        var gd = createGraphDiv();
+
+        function _assert(msg, exp) {
+            var tx = d3.select('g.hovertext').select('text.nums');
+            expect(tx.attr('text-anchor')).toBe(exp.textAnchor, 'text anchor|' + msg);
+            expect(Number(tx.attr('x'))).toBeWithin(exp.posX, 3, 'x position|' + msg);
+            delete gd._hoverdata;
+        }
+
+        Plotly.plot(gd, [{
+            x: ['giraffes'],
+            y: [5],
+            name: 'LA Zoo',
+            type: 'bar',
+            text: ['Way tooooo long hover info!'],
+            hoverinfo: 'all'
+        }], {
+            margin: {l: 0, t: 0, b: 0, r: 0},
+            hovermode: 'closest',
+            width: 400,
+            height: 400
+        })
+        .then(function() { _hoverNatural(gd, 200, 200); })
+        .then(function() { _assert('base', {textAnchor: 'middle', posX: -24.3}); })
+        .then(function() {
+            return Plotly.relayout(gd, 'hoverlabel.align', 'left');
+        })
+        .then(function() { _hoverNatural(gd, 200, 200); })
+        .then(function() { _assert('align:left', {textAnchor: 'start', posX: -105.7}); })
+        .then(function() {
+            return Plotly.restyle(gd, 'hoverlabel.align', 'right');
+        })
+        .then(function() { _hoverNatural(gd, 200, 200); })
+        .then(function() { _assert('align:right', {textAnchor: 'end', posX: 57}); })
+        .catch(failTest)
+        .then(done);
     });
 });
 
@@ -1684,7 +2210,6 @@ describe('hover info on overlaid subplots', function() {
 });
 
 describe('hover after resizing', function() {
-
     var gd;
     afterEach(destroyGraphDiv);
 
@@ -1873,6 +2398,92 @@ describe('hover on fill', function() {
     });
 });
 
+describe('Hover on multicategory axes', function() {
+    var gd;
+    var eventData;
+
+    beforeEach(function() {
+        gd = createGraphDiv();
+    });
+
+    afterEach(destroyGraphDiv);
+
+    function _hover(x, y) {
+        delete gd._hoverdata;
+        Lib.clearThrottle();
+        mouseEvent('mousemove', x, y);
+    }
+
+    it('should work for bar traces', function(done) {
+        Plotly.plot(gd, [{
+            type: 'bar',
+            x: [['2018', '2018', '2019', '2019'], ['a', 'b', 'a', 'b']],
+            y: [1, 2, -1, 3]
+        }], {
+            bargap: 0,
+            width: 400,
+            height: 400
+        })
+        .then(function() {
+            gd.on('plotly_hover', function(d) {
+                eventData = d.points[0];
+            });
+        })
+        .then(function() { _hover(200, 200); })
+        .then(function() {
+            assertHoverLabelContent({ nums: '−1', axis: '2019 - a' });
+            expect(eventData.x).toEqual(['2019', 'a']);
+        })
+        .then(function() {
+            return Plotly.update(gd,
+                {hovertemplate: 'Sample: %{x[1]}<br>Year: %{x[0]}<extra></extra>'},
+                {hovermode: 'closest'}
+            );
+        })
+        .then(function() { _hover(140, 200); })
+        .then(function() {
+            assertHoverLabelContent({ nums: 'Sample: b\nYear: 2018' });
+            expect(eventData.x).toEqual(['2018', 'b']);
+        })
+        .catch(failTest)
+        .then(done);
+    });
+
+    it('should work on heatmap traces', function(done) {
+        var fig = Lib.extendDeep({}, require('@mocks/heatmap_multicategory.json'));
+        fig.data = [fig.data[0]];
+        fig.layout.width = 500;
+        fig.layout.height = 500;
+
+        Plotly.plot(gd, fig)
+        .then(function() {
+            gd.on('plotly_hover', function(d) {
+                eventData = d.points[0];
+            });
+        })
+        .then(function() { _hover(200, 200); })
+        .then(function() {
+            assertHoverLabelContent({
+                nums: 'x: 2017 - q3\ny: Group 3 - A\nz: 2.303'
+            });
+            expect(eventData.x).toEqual(['2017', 'q3']);
+        })
+        .then(function() {
+            return Plotly.restyle(gd, 'hovertemplate', '%{z} @ %{x} | %{y}');
+        })
+        .then(function() { _hover(200, 200); })
+        .then(function() {
+            assertHoverLabelContent({
+                nums: '2.303 @ 2017 - q3 | Group 3 - A',
+                name: 'w/ 2d z'
+            });
+            expect(eventData.x).toEqual(['2017', 'q3']);
+        })
+        .catch(failTest)
+        .then(done);
+    });
+});
+
 describe('hover updates', function() {
     'use strict';
 
@@ -1967,9 +2578,8 @@ describe('hover updates', function() {
                 size: 16,
                 color: colors0.slice()
             }
-        }])
+        }], { width: 700, height: 450 })
         .then(function() {
-
             gd.on('plotly_hover', function(eventData) {
                 hoverCnt++;
 
@@ -1996,7 +2606,6 @@ describe('hover updates', function() {
             expect(unHoverCnt).toEqual(2);
         })
         .then(done);
-
     });
 });
 
@@ -2692,6 +3301,36 @@ describe('hovermode defaults to', function() {
     });
 });
 
+describe('hover labels z-position', function() {
+    var gd;
+
+    beforeEach(function() {
+        gd = createGraphDiv();
+    });
+
+    afterEach(destroyGraphDiv);
+    var mock = require('@mocks/14.json');
+
+    it('is above the modebar', function(done) {
+        Plotly.plot(gd, mock).then(function() {
+            var infolayer = document.getElementsByClassName('infolayer');
+            var modebar = document.getElementsByClassName('modebar-container');
+            var hoverlayer = document.getElementsByClassName('hoverlayer');
+
+            expect(infolayer.length).toBe(1);
+            expect(modebar.length).toBe(1);
+            expect(hoverlayer.length).toBe(1);
+
+            var compareMask = infolayer[0].compareDocumentPosition(modebar[0]);
+            expect(compareMask).toBe(Node.DOCUMENT_POSITION_FOLLOWING, '.modebar-container appears after the .infolayer');
+
+            compareMask = modebar[0].compareDocumentPosition(hoverlayer[0]);
+            expect(compareMask).toBe(Node.DOCUMENT_POSITION_FOLLOWING, '.hoverlayer appears after the .modebar');
+        })
+        .catch(failTest)
+        .then(done);
+    });
+});
 
 describe('touch devices', function() {
     afterEach(destroyGraphDiv);
@@ -2729,5 +3368,33 @@ describe('touch devices', function() {
                     .then(done);
             });
         });
+    });
+});
+
+describe('dragmode: false', function() {
+    var data = [{x: [1, 2, 3], y: [1, 3, 2], type: 'bar'}];
+    var layout = {width: 600, height: 400, dragmode: false};
+    var gd;
+
+    beforeEach(function(done) {
+        gd = createGraphDiv();
+        Plotly.plot(gd, data, layout).then(done);
+    });
+    afterEach(destroyGraphDiv);
+
+    it('should emit hover events on mousemove', function(done) {
+        var hoverHandler = jasmine.createSpy('hover');
+        gd.on('plotly_hover', hoverHandler);
+        Promise.resolve()
+            .then(function() {
+                mouseEvent('mousemove', 105, 300);
+                mouseEvent('mousemove', 108, 303);
+            })
+            .then(delay(HOVERMINTIME * 1.1))
+            .then(function() {
+                expect(hoverHandler).toHaveBeenCalled();
+            })
+            .catch(failTest)
+            .then(done);
     });
 });
