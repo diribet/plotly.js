@@ -566,7 +566,9 @@ function _hover(gd, evt, subplot, noHoverEvent) {
             spikeDistance: point.spikeDistance,
             curveNumber: point.trace.index,
             color: point.color,
-            pointNumber: point.index
+            pointNumber: point.index,
+            xLabelVal: point.xLabelVal,
+            yLabelVal: point.yLabelVal
         };
     }
 
@@ -1481,6 +1483,20 @@ function createSpikelines(closestPoints, opts) {
                 })
                 .classed('spikeline', true);
         }
+
+        // Y axis label
+        if(yMode.indexOf('label') !== -1) {
+            var ySpikelineLabelOpts = {
+                container: container,
+                outerContainer: opts.outerContainer,
+                labelOpts: fullLayout.hoverlabel,
+                point: hLinePoint,
+                label: hLinePoint.yLabelVal,
+                color: yColor,
+                axis: "y"
+            };
+            createSpikelineLabel(ySpikelineLabelOpts);
+        }
     }
 
     if(showX) {
@@ -1556,9 +1572,107 @@ function createSpikelines(closestPoints, opts) {
                 })
                 .classed('spikeline', true);
         }
+
+        // X axis label
+        if(xMode.indexOf('label') !== -1) {
+            var xSpikelineLabelOpts = {
+                container: container,
+                outerContainer: opts.outerContainer,
+                labelOpts: fullLayout.hoverlabel,
+                point: hLinePoint,
+                label: hLinePoint.xLabelVal,
+                color: xColor,
+                axis: "x"
+            };
+            createSpikelineLabel(xSpikelineLabelOpts);
+        }
     }
 }
 
+function createSpikelineLabel(opts) {
+    var outerContainer = opts.outerContainer;
+
+    var outerContainerBB = outerContainer.node().getBoundingClientRect();
+    var outerTop = outerContainerBB.top;
+
+    var xa = opts.point.xa;
+    var ya = opts.point.ya;
+
+    var spikeLabelClass = 'spikelabel' + opts.axis;
+    var spikeLabel = opts.container.selectAll('g.' + spikeLabelClass)
+        .data([0]);
+    spikeLabel.enter().append('g')
+        .classed(spikeLabelClass, true);
+    spikeLabel.exit().remove();
+
+    spikeLabel.each(function() {
+        var label = d3.select(this);
+        var lpath = Lib.ensureSingle(label, 'path', '', function(s) {
+            s.style({'stroke-width': '1px'});
+        });
+        var ltext = Lib.ensureSingle(label, 'text', '', function(s) {
+            // prohibit tex interpretation until we can handle
+            // tex and regular text together
+            s.attr('data-notex', 1);
+        });
+
+        var contrastColor = Color.contrast(opts.color);
+
+        lpath.style({
+            fill: opts.color,
+            stroke: contrastColor
+        });
+
+        ltext.text(opts.label)
+            .call(Drawing.font,
+                opts.labelOpts.font.family || constants.HOVERFONT,
+                opts.labelOpts.font.size || constants.HOVERFONTSIZE,
+                opts.labelOpts.font.color || contrastColor
+             )
+            .call(svgTextUtils.positionText, 0, 0)
+            .call(svgTextUtils.convertToTspans, gd);
+
+        label.attr('transform', '');
+
+        var tbb = ltext.node().getBoundingClientRect();
+        if(opts.axis === 'x') {
+            ltext.attr('text-anchor', 'middle')
+                .call(svgTextUtils.positionText, 0, (xa.side === 'top' ?
+                    (outerTop - tbb.bottom - HOVERARROWSIZE - HOVERTEXTPAD) :
+                    (outerTop - tbb.top + HOVERARROWSIZE + HOVERTEXTPAD)));
+
+            var topsign = xa.side === 'top' ? '-' : '';
+            lpath.attr('d', 'M0,0' +
+                'L' + HOVERARROWSIZE + ',' + topsign + HOVERARROWSIZE +
+                'H' + (HOVERTEXTPAD + tbb.width / 2) +
+                'v' + topsign + (HOVERTEXTPAD * 2 + tbb.height) +
+                'H-' + (HOVERTEXTPAD + tbb.width / 2) +
+                'V' + topsign + HOVERARROWSIZE + 'H-' + HOVERARROWSIZE + 'Z');
+
+            label.attr('transform', 'translate(' +
+                (xa._offset + opts.point.x) + ',' +
+                (ya._offset + (xa.side === 'top' ? 0 : ya._length)) + ')');
+        } else {
+            ltext.attr('text-anchor', ya.side === 'right' ? 'start' : 'end')
+                .call(svgTextUtils.positionText,
+                    (ya.side === 'right' ? 1 : -1) * (HOVERTEXTPAD + HOVERARROWSIZE),
+                    outerTop - tbb.top - tbb.height / 2);
+
+            var leftsign = ya.side === 'right' ? '' : '-';
+            lpath.attr('d', 'M0,0' +
+                'L' + leftsign + HOVERARROWSIZE + ',' + HOVERARROWSIZE +
+                'V' + (HOVERTEXTPAD + tbb.height / 2) +
+                'h' + leftsign + (HOVERTEXTPAD * 2 + tbb.width) +
+                'V-' + (HOVERTEXTPAD + tbb.height / 2) +
+                'H' + leftsign + HOVERARROWSIZE + 'V-' + HOVERARROWSIZE + 'Z');
+
+            label.attr('transform', 'translate(' +
+                (xa._offset + (ya.side === 'right' ? xa._length : 0)) + ',' +
+                (ya._offset + opts.point.y) + ')');
+        }
+    });
+
+}
 function hoverChanged(gd, evt, oldhoverdata) {
     // don't emit any events if nothing changed
     if(!oldhoverdata || oldhoverdata.length !== gd._hoverdata.length) return true;

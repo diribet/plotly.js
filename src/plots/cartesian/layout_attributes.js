@@ -433,7 +433,7 @@ module.exports = {
     spikedash: extendFlat({}, dash, {dflt: 'dash', editType: 'none'}),
     spikemode: {
         valType: 'flaglist',
-        flags: ['toaxis', 'across', 'marker'],
+        flags: ['toaxis', 'across', 'marker', 'label'],
         role: 'style',
         dflt: 'toaxis',
         editType: 'none',
@@ -446,7 +446,10 @@ module.exports = {
             'supercedes *toaxis*.',
 
             'If *marker*, then a marker dot is drawn on the axis the series is',
-            'plotted on'
+            'plotted on',
+
+            'If *label*, then a label with value is drawn on the axis the series is',
+            'plotted on. Note that this is a functionality implemented by Diribet.'
         ].join(' ')
     },
     spikesnap: {
