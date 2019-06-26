@@ -576,7 +576,8 @@ function _hover(gd, evt, subplot, noHoverEvent) {
         fullLayout: fullLayout,
         container: fullLayout._hoverlayer,
         outerContainer: fullLayout._paperdiv,
-        event: evt
+        event: evt,
+        gd: gd
     };
     var oldspikepoints = gd._spikepoints;
     var newspikepoints = {
@@ -1489,6 +1490,7 @@ function createSpikelines(closestPoints, opts) {
             var ySpikelineLabelOpts = {
                 container: container,
                 outerContainer: opts.outerContainer,
+                gd: opts.gd,
                 labelOpts: fullLayout.hoverlabel,
                 point: hLinePoint,
                 label: hLinePoint.yLabelVal,
@@ -1578,6 +1580,7 @@ function createSpikelines(closestPoints, opts) {
             var xSpikelineLabelOpts = {
                 container: container,
                 outerContainer: opts.outerContainer,
+                gd: opts.gd,
                 labelOpts: fullLayout.hoverlabel,
                 point: hLinePoint,
                 label: hLinePoint.xLabelVal,
@@ -1630,7 +1633,7 @@ function createSpikelineLabel(opts) {
                 opts.labelOpts.font.color || contrastColor
              )
             .call(svgTextUtils.positionText, 0, 0)
-            .call(svgTextUtils.convertToTspans, gd);
+            .call(svgTextUtils.convertToTspans, opts.gd);
 
         label.attr('transform', '');
 
