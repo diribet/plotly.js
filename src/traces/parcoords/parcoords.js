@@ -450,7 +450,11 @@ module.exports = function(root, svg, parcoordsLineLayers, styledData, layout, ca
 
     yAxis.enter()
         .append('g')
-        .classed(c.cn.yAxis, true);
+        .classed(c.cn.yAxis, true)
+        .on('click', (eventData) => {
+            callbacks.plotly_click(eventData);
+            // yAxis je DOM element, ale eventData jsou yAxis.__data__
+        });
 
     parcoordsControlView.each(function(vm) {
         updatePanelLayout(yAxis, vm);

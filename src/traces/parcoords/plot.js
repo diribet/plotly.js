@@ -80,6 +80,10 @@ module.exports = function plot(gd, cdparcoords) {
         gd.emit('plotly_unhover', eventData);
     };
 
+    var plotly_click = function (eventData) {
+        gd.emit('plotly_click', eventData);
+    };
+
     var axesMoved = function(i, visibleIndices) {
         // Have updated order data on `gd.data` and raise `Plotly.restyle` event
         // without having to incur heavy UI blocking due to an actual `Plotly.restyle` call
@@ -152,6 +156,7 @@ module.exports = function plot(gd, cdparcoords) {
             filterChanged: filterChanged,
             hover: hover,
             unhover: unhover,
-            axesMoved: axesMoved
+            axesMoved: axesMoved,
+            plotly_click: plotly_click
         });
 };
