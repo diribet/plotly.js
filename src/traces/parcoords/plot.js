@@ -150,7 +150,8 @@ module.exports = function plot(gd, cdparcoords) {
                 r: size.r,
                 b: size.b,
                 l: size.l
-            }
+            },
+            showProbabilityDensity: 'always'
         },
         {
             filterChanged: filterChanged,
