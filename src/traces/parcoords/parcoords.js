@@ -24,6 +24,15 @@ var c = require('./constants');
 var brush = require('./axisbrush');
 var lineLayerMaker = require('./lines');
 
+function linspace(startValue, stopValue, cardinality) {
+  var arr = [];
+  var step = (stopValue - startValue) / (cardinality - 1);
+  for (var i = 0; i < cardinality; i++) {
+    arr.push(startValue + (step * i));
+  }
+  return arr;
+}
+
 function visible(dimension) { return !('visible' in dimension) || dimension.visible; }
 
 function dimensionExtent(dimension) {
@@ -266,7 +275,7 @@ function viewModel(state, callbacks, model) {
             }
         } else tickvals = undefined;
 
-        return {
+        var returnObj = {
             key: key,
             label: dimension.label,
             tickFormat: dimension.tickformat,
@@ -314,6 +323,8 @@ function viewModel(state, callbacks, model) {
                 }
             )
         };
+        model.dimensions[i]._input.hoverindex ? returnObj.hover = true : null;
+        return returnObj
     });
 
     return viewModel;
@@ -455,6 +466,118 @@ module.exports = function(root, svg, parcoordsLineLayers, styledData, layout, ca
             callbacks.plotly_click(eventData);
             // yAxis je DOM element, ale eventData jsou yAxis.__data__
         });
+
+
+
+    // draw probability density
+    let hoverEnterCallback = function() {
+        parcoordsSetHoverIndex.call(this, true);
+    }
+    let hoverLeaveCallback = function() {
+        parcoordsSetHoverIndex.call(this, null);
+    }
+
+    var parcoordsSetHoverIndex = function (setIndex){
+        let hoveredAxisIndex = this.__data__.visibleIndex;
+        gd.data[0].dimensions[hoveredAxisIndex].hoverindex = setIndex;
+        Plotly.redraw(gd);
+    }
+
+    if (layout.showProbabilityDensity != 'never') {
+        var showDensityOnHover = layout.showProbabilityDensity === 'hover';
+
+        var densityGroupJoin = yAxis.selectAll('g.density')
+            .data(function (d) {
+                if (showDensityOnHover && !d.hover) {
+                    return [];
+                } else {
+                    return [d];
+                }
+            });
+
+        var densityGroup = densityGroupJoin.enter()
+            .append('g')
+            .classed('density', true);
+
+        var densityPaths = densityGroup.selectAll('path.density-path')
+            .data(function(d){
+                return [d];
+            })
+            .enter()
+            .append('path')
+            .classed('density-path', true);
+
+        densityPaths.each(function (data, index) {
+            var values = data.values,
+                bins = 10;
+            values = d3.layout.histogram().bins(bins)(values).map(vals => vals.length);
+
+            // normalize to max value of 1
+            var max = d3.max(values);
+            var scale = d3.scale.linear().domain([0, max]).range([0, 1]);
+            values = values.map(val => scale(val));
+
+            var axisValues = linspace(0, 1, bins),
+                axisScaleFactor = data.model.canvasHeight,
+                valuesScaleFactor = data.model.canvasWidth / data.model.colCount * bins * 0.05;
+
+            var outerArray = new Array(bins);
+            for (let i = 0; i < outerArray.length; i++) {
+                outerArray[i] = [values[i] * valuesScaleFactor, axisValues[i] * axisScaleFactor];
+            }
+            d3.select(this)
+                .attr('d', Drawing.smoothopen(outerArray, 1))
+                .attr('fill', 'none')
+                .attr('stroke', 'rgba(81,85,252,0.5)')
+                .attr('stroke-width', '2px');
+        });
+
+            /*
+            if (layout.showProbabilityDensity === 'always') {
+            var values = styledData[0][0].trace.dimensions.map(x => x.values);
+            var noOfBins = 15;
+            var realDensityData = values.map(vals => d3.layout.histogram().bins(noOfBins)(vals));
+            var densityPoints = realDensityData.map(function (x) {
+                return x.map(xx => xx.y);
+            });
+            // var densityPoints = [styledData[0][0].trace.dimensions[0]._input.densityPoints, styledData[0][0].trace.dimensions[1]._input.densityPoints];
+
+            // normalize density points
+            var sum = 0;
+            realDensityData[0].map((x) => {sum += x.length});
+            // normalize
+            densityPoints = densityPoints.map(x => x.map(a => a/sum));
+
+            // Map the x and y points data to the "densitySvg" class element inside "y-axis" class element
+            var axesCount = vm[0].model.colCount,
+                arrayOfDensities = new Array(axesCount),
+                yMagnifyingFactor = vm[0].dimensions[0].model.canvasHeight,
+                panelWidth = vm[0].dimensions[0].model.canvasWidth / vm[0].dimensions[0].model.colCount,
+                xMagnifyingFactor = panelWidth * noOfBins * 0.05,
+                y_vals = linspace(0, 1, densityPoints[0].length);
+            for (let j = 0; j < axesCount; j++) {
+                let densityArray = new Array(y_vals.length);
+                densityPoints[j].map(function (x_value, index) {
+                    densityArray[index] = [x_value * xMagnifyingFactor, y_vals[index] * yMagnifyingFactor];
+                });
+                arrayOfDensities[j] = densityArray;
+            }
+             */
+
+        densityGroupJoin.exit()
+            .remove();
+
+        if (showDensityOnHover === true) {
+            yAxis.on('mouseover', function(datum,index,currentThis) {
+                hoverEnterCallback.call(this);
+            });
+            yAxis.on('mouseout', function(datum, index, currentThis) {
+                hoverLeaveCallback.call(this);
+            });
+        }
+    }
+
+
 
     parcoordsControlView.each(function(vm) {
         updatePanelLayout(yAxis, vm);
