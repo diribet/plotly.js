@@ -323,7 +323,7 @@ function viewModel(state, callbacks, model) {
                 }
             )
         };
-        model.dimensions[i]._input.hoverindex ? returnObj.hover = true : null;
+        model.dimensions[i]._input.hover ? returnObj.hover = true : null;
         return returnObj
     });
 
@@ -462,10 +462,10 @@ module.exports = function(root, svg, parcoordsLineLayers, styledData, layout, ca
     yAxis.enter()
         .append('g')
         .classed(c.cn.yAxis, true)
-        .on('click', (eventData) => {
+        /*.on('click', (eventData) => {
             callbacks.plotly_click(eventData);
             // yAxis je DOM element, ale eventData jsou yAxis.__data__
-        });
+        })*/;
 
 
 
@@ -478,8 +478,11 @@ module.exports = function(root, svg, parcoordsLineLayers, styledData, layout, ca
     }
 
     var parcoordsSetHoverIndex = function (setIndex){
+        // FIXME: Define GD which works in mocks but not with chystat
         let hoveredAxisIndex = this.__data__.visibleIndex;
-        gd.data[0].dimensions[hoveredAxisIndex].hoverindex = setIndex;
+        // axis can save its prior state of hover == true, because the value wasnt reset
+        gd.data[0].dimensions = gd.data[0].dimensions.map((item) => {item.hover = null; return item});
+        gd.data[0].dimensions[hoveredAxisIndex].hover = setIndex;
         Plotly.redraw(gd);
     }
 
@@ -532,52 +535,25 @@ module.exports = function(root, svg, parcoordsLineLayers, styledData, layout, ca
                 .attr('stroke-width', '2px');
         });
 
-            /*
-            if (layout.showProbabilityDensity === 'always') {
-            var values = styledData[0][0].trace.dimensions.map(x => x.values);
-            var noOfBins = 15;
-            var realDensityData = values.map(vals => d3.layout.histogram().bins(noOfBins)(vals));
-            var densityPoints = realDensityData.map(function (x) {
-                return x.map(xx => xx.y);
-            });
-            // var densityPoints = [styledData[0][0].trace.dimensions[0]._input.densityPoints, styledData[0][0].trace.dimensions[1]._input.densityPoints];
-
-            // normalize density points
-            var sum = 0;
-            realDensityData[0].map((x) => {sum += x.length});
-            // normalize
-            densityPoints = densityPoints.map(x => x.map(a => a/sum));
-
-            // Map the x and y points data to the "densitySvg" class element inside "y-axis" class element
-            var axesCount = vm[0].model.colCount,
-                arrayOfDensities = new Array(axesCount),
-                yMagnifyingFactor = vm[0].dimensions[0].model.canvasHeight,
-                panelWidth = vm[0].dimensions[0].model.canvasWidth / vm[0].dimensions[0].model.colCount,
-                xMagnifyingFactor = panelWidth * noOfBins * 0.05,
-                y_vals = linspace(0, 1, densityPoints[0].length);
-            for (let j = 0; j < axesCount; j++) {
-                let densityArray = new Array(y_vals.length);
-                densityPoints[j].map(function (x_value, index) {
-                    densityArray[index] = [x_value * xMagnifyingFactor, y_vals[index] * yMagnifyingFactor];
-                });
-                arrayOfDensities[j] = densityArray;
-            }
-             */
-
         densityGroupJoin.exit()
             .remove();
 
         if (showDensityOnHover === true) {
-            yAxis.on('mouseover', function(datum,index,currentThis) {
-                hoverEnterCallback.call(this);
+            yAxis.on('mouseover', function(/*datum, index, currentThis*/) {
+                //if axis is not dragged at the moment
+                if (!this.__data__.prohibitDrawingDensity) {
+                    hoverEnterCallback.call(this);
+                }
             });
-            yAxis.on('mouseout', function(datum, index, currentThis) {
-                hoverLeaveCallback.call(this);
+            yAxis.on('mouseout', function(/*datum, index, currentThis*/) {
+                if (!this.__data__.prohibitDrawingDensity) {
+                    hoverLeaveCallback.call(this);
+                }
             });
         }
+    } else {
+        d3.selectAll('.density').remove();
     }
-
-
 
     parcoordsControlView.each(function(vm) {
         updatePanelLayout(yAxis, vm);
@@ -607,6 +583,12 @@ module.exports = function(root, svg, parcoordsLineLayers, styledData, layout, ca
     yAxis.call(d3.behavior.drag()
         .origin(function(d) { return d; })
         .on('drag', function(d) {
+            //add dragged property to axis
+            d3.selectAll('.' + c.cn.yAxis).each(function() {
+                d3.select(this).node().__data__.prohibitDrawingDensity = true;
+            });
+            d3.selectAll('.density').remove();
+
             var p = d.parent;
             state.linePickActive(false);
             d.x = Math.max(-c.overdrag, Math.min(d.model.width + c.overdrag, d3.event.x));
@@ -643,6 +625,13 @@ module.exports = function(root, svg, parcoordsLineLayers, styledData, layout, ca
             if(callbacks && callbacks.axesMoved) {
                 callbacks.axesMoved(p.key, p.dimensions.map(function(dd) {return dd.crossfilterDimensionIndex;}));
             }
+
+            // remove dragged property when dragging ends
+            d3.selectAll('.' + c.cn.yAxis).each(function(datum, index) {
+                // d3.select(this).node().__data__.prohibitDrawingDensity = null;
+                gd.data[0].dimensions[index].hover = null;
+            });
+            Plotly.redraw(gd);
         })
     );
 

@@ -228,6 +228,10 @@ function attachDragBehavior(selection) {
         })
         .call(d3.behavior.drag()
             .on('dragstart', function(d) {
+                d3.selectAll('.' + c.cn.yAxis).each(function() {
+                    d3.select(this).node().__data__.prohibitDrawingDensity = true;
+                });
+
                 d3.event.sourceEvent.stopPropagation();
                 var y = d.height - d3.mouse(this)[1] - 2 * c.verticalPadding;
                 var unitLocation = d.unitToPaddedPx.invert(y);
@@ -284,6 +288,10 @@ function attachDragBehavior(selection) {
                 renderHighlight(this.parentNode);
             })
             .on('dragend', function(d) {
+                d3.selectAll('.' + c.cn.yAxis).each(function() {
+                    d3.select(this).node().__data__.prohibitDrawingDensity = false;
+                });
+
                 var e = d3.event;
                 e.sourceEvent.stopPropagation();
                 var brush = d.brush;

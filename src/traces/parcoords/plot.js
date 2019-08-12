@@ -12,6 +12,8 @@ var parcoords = require('./parcoords');
 var prepareRegl = require('../../lib/prepare_regl');
 
 module.exports = function plot(gd, cdparcoords) {
+    var probabilityDensityMode = gd.layout.showProbabilityDensity ? gd.layout.showProbabilityDensity : 'never';
+
     var fullLayout = gd._fullLayout;
     var svg = fullLayout._toppaper;
     var root = fullLayout._paperdiv;
@@ -151,7 +153,7 @@ module.exports = function plot(gd, cdparcoords) {
                 b: size.b,
                 l: size.l
             },
-            showProbabilityDensity: 'hover'
+            showProbabilityDensity: probabilityDensityMode
         },
         {
             filterChanged: filterChanged,
