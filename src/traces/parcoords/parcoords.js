@@ -347,7 +347,7 @@ function parcoordsInteractionState() {
     };
 }
 
-module.exports = function(root, svg, parcoordsLineLayers, styledData, layout, callbacks) {
+module.exports = function(gd, root, svg, parcoordsLineLayers, styledData, layout, callbacks) {
     var state = parcoordsInteractionState();
 
     var vm = styledData
@@ -548,30 +548,6 @@ module.exports = function(root, svg, parcoordsLineLayers, styledData, layout, ca
                 pathIndex === 1 ? d3.select(this).attr('transform', 'scale(-1,1)') : null;
             });
         });
-        /*densityPathsRight.each(function (data, index) {
-            var values = data.values,
-                bins = 10;
-            values = d3.layout.histogram().bins(bins)(values).map(vals => vals.length);
-
-            // normalize to max value of 1
-            var max = d3.max(values);
-            var scale = d3.scale.linear().domain([0, max]).range([0, 1]);
-            values = values.map(val => scale(val));
-
-            var axisValues = linspace(0, 1, bins),
-                axisScaleFactor = data.model.canvasHeight,
-                valuesScaleFactor = data.model.canvasWidth / data.model.colCount * bins * 0.05;
-
-            var outerArray = new Array(bins);
-            for (let i = 0; i < outerArray.length; i++) {
-                outerArray[i] = [values[i] * valuesScaleFactor, axisValues[i] * axisScaleFactor];
-            }
-            d3.select(this)
-                .attr('d', Drawing.smoothopen(outerArray, 1))
-                .attr('fill', 'none')
-                .attr('stroke', 'rgba(81,85,252,0.5)')
-                .attr('stroke-width', '2px');
-        });*/
 
         densityGroupJoin.exit()
             .remove();
