@@ -462,10 +462,10 @@ module.exports = function(root, svg, parcoordsLineLayers, styledData, layout, ca
     yAxis.enter()
         .append('g')
         .classed(c.cn.yAxis, true)
-        /*.on('click', (eventData) => {
+        .on('click', (eventData) => {
             callbacks.plotly_click(eventData);
             // yAxis je DOM element, ale eventData jsou yAxis.__data__
-        })*/;
+        });
 
 
 
@@ -502,15 +502,53 @@ module.exports = function(root, svg, parcoordsLineLayers, styledData, layout, ca
             .append('g')
             .classed('density', true);
 
-        var densityPaths = densityGroup.selectAll('path.density-path')
+        var densityPathsRight = densityGroup.selectAll('path.density-path-right')
             .data(function(d){
                 return [d];
             })
             .enter()
             .append('path')
-            .classed('density-path', true);
+            .classed('density-path-right', true);
 
-        densityPaths.each(function (data, index) {
+        var densityPathsLeft = densityGroup.selectAll('path.density-path-left')
+            .data(function(d){
+                return [d];
+            })
+            .enter()
+            .append('path')
+            .classed('density-path-left', true);
+
+        var densityPaths = [densityPathsRight, densityPathsLeft];
+        densityPaths.forEach(function(path, pathIndex){
+            path.each(function (data, index) {
+                var values = data.values,
+                    bins = 10;
+                values = d3.layout.histogram().bins(bins)(values).map(vals => vals.length);
+
+                // normalize to max value of 1
+                var max = d3.max(values);
+                var scale = d3.scale.linear().domain([0, max]).range([0, 1]);
+                values = values.map(val => scale(val));
+
+                var axisValues = linspace(0, 1, bins),
+                    axisScaleFactor = data.model.canvasHeight,
+                    valuesScaleFactor = data.model.canvasWidth / data.model.colCount * bins * 0.05;
+
+                var outerArray = new Array(bins);
+                for (let i = 0; i < outerArray.length; i++) {
+                    outerArray[i] = [values[i] * valuesScaleFactor, axisValues[i] * axisScaleFactor];
+                }
+                d3.select(this)
+                    .attr('d', Drawing.smoothopen(outerArray, 1))
+                    .attr('fill', 'none')
+                    .attr('stroke', 'rgba(81,85,252,0.5)')
+                    .attr('stroke-width', '2px');
+
+                // mirror left path
+                pathIndex === 1 ? d3.select(this).attr('transform', 'scale(-1,1)') : null;
+            });
+        });
+        /*densityPathsRight.each(function (data, index) {
             var values = data.values,
                 bins = 10;
             values = d3.layout.histogram().bins(bins)(values).map(vals => vals.length);
@@ -533,7 +571,7 @@ module.exports = function(root, svg, parcoordsLineLayers, styledData, layout, ca
                 .attr('fill', 'none')
                 .attr('stroke', 'rgba(81,85,252,0.5)')
                 .attr('stroke-width', '2px');
-        });
+        });*/
 
         densityGroupJoin.exit()
             .remove();
