@@ -462,12 +462,14 @@ module.exports = function(gd, root, svg, parcoordsLineLayers, styledData, layout
     yAxis.enter()
         .append('g')
         .classed(c.cn.yAxis, true)
+        .style('pointer-events', 'auto')
         .on('click', (eventData) => {
             callbacks.plotly_click(eventData);
             // yAxis je DOM element, ale eventData jsou yAxis.__data__
         });
-
-
+        // FIXME: porad jsou tam mezery mezi g elementy,
+        //  ale pokud bychom tam vlozili velky pruhledny element k emitovani eventu,
+        //  sirka bude zavisla na nadpisu
 
     // draw probability density
     let hoverEnterCallback = function() {
@@ -478,7 +480,6 @@ module.exports = function(gd, root, svg, parcoordsLineLayers, styledData, layout
     }
 
     var parcoordsSetHoverIndex = function (setIndex){
-        // FIXME: Define GD which works in mocks but not with chystat
         let hoveredAxisIndex = this.__data__.visibleIndex;
         // axis can save its prior state of hover == true, because the value wasnt reset
         gd.data[0].dimensions = gd.data[0].dimensions.map((item) => {item.hover = null; return item});
@@ -560,6 +561,7 @@ module.exports = function(gd, root, svg, parcoordsLineLayers, styledData, layout
                 }
             });
             yAxis.on('mouseout', function(/*datum, index, currentThis*/) {
+                //if axis is not dragged at the moment
                 if (!this.__data__.prohibitDrawingDensity) {
                     hoverLeaveCallback.call(this);
                 }
