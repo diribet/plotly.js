@@ -462,7 +462,7 @@ module.exports = function(gd, root, svg, parcoordsLineLayers, styledData, layout
     yAxis.enter()
         .append('g')
         .classed(c.cn.yAxis, true)
-        .style('pointer-events', 'auto')
+        .style('pointer-events', 'none')
         .on('click', (eventData) => {
             callbacks.plotly_click(eventData);
             // yAxis je DOM element, ale eventData jsou yAxis.__data__
@@ -480,7 +480,7 @@ module.exports = function(gd, root, svg, parcoordsLineLayers, styledData, layout
     }
 
     var parcoordsSetHoverIndex = function (setIndex){
-        let hoveredAxisIndex = this.__data__.visibleIndex;
+        let hoveredAxisIndex = this.__data__.xIndex //xIndex reflects hidden axes, visibleIndex does not
         // axis can save its prior state of hover == true, because the value wasnt reset
         gd.data[0].dimensions = gd.data[0].dimensions.map((item) => {item.hover = null; return item});
         gd.data[0].dimensions[hoveredAxisIndex].hover = setIndex;
