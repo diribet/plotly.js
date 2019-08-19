@@ -324,6 +324,10 @@ function viewModel(state, callbacks, model) {
             )
         };
         model.dimensions[i]._input.hover ? returnObj.hover = true : null;
+
+        var probabilityDensity = model.dimensions[i]._input.probabilityDensity;
+        probabilityDensity ? returnObj.probabilityDensity = probabilityDensity : null;
+
         return returnObj
     });
 
@@ -481,13 +485,13 @@ module.exports = function(gd, root, svg, parcoordsLineLayers, styledData, layout
 
     var parcoordsSetHoverIndex = function (setIndex){
         let hoveredAxisIndex = this.__data__.xIndex //xIndex reflects hidden axes, visibleIndex does not
-        // axis can save its prior state of hover == true, because the value wasnt reset
+        // reset hover properties for all axes, save it only for currently hovered axis
         gd.data[0].dimensions = gd.data[0].dimensions.map((item) => {item.hover = null; return item});
         gd.data[0].dimensions[hoveredAxisIndex].hover = setIndex;
         Plotly.redraw(gd);
     }
 
-    if (layout.showProbabilityDensity != 'never') {
+    if (/*layout.showProbabilityDensity && */ layout.showProbabilityDensity != 'never') {
         var showDensityOnHover = layout.showProbabilityDensity === 'hover';
 
         var densityGroupJoin = yAxis.selectAll('g.density')
@@ -503,52 +507,47 @@ module.exports = function(gd, root, svg, parcoordsLineLayers, styledData, layout
             .append('g')
             .classed('density', true);
 
-        var densityPathsRight = densityGroup.selectAll('path.density-path-right')
-            .data(function(d){
-                return [d];
-            })
-            .enter()
-            .append('path')
-            .classed('density-path-right', true);
+        // TODO: Can't use linePoints like in boxPlot, as in parcoords, there is no plotinfo for axes, which defines c2p, properties and other
+        var densitySegments = function (d, sideFlip) {
 
-        var densityPathsLeft = densityGroup.selectAll('path.density-path-left')
-            .data(function(d){
-                return [d];
-            })
-            .enter()
-            .append('path')
-            .classed('density-path-left', true);
+            var outerArray = new Array(d.probabilityDensity.density.length),
+                scaleMax = Math.max(...d.probabilityDensity.scale),
+                densityMax = Math.max(...d.probabilityDensity.density),
+                scaleFactor = d.height / scaleMax,
+                densityFactor = d.model.canvasWidth / d.model.colCount / densityMax * 0.5;
+            for (var i = 0; i < outerArray.length; i++) {
+                var innerArray = new Array(2);
+                innerArray[0] = d.probabilityDensity.density[i] * densityFactor * sideFlip;
+                innerArray[1] = d.probabilityDensity.scale[i] * scaleFactor;
+                outerArray[i] = innerArray;
+            }
+            return outerArray;
+        };
 
-        var densityPaths = [densityPathsRight, densityPathsLeft];
-        densityPaths.forEach(function(path, pathIndex){
-            path.each(function (data, index) {
-                var values = data.values,
-                    bins = 10;
-                values = d3.layout.histogram().bins(bins)(values).map(vals => vals.length);
+        var drawDensity = function(leftSide) {
+            var sideClass = leftSide ? "left" : "right";
 
-                // normalize to max value of 1
-                var max = d3.max(values);
-                var scale = d3.scale.linear().domain([0, max]).range([0, 1]);
-                values = values.map(val => scale(val));
+            densityGroup
+                .selectAll('path.' + sideClass)
+                .data(function(d) {
+                    return [densitySegments(d, leftSide ? -1 : 1)]
+                })
+                .enter().append('path')
+                .classed('js-line ' + sideClass, true)
+                .style('vector-effect', 'non-scaling-stroke')
+                .call(Drawing.lineGroupStyle, 2, 'blue', '')
+                .each(function(d) {
+                    var smoothing = 1,
+                        path = Drawing.smoothopen(d, smoothing),
+                        xScaleFactor = 20
+                    d3.select(this)
+                        .attr('d', path)
+                        // .call(Drawing.lineGroupStyle);
+                });
+        };
 
-                var axisValues = linspace(0, 1, bins),
-                    axisScaleFactor = data.model.canvasHeight,
-                    valuesScaleFactor = data.model.canvasWidth / data.model.colCount * bins * 0.05;
-
-                var outerArray = new Array(bins);
-                for (let i = 0; i < outerArray.length; i++) {
-                    outerArray[i] = [values[i] * valuesScaleFactor, axisValues[i] * axisScaleFactor];
-                }
-                d3.select(this)
-                    .attr('d', Drawing.smoothopen(outerArray, 1))
-                    .attr('fill', 'none')
-                    .attr('stroke', 'rgba(81,85,252,0.5)')
-                    .attr('stroke-width', '2px');
-
-                // mirror left path
-                pathIndex === 1 ? d3.select(this).attr('transform', 'scale(-1,1)') : null;
-            });
-        });
+        drawDensity(true);
+        drawDensity(false);
 
         densityGroupJoin.exit()
             .remove();
