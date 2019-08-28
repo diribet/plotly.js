@@ -12,6 +12,8 @@ var parcoords = require('./parcoords');
 var prepareRegl = require('../../lib/prepare_regl');
 
 module.exports = function plot(gd, cdparcoords) {
+    var probabilityDensityMode = gd.layout.showProbabilityDensity ? gd.layout.showProbabilityDensity : 'never';
+
     var fullLayout = gd._fullLayout;
     var svg = fullLayout._toppaper;
     var root = fullLayout._paperdiv;
@@ -80,8 +82,12 @@ module.exports = function plot(gd, cdparcoords) {
         gd.emit('plotly_unhover', eventData);
     };
 
-    var plotly_click = function (eventData) {
-        gd.emit('plotly_click', eventData);
+    var plotly_axisClick = function (eventData) {
+        gd.emit('plotly_axisClick', eventData);
+    };
+
+    var plotly_curveClick = function (eventData) {
+        gd.emit('plotly_curveClick', eventData)
     };
 
     var axesMoved = function(i, visibleIndices) {
@@ -138,6 +144,7 @@ module.exports = function plot(gd, cdparcoords) {
     };
 
     parcoords(
+        gd,
         root,
         svg,
         container,
@@ -151,13 +158,14 @@ module.exports = function plot(gd, cdparcoords) {
                 b: size.b,
                 l: size.l
             },
-            showProbabilityDensity: 'always'
+            showProbabilityDensity: probabilityDensityMode
         },
         {
             filterChanged: filterChanged,
             hover: hover,
             unhover: unhover,
             axesMoved: axesMoved,
-            plotly_click: plotly_click
+            plotly_axisClick: plotly_axisClick,
+            plotly_curveClick: plotly_curveClick
         });
 };
