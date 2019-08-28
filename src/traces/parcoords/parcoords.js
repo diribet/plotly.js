@@ -412,6 +412,49 @@ module.exports = function(gd, root, svg, parcoordsLineLayers, styledData, layout
             }
         });
 
+    // emit plotly_curveClick event
+    pickLayer
+        .style('pointer-events', 'auto')
+        .on('click', function(d) {
+            if(state.linePickActive() && d.lineLayer && callbacks && callbacks.hover) {
+                var event = d3.event;
+                var cw = this.width;
+                var ch = this.height;
+                var pointer = d3.mouse(this);
+                var x = pointer[0];
+                var y = pointer[1];
+
+                if(x < 0 || y < 0 || x >= cw || y >= ch) {
+                    return;
+                }
+                // Check not only single pixel, but n*n pixels around clicked pixels
+                // Pixels is array of 4*n*n numbers, here 4*5*5=60, it has to be split into array of 9 arrays
+                var pixels = d.lineLayer.readPixels(x-2, ch - 3 - y, 5, 5);
+                var arrayOfPixels = new Array(25);
+                for (let i = 0; i < arrayOfPixels.length; i++){
+                    var red = pixels[i*4 + 0],
+                        green = pixels[i*4 + 1],
+                        color = pixels[i*4 + 2],
+                        alpha = pixels[i*4 + 3];
+                    arrayOfPixels[i] = [red, green, color, alpha];
+                }
+                var suitablePixels = arrayOfPixels.filter(function(d){return d[3] === 255});
+                var pixel = suitablePixels.length > 0 ? suitablePixels[0] : d.lineLayer.readPixel(x, ch - 1 - y);
+
+                var found = pixel[3] !== 0;
+                // inverse of the calcPickColor in `lines.js`; detailed comment there
+                var curveNumber = found ? pixel[2] + 256 * (pixel[1] + 256 * pixel[0]) : null;
+
+                var eventData = {
+                    dataIndex: d.model.key,
+                    curveNumber: curveNumber
+                };
+                if(found) {
+                    callbacks.plotly_curveClick(eventData);
+                }
+            }
+        });
+
     parcoordsLineLayer
         .style('opacity', function(d) {return d.pick ? 0.01 : 1;});
 
@@ -468,7 +511,7 @@ module.exports = function(gd, root, svg, parcoordsLineLayers, styledData, layout
         .classed(c.cn.yAxis, true)
         .style('pointer-events', 'none')
         .on('click', (eventData) => {
-            callbacks.plotly_click(eventData);
+            callbacks.plotly_axisClick(eventData);
             // yAxis je DOM element, ale eventData jsou yAxis.__data__
         });
         // FIXME: porad jsou tam mezery mezi g elementy,
