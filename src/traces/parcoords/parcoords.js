@@ -24,15 +24,6 @@ var c = require('./constants');
 var brush = require('./axisbrush');
 var lineLayerMaker = require('./lines');
 
-function linspace(startValue, stopValue, cardinality) {
-  var arr = [];
-  var step = (stopValue - startValue) / (cardinality - 1);
-  for (var i = 0; i < cardinality; i++) {
-    arr.push(startValue + (step * i));
-  }
-  return arr;
-}
-
 function visible(dimension) { return !('visible' in dimension) || dimension.visible; }
 
 function dimensionExtent(dimension) {
@@ -275,7 +266,7 @@ function viewModel(state, callbacks, model) {
             }
         } else tickvals = undefined;
 
-        var returnObj = {
+        var transformedDimensions = {
             key: key,
             label: dimension.label,
             tickFormat: dimension.tickformat,
@@ -323,12 +314,12 @@ function viewModel(state, callbacks, model) {
                 }
             )
         };
-        model.dimensions[i]._input.hover ? returnObj.hover = true : null;
+        model.dimensions[i]._input.hover ? transformedDimensions.hover = true : null;
 
         var probabilityDensity = model.dimensions[i]._input.probabilityDensity;
-        probabilityDensity ? returnObj.probabilityDensity = probabilityDensity : null;
+        probabilityDensity ? transformedDimensions.probabilityDensity = probabilityDensity : null;
 
-        return returnObj
+        return transformedDimensions
     });
 
     return viewModel;
@@ -417,7 +408,6 @@ module.exports = function(gd, root, svg, parcoordsLineLayers, styledData, layout
         .style('pointer-events', 'auto')
         .on('click', function(d) {
             if(state.linePickActive() && d.lineLayer && callbacks && callbacks.hover) {
-                var event = d3.event;
                 var cw = this.width;
                 var ch = this.height;
                 var pointer = d3.mouse(this);
@@ -428,11 +418,11 @@ module.exports = function(gd, root, svg, parcoordsLineLayers, styledData, layout
                     return;
                 }
                 // Check not only single pixel, but n*n pixels around clicked pixels
-                // Pixels is array of 4*n*n numbers, here 4*5*5=60, it has to be split into array of 9 arrays
+                // Pixels is array of 4*n*n numbers, here 4*5*5=60, it has to be split into array of 25 arrays
                 var pixels = d.lineLayer.readPixels(x-2, ch - 3 - y, 5, 5);
                 var arrayOfPixels = new Array(25);
-                for (let i = 0; i < arrayOfPixels.length; i++){
-                    var red = pixels[i*4 + 0],
+                for (var i = 0; i < arrayOfPixels.length; i++){
+                    var red = pixels[i*4],
                         green = pixels[i*4 + 1],
                         color = pixels[i*4 + 2],
                         alpha = pixels[i*4 + 3];
@@ -510,31 +500,31 @@ module.exports = function(gd, root, svg, parcoordsLineLayers, styledData, layout
         .append('g')
         .classed(c.cn.yAxis, true)
         .style('pointer-events', 'none')
-        .on('click', (eventData) => {
+        .on('click', function(eventData) {
             callbacks.plotly_axisClick(eventData);
-            // yAxis je DOM element, ale eventData jsou yAxis.__data__
         });
         // FIXME: porad jsou tam mezery mezi g elementy,
         //  ale pokud bychom tam vlozili velky pruhledny element k emitovani eventu,
         //  sirka bude zavisla na nadpisu
 
     // draw probability density
-    let hoverEnterCallback = function() {
+    var hoverEnterCallback = function() {
         parcoordsSetHoverIndex.call(this, true);
-    }
-    let hoverLeaveCallback = function() {
+    };
+    var hoverLeaveCallback = function() {
         parcoordsSetHoverIndex.call(this, null);
-    }
+    };
 
     var parcoordsSetHoverIndex = function (setIndex){
-        let hoveredAxisIndex = this.__data__.xIndex //xIndex reflects hidden axes, visibleIndex does not
+        var hoveredAxisIndex = this.__data__.xIndex; // xIndex reflects hidden axes, visibleIndex does not
         // reset hover properties for all axes, save it only for currently hovered axis
-        gd.data[0].dimensions = gd.data[0].dimensions.map((item) => {item.hover = null; return item});
+        gd.data[0].dimensions = gd.data[0].dimensions.map(function(item){item.hover = null; return item});
         gd.data[0].dimensions[hoveredAxisIndex].hover = setIndex;
         Plotly.redraw(gd);
-    }
+    };
 
-    if (/*layout.showProbabilityDensity && */ layout.showProbabilityDensity != 'never') {
+    d3.selectAll('.density').remove();
+    if (layout.showProbabilityDensity && layout.showProbabilityDensity !== 'never') {
         var showDensityOnHover = layout.showProbabilityDensity === 'hover';
 
         var densityGroupJoin = yAxis.selectAll('g.density')
@@ -550,19 +540,18 @@ module.exports = function(gd, root, svg, parcoordsLineLayers, styledData, layout
             .append('g')
             .classed('density', true);
 
-        // TODO: Can't use linePoints like in boxPlot, as in parcoords, there is no plotinfo for axes, which defines c2p, properties and other
-        var densitySegments = function (d, sideFlip) {
-
+        // Can't use linePoints like in boxPlot, as in parcoords, there is no plotinfo for axes, which defines c2p, properties and other
+        var createDensityPoints = function (d, sideFlip) {
             var outerArray = new Array(d.probabilityDensity.density.length),
-                scaleMax = Math.max(...d.probabilityDensity.scale),
-                densityMax = Math.max(...d.probabilityDensity.density),
+                scaleMax = Math.max.apply(null, d.probabilityDensity.scale),
+                densityMax = Math.max.apply(null, d.probabilityDensity.density),
                 scaleFactor = d.height / scaleMax,
-                densityFactor = d.model.canvasWidth / d.model.colCount / densityMax * 0.5;
+                densityFactor = d.model.canvasWidth / d.model.colCount / densityMax * 0.3;
             for (var i = 0; i < outerArray.length; i++) {
-                var innerArray = new Array(2);
-                innerArray[0] = d.probabilityDensity.density[i] * densityFactor * sideFlip;
-                innerArray[1] = d.probabilityDensity.scale[i] * scaleFactor;
-                outerArray[i] = innerArray;
+                var densityPoint = new Array(2);
+                densityPoint[0] = d.probabilityDensity.density[i] * densityFactor * sideFlip;
+                densityPoint[1] = d.probabilityDensity.scale[i] * scaleFactor;
+                outerArray[i] = densityPoint;
             }
             return outerArray;
         };
@@ -573,7 +562,7 @@ module.exports = function(gd, root, svg, parcoordsLineLayers, styledData, layout
             densityGroup
                 .selectAll('path.' + sideClass)
                 .data(function(d) {
-                    return [densitySegments(d, leftSide ? -1 : 1)]
+                    return [createDensityPoints(d, leftSide ? -1 : 1)]
                 })
                 .enter().append('path')
                 .classed('js-line ' + sideClass, true)
@@ -581,11 +570,20 @@ module.exports = function(gd, root, svg, parcoordsLineLayers, styledData, layout
                 .call(Drawing.lineGroupStyle, 2, 'blue', '')
                 .each(function(d) {
                     var smoothing = 1,
-                        path = Drawing.smoothopen(d, smoothing),
-                        xScaleFactor = 20
+                        path = Drawing.smoothopen(d, smoothing);
                     d3.select(this)
-                        .attr('d', path)
+                        .attr('d', path);
                         // .call(Drawing.lineGroupStyle);
+
+                    // check with parent node if axis is reversed
+                    var index = this.parentNode.__data__.crossfilterDimensionIndex,
+                        range = this.parentNode.__data__.model.dimensions[index].range,
+                        isAxisReversed = (range && range[0] > range[1]);
+                    if (isAxisReversed) {
+                        var rotateString = 'rotate(180 0 ' +  this.parentNode.__data__.height / 2 + ')';
+                        d3.select(this)
+                            .attr('transform', rotateString);
+                    }
                 });
         };
 
@@ -596,21 +594,18 @@ module.exports = function(gd, root, svg, parcoordsLineLayers, styledData, layout
             .remove();
 
         if (showDensityOnHover === true) {
-            yAxis.on('mouseover', function(/*datum, index, currentThis*/) {
-                //if axis is not dragged at the moment
-                if (!this.__data__.prohibitDrawingDensity) {
-                    hoverEnterCallback.call(this);
-                }
+            d3.selectAll('.' + c.cn.yAxis)
+                .on('mouseover', null)
+                .on('mouseout', null);
+            yAxis.on('mouseover', function() {
+                // if axis is not dragged at the moment
+                !this.__data__.prohibitDrawingDensity ? hoverEnterCallback.call(this) : null;
             });
-            yAxis.on('mouseout', function(/*datum, index, currentThis*/) {
-                //if axis is not dragged at the moment
-                if (!this.__data__.prohibitDrawingDensity) {
-                    hoverLeaveCallback.call(this);
-                }
+            yAxis.on('mouseout', function () {
+                // if axis is not dragged at the moment
+                !this.__data__.prohibitDrawingDensity ? hoverLeaveCallback.call(this) : null;
             });
         }
-    } else {
-        d3.selectAll('.density').remove();
     }
 
     parcoordsControlView.each(function(vm) {
@@ -641,7 +636,7 @@ module.exports = function(gd, root, svg, parcoordsLineLayers, styledData, layout
     yAxis.call(d3.behavior.drag()
         .origin(function(d) { return d; })
         .on('drag', function(d) {
-            //add dragged property to axis
+            // add dragged property to axis
             d3.selectAll('.' + c.cn.yAxis).each(function() {
                 d3.select(this).node().__data__.prohibitDrawingDensity = true;
             });
