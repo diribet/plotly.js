@@ -266,7 +266,7 @@ function viewModel(state, callbacks, model) {
             }
         } else tickvals = undefined;
 
-        var transformedDimensions = {
+        var transformedDimension = {
             key: key,
             label: dimension.label,
             tickFormat: dimension.tickformat,
@@ -314,12 +314,12 @@ function viewModel(state, callbacks, model) {
                 }
             )
         };
-        model.dimensions[i]._input.hover ? transformedDimensions.hover = true : null;
+        model.dimensions[i]._input.hover ? transformedDimension.hover = true : null;
 
         var probabilityDensity = model.dimensions[i]._input.probabilityDensity;
-        probabilityDensity ? transformedDimensions.probabilityDensity = probabilityDensity : null;
+        probabilityDensity ? transformedDimension.probabilityDensity = probabilityDensity : null;
 
-        return transformedDimensions
+        return transformedDimension
     });
 
     return viewModel;
@@ -508,21 +508,6 @@ module.exports = function(gd, root, svg, parcoordsLineLayers, styledData, layout
         //  sirka bude zavisla na nadpisu
 
     // draw probability density
-    var hoverEnterCallback = function() {
-        parcoordsSetHoverIndex.call(this, true);
-    };
-    var hoverLeaveCallback = function() {
-        parcoordsSetHoverIndex.call(this, null);
-    };
-
-    var parcoordsSetHoverIndex = function (setIndex){
-        var hoveredAxisIndex = this.__data__.xIndex; // xIndex reflects hidden axes, visibleIndex does not
-        // reset hover properties for all axes, save it only for currently hovered axis
-        gd.data[0].dimensions = gd.data[0].dimensions.map(function(item){item.hover = null; return item});
-        gd.data[0].dimensions[hoveredAxisIndex].hover = setIndex;
-        Plotly.redraw(gd);
-    };
-
     d3.selectAll('.density').remove();
     if (layout.showProbabilityDensity && layout.showProbabilityDensity !== 'never') {
         var showDensityOnHover = layout.showProbabilityDensity === 'hover';
@@ -542,18 +527,18 @@ module.exports = function(gd, root, svg, parcoordsLineLayers, styledData, layout
 
         // Can't use linePoints like in boxPlot, as in parcoords, there is no plotinfo for axes, which defines c2p, properties and other
         var createDensityPoints = function (d, sideFlip) {
-            var outerArray = new Array(d.probabilityDensity.density.length),
+            var densityPoints = new Array(d.probabilityDensity.density.length),
                 scaleMax = Math.max.apply(null, d.probabilityDensity.scale),
                 densityMax = Math.max.apply(null, d.probabilityDensity.density),
                 scaleFactor = d.height / scaleMax,
                 densityFactor = d.model.canvasWidth / d.model.colCount / densityMax * 0.3;
-            for (var i = 0; i < outerArray.length; i++) {
+            for (var i = 0; i < densityPoints.length; i++) {
                 var densityPoint = new Array(2);
                 densityPoint[0] = d.probabilityDensity.density[i] * densityFactor * sideFlip;
                 densityPoint[1] = d.probabilityDensity.scale[i] * scaleFactor;
-                outerArray[i] = densityPoint;
+                densityPoints[i] = densityPoint;
             }
-            return outerArray;
+            return densityPoints;
         };
 
         var drawDensity = function(leftSide) {
@@ -594,6 +579,21 @@ module.exports = function(gd, root, svg, parcoordsLineLayers, styledData, layout
             .remove();
 
         if (showDensityOnHover === true) {
+            var parcoordsSetHoverIndex = function (hovered){
+                var hoveredAxisIndex = this.__data__.xIndex; // xIndex reflects hidden axes, visibleIndex does not
+                // reset hover properties for all axes, save it only for currently hovered axis
+                gd.data[0].dimensions = gd.data[0].dimensions.map(function(item){item.hover = null; return item});
+                gd.data[0].dimensions[hoveredAxisIndex].hover = hovered;
+                Plotly.redraw(gd);
+            };
+
+            var hoverEnterCallback = function() {
+                parcoordsSetHoverIndex.call(this, true);
+            };
+            var hoverLeaveCallback = function() {
+                parcoordsSetHoverIndex.call(this, false);
+            };
+
             d3.selectAll('.' + c.cn.yAxis)
                 .on('mouseover', null)
                 .on('mouseout', null);
