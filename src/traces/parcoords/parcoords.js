@@ -266,7 +266,7 @@ function viewModel(state, callbacks, model) {
             }
         } else tickvals = undefined;
 
-        return {
+        var transformedDimension = {
             key: key,
             label: dimension.label,
             tickFormat: dimension.tickformat,
@@ -314,6 +314,12 @@ function viewModel(state, callbacks, model) {
                 }
             )
         };
+        model.dimensions[i]._input.hover ? transformedDimension.hover = true : null;
+
+        var probabilityDensity = model.dimensions[i]._input.probabilityDensity;
+        probabilityDensity ? transformedDimension.probabilityDensity = probabilityDensity : null;
+
+        return transformedDimension
     });
 
     return viewModel;
@@ -336,7 +342,7 @@ function parcoordsInteractionState() {
     };
 }
 
-module.exports = function(root, svg, parcoordsLineLayers, styledData, layout, callbacks) {
+module.exports = function(gd, root, svg, parcoordsLineLayers, styledData, layout, callbacks) {
     var state = parcoordsInteractionState();
 
     var vm = styledData
@@ -397,6 +403,48 @@ module.exports = function(root, svg, parcoordsLineLayers, styledData, layout, ca
             }
         });
 
+    // emit plotly_curveClick event
+    pickLayer
+        .style('pointer-events', 'auto')
+        .on('click', function(d) {
+            if(state.linePickActive() && d.lineLayer && callbacks && callbacks.hover) {
+                var cw = this.width;
+                var ch = this.height;
+                var pointer = d3.mouse(this);
+                var x = pointer[0];
+                var y = pointer[1];
+
+                if(x < 0 || y < 0 || x >= cw || y >= ch) {
+                    return;
+                }
+                // Check not only single pixel, but n*n pixels around clicked pixels
+                // Pixels is array of 4*n*n numbers, here 4*5*5=60, it has to be split into array of 25 arrays
+                var pixels = d.lineLayer.readPixels(x-2, ch - 3 - y, 5, 5);
+                var arrayOfPixels = new Array(25);
+                for (var i = 0; i < arrayOfPixels.length; i++){
+                    var red = pixels[i*4],
+                        green = pixels[i*4 + 1],
+                        color = pixels[i*4 + 2],
+                        alpha = pixels[i*4 + 3];
+                    arrayOfPixels[i] = [red, green, color, alpha];
+                }
+                var suitablePixels = arrayOfPixels.filter(function(d){return d[3] === 255});
+                var pixel = suitablePixels.length > 0 ? suitablePixels[0] : d.lineLayer.readPixel(x, ch - 1 - y);
+
+                var found = pixel[3] !== 0;
+                // inverse of the calcPickColor in `lines.js`; detailed comment there
+                var curveNumber = found ? pixel[2] + 256 * (pixel[1] + 256 * pixel[0]) : null;
+
+                var eventData = {
+                    dataIndex: d.model.key,
+                    curveNumber: curveNumber
+                };
+                if(found) {
+                    callbacks.plotly_curveClick(eventData);
+                }
+            }
+        });
+
     parcoordsLineLayer
         .style('opacity', function(d) {return d.pick ? 0.01 : 1;});
 
@@ -450,7 +498,115 @@ module.exports = function(root, svg, parcoordsLineLayers, styledData, layout, ca
 
     yAxis.enter()
         .append('g')
-        .classed(c.cn.yAxis, true);
+        .classed(c.cn.yAxis, true)
+        .style('pointer-events', 'none')
+        .on('click', function(eventData) {
+            callbacks.plotly_axisClick(eventData);
+        });
+        // FIXME: porad jsou tam mezery mezi g elementy,
+        //  ale pokud bychom tam vlozili velky pruhledny element k emitovani eventu,
+        //  sirka bude zavisla na nadpisu
+
+    // draw probability density
+    d3.selectAll('.density').remove();
+    if (layout.showProbabilityDensity && layout.showProbabilityDensity !== 'never') {
+        var showDensityOnHover = layout.showProbabilityDensity === 'hover';
+
+        var densityGroupJoin = yAxis.selectAll('g.density')
+            .data(function (d) {
+                if (showDensityOnHover && !d.hover) {
+                    return [];
+                } else {
+                    return [d];
+                }
+            });
+
+        var densityGroup = densityGroupJoin.enter()
+            .append('g')
+            .classed('density', true);
+
+        // Can't use linePoints like in boxPlot, as in parcoords, there is no plotinfo for axes, which defines c2p, properties and other
+        var createDensityPoints = function (d, sideFlip) {
+            var densityPoints = new Array(d.probabilityDensity.density.length),
+                scaleMax = Math.max.apply(null, d.probabilityDensity.scale),
+                densityMax = Math.max.apply(null, d.probabilityDensity.density),
+                scaleFactor = d.height / scaleMax,
+                densityFactor = d.model.canvasWidth / d.model.colCount / densityMax * 0.3;
+            for (var i = 0; i < densityPoints.length; i++) {
+                var densityPoint = new Array(2);
+                densityPoint[0] = d.probabilityDensity.density[i] * densityFactor * sideFlip;
+                densityPoint[1] = d.probabilityDensity.scale[i] * scaleFactor;
+                densityPoints[i] = densityPoint;
+            }
+            return densityPoints;
+        };
+
+        var drawDensity = function(leftSide) {
+            var sideClass = leftSide ? "left" : "right";
+
+            densityGroup
+                .selectAll('path.' + sideClass)
+                .data(function(d) {
+                    return [createDensityPoints(d, leftSide ? -1 : 1)]
+                })
+                .enter().append('path')
+                .classed('js-line ' + sideClass, true)
+                .style('vector-effect', 'non-scaling-stroke')
+                .call(Drawing.lineGroupStyle, 2, 'blue', '')
+                .each(function(d) {
+                    var smoothing = 1,
+                        path = Drawing.smoothopen(d, smoothing);
+                    d3.select(this)
+                        .attr('d', path);
+                        // .call(Drawing.lineGroupStyle);
+
+                    // check with parent node if axis is reversed
+                    var index = this.parentNode.__data__.crossfilterDimensionIndex,
+                        range = this.parentNode.__data__.model.dimensions[index].range,
+                        isAxisReversed = (range && range[0] > range[1]);
+                    if (isAxisReversed) {
+                        var rotateString = 'rotate(180 0 ' +  this.parentNode.__data__.height / 2 + ')';
+                        d3.select(this)
+                            .attr('transform', rotateString);
+                    }
+                });
+        };
+
+        drawDensity(true);
+        drawDensity(false);
+
+        densityGroupJoin.exit()
+            .remove();
+
+        if (showDensityOnHover === true) {
+            var parcoordsSetHoverIndex = function (hovered){
+                var hoveredAxisIndex = this.__data__.xIndex; // xIndex reflects hidden axes, visibleIndex does not
+                // reset hover properties for all axes, save it only for currently hovered axis
+                gd.data[0].dimensions = gd.data[0].dimensions.map(function(item){item.hover = null; return item});
+                gd.data[0].dimensions[hoveredAxisIndex].hover = hovered;
+                Plotly.redraw(gd);
+            };
+
+            var hoverEnterCallback = function() {
+                parcoordsSetHoverIndex.call(this, true);
+            };
+            var hoverLeaveCallback = function() {
+                parcoordsSetHoverIndex.call(this, false);
+            };
+
+            d3.selectAll('.' + c.cn.yAxis)
+                .on('mouseover', null)
+                .on('mouseout', null);
+            yAxis.on('mouseover', function() {
+                // if axis is not dragged at the moment
+                !this.__data__.prohibitDrawingDensity ? hoverEnterCallback.call(this) : null;
+            });
+            yAxis.on('mouseout', function () {
+                // if axis is not dragged at the moment
+                !this.__data__.prohibitDrawingDensity ? hoverLeaveCallback.call(this) : null;
+            });
+        }
+    }
 
     parcoordsControlView.each(function(vm) {
         updatePanelLayout(yAxis, vm);
@@ -480,6 +636,12 @@ module.exports = function(root, svg, parcoordsLineLayers, styledData, layout, ca
     yAxis.call(d3.behavior.drag()
         .origin(function(d) { return d; })
         .on('drag', function(d) {
+            // add dragged property to axis
+            d3.selectAll('.' + c.cn.yAxis).each(function() {
+                d3.select(this).node().__data__.prohibitDrawingDensity = true;
+            });
+            d3.selectAll('.density').remove();
+
             var p = d.parent;
             state.linePickActive(false);
             d.x = Math.max(-c.overdrag, Math.min(d.model.width + c.overdrag, d3.event.x));
@@ -516,6 +678,13 @@ module.exports = function(root, svg, parcoordsLineLayers, styledData, layout, ca
             if(callbacks && callbacks.axesMoved) {
                 callbacks.axesMoved(p.key, p.dimensions.map(function(dd) {return dd.crossfilterDimensionIndex;}));
             }
+
+            // remove dragged property when dragging ends
+            d3.selectAll('.' + c.cn.yAxis).each(function(datum, index) {
+                // d3.select(this).node().__data__.prohibitDrawingDensity = null;
+                gd.data[0].dimensions[index].hover = null;
+            });
+            Plotly.redraw(gd);
         })
     );
 
