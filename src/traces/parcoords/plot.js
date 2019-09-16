@@ -87,8 +87,12 @@ module.exports = function plot(gd, cdparcoords) {
     };
 
     var plotly_curveClick = function (eventData) {
-        gd.emit('plotly_curveClick', eventData)
+        gd.emit('plotly_curveClick', eventData);
     };
+
+    var plotly_axisDrag = function () {
+        gd.emit('plotly_axisDrag');
+    }
 
     var axesMoved = function(i, visibleIndices) {
         // Have updated order data on `gd.data` and raise `Plotly.restyle` event
@@ -166,6 +170,7 @@ module.exports = function plot(gd, cdparcoords) {
             unhover: unhover,
             axesMoved: axesMoved,
             plotly_axisClick: plotly_axisClick,
-            plotly_curveClick: plotly_curveClick
+            plotly_curveClick: plotly_curveClick,
+            plotly_axisDrag: plotly_axisDrag
         });
 };

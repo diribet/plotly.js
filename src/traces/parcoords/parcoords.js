@@ -319,6 +319,9 @@ function viewModel(state, callbacks, model) {
         var probabilityDensity = model.dimensions[i]._input.probabilityDensity;
         probabilityDensity ? transformedDimensions.probabilityDensity = probabilityDensity : null;
 
+        var tolerances = model.dimensions[i]._input.tolerances;
+        tolerances ? transformedDimensions.tolerances = tolerances : null;
+
         return transformedDimensions
     });
 
@@ -635,14 +638,16 @@ module.exports = function(gd, root, svg, parcoordsLineLayers, styledData, layout
     // drag column for reordering columns
     yAxis.call(d3.behavior.drag()
         .origin(function(d) { return d; })
-        .on('drag', function(d) {
+        .on('dragstart', function() {
+            callbacks.plotly_axisDrag();
             // add dragged property to axis
             d3.selectAll('.' + c.cn.yAxis).each(function() {
                 d3.select(this).node().__data__.prohibitDrawingDensity = true;
             });
             d3.selectAll('.density').remove();
-
-            var p = d.parent;
+        })
+        .on('drag', function(d) {
+                        var p = d.parent;
             state.linePickActive(false);
             d.x = Math.max(-c.overdrag, Math.min(d.model.width + c.overdrag, d3.event.x));
             d.canvasX = d.x * d.model.canvasPixelRatio;
