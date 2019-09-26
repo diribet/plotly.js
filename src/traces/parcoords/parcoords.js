@@ -322,6 +322,9 @@ function viewModel(state, callbacks, model) {
         var tolerances = model.dimensions[i]._input.tolerances;
         tolerances ? transformedDimensions.tolerances = tolerances : null;
 
+        var isBrushAllowed = model.dimensions[i]._input.isBrushAllowed;
+        isBrushAllowed ? transformedDimensions.isBrushAllowed = true : null;
+
         return transformedDimensions
     });
 
@@ -533,6 +536,8 @@ module.exports = function(gd, root, svg, parcoordsLineLayers, styledData, layout
         var densityGroupJoin = yAxis.selectAll('g.density')
             .data(function (d) {
                 if (showDensityOnHover && !d.hover) {
+                    return [];
+                } else if (!d.probabilityDensity) {
                     return [];
                 } else {
                     return [d];

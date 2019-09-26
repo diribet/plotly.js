@@ -217,8 +217,14 @@ function attachDragBehavior(selection) {
                 var interval = getInterval(d, y);
 
                 var cursor = 'crosshair';
-                if(interval.clickableOrdinalRange) cursor = 'pointer';
-                else if(interval.region) cursor = interval.region + '-resize';
+                if (interval.clickableOrdinalRange) {
+                    cursor = 'pointer';
+                } else if (interval.region) {
+                    cursor = interval.region + '-resize';
+                }
+                if (!d.isBrushAllowed) {
+                    cursor = 'e-resize';
+                }
                 d3.select(document.body)
                     .style('cursor', cursor);
             }
@@ -228,6 +234,13 @@ function attachDragBehavior(selection) {
         })
         .call(d3.behavior.drag()
             .on('dragstart', function(d) {
+                // if brush is not allowed
+                if (!d.isBrushAllowed) {
+                    d3.selectAll('.' + c.cn.axisBrush)
+                        .style('pointer-events', 'none');
+                    return
+                }
+
                 d3.selectAll('.' + c.cn.yAxis).each(function() {
                     d3.select(this).node().__data__.prohibitDrawingDensity = true;
                 });
