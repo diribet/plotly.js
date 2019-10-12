@@ -157,6 +157,26 @@ function drawRaw(gd, options, index, subplotId, xa, ya) {
             }
 
             gd.emit('plotly_clickannotation', eventData);
+        })
+        .on('mouseover', function() {
+            var eventData = {
+                index: index,
+                annotation: options._input,
+                fullAnnotation: options,
+                event: d3.event
+            };
+
+            gd.emit('plotly_hoverannotation', eventData);
+        })
+        .on('mouseout', function() {
+            var eventData = {
+                index: index,
+                annotation: options._input,
+                fullAnnotation: options,
+                event: d3.event
+            };
+
+            gd.emit('plotly_unhoverannotation', eventData);
         });
 
     if(options.hovertext) {
