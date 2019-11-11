@@ -1,0 +1,85 @@
+{
+  "data": [
+    {
+      "name": "Gren",
+      "type": "bar",
+      "y": ["1"],
+      "x": [0.75],
+      "marker": {
+        "color": "green"
+      },
+      "width": 1,
+      "text": "75%",
+      "textposition": "inside",
+      "insidetextanchor": "middle",
+      "constraintext": "none",
+      "textangle": 0,
+      "insidetextfont": {
+        "size": 20,
+        "color": "black"
+      },
+      "hoverinfo": "text",
+      "orientation": "h"
+    },
+    {
+      "name": "Yellow",
+      "type":"bar",
+      "y": ["1"],
+      "x":[0.2],
+      "marker": {
+        "color": "yellow"
+      },
+      "width": 1,
+      "text": "20%",
+      "textposition": "inside",
+      "insidetextanchor": "middle",
+      "constraintext": "none",
+      "insidetextfont": {
+        "size": 24,
+        "color": "black"
+      },
+      "hoverinfo": "text",
+      "orientation": "h"
+    },
+    {
+      "name": "Red",
+      "type":"bar",
+      "y": ["1"],
+      "x":[0.01],
+      "marker": {
+        "color": "red"
+      },
+      "width": 1,
+      "text": "5%",
+      "textposition": "inside",
+      "insidetextanchor": "middle",
+      "textangle": 0,
+      "constraintext": "none",
+      "insidetextfont": {
+        "size": 24,
+        "color": "black"
+      },
+      "hoverinfo": "text",
+      "orientation": "h"
+    }
+  ],
+  "layout": {
+    "height": 160,
+    "width": 800,
+    "showlegend": false,
+    "barmode": "stack",
+    "barnorm": "fraction",
+    "margin": {
+      "t": 0,
+      "r": 0,
+      "l": 0,
+      "b": 0
+    },
+    "xaxis": {
+      "visible": false
+    },
+    "yaxis": {
+      "visible": false
+    }
+  }
+}
