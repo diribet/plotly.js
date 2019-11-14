@@ -13,12 +13,14 @@ var plotAttrs = require('../../plots/attributes');
 var colorAttrs = require('../../components/color/attributes');
 var fxAttrs = require('../../components/fx/attributes');
 var domainAttrs = require('../../plots/domain').attributes;
-var hovertemplateAttrs = require('../../components/fx/hovertemplate_attributes');
+var hovertemplateAttrs = require('../../plots/template_attributes').hovertemplateAttrs;
 var colorAttributes = require('../../components/colorscale/attributes');
 var templatedArray = require('../../plot_api/plot_template').templatedArray;
 
 var extendFlat = require('../../lib/extend').extendFlat;
 var overrideAll = require('../../plot_api/edit_types').overrideAll;
+
+var FORMAT_LINK = require('../../constants/docs').FORMAT_LINK;
 
 var attrs = module.exports = overrideAll({
     hoverinfo: extendFlat({}, plotAttrs.hoverinfo, {
@@ -50,7 +52,7 @@ var attrs = module.exports = overrideAll({
         description: [
             'Sets the value formatting rule using d3 formatting mini-language',
             'which is similar to those of Python. See',
-            'https://github.com/d3/d3-format/blob/master/README.md#locale_format'
+            FORMAT_LINK
         ].join(' ')
     },
 

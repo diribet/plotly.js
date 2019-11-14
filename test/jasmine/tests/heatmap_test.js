@@ -12,7 +12,6 @@ var destroyGraphDiv = require('../assets/destroy_graph_div');
 var supplyAllDefaults = require('../assets/supply_defaults');
 var failTest = require('../assets/fail_test');
 
-
 describe('heatmap supplyDefaults', function() {
     'use strict';
 
@@ -127,6 +126,42 @@ describe('heatmap supplyDefaults', function() {
         supplyDefaults(traceIn, traceOut, defaultColor, layout);
         expect(traceOut.xgap).toBe(undefined);
         expect(traceOut.ygap).toBe(undefined);
+    });
+
+    it('should default connectgaps to false if `z` is not a one dimensional array', function() {
+        traceIn = {
+            type: 'heatmap',
+            z: [[0, null], [1, 2]]
+        };
+
+        supplyDefaults(traceIn, traceOut, defaultColor, layout);
+        expect(traceOut.connectgaps).toBe(false);
+    });
+
+    it('should default connectgaps to true if `z` is a one dimensional array and `zsmooth` is not false', function() {
+        traceIn = {
+            zsmooth: 'fast',
+            type: 'heatmap',
+            x: [1, 1, 2, 2, 2],
+            y: [1, 2, 1, 2, 3],
+            z: [1, null, 4, 5, 6]
+        };
+
+        supplyDefaults(traceIn, traceOut, defaultColor, layout);
+        expect(traceOut.connectgaps).toBe(true);
+    });
+
+    it('should default connectgaps to false if `zsmooth` is false', function() {
+        traceIn = {
+            zsmooth: false,
+            type: 'heatmap',
+            x: [1, 1, 2, 2, 2],
+            y: [1, 2, 1, 2, 3],
+            z: [1, null, 4, 5, 6]
+        };
+
+        supplyDefaults(traceIn, traceOut, defaultColor, layout);
+        expect(traceOut.connectgaps).toBe(false);
     });
 
     it('should inherit layout.calendar', function() {
@@ -542,6 +577,83 @@ describe('heatmap calc', function() {
             expect(out.z[0][0]).toEqual(0);
         });
     });
+
+    describe('should clean z array linked to category x/y coordinates', function() {
+        var z = [
+            [1, 20, 30, 50, 1],
+            [20, 1, 60, 80, 30],
+            [30, 60, 1, -10, 20]
+        ];
+
+        it('- base case', function() {
+            var out = _calc({
+                z: z,
+                x: ['a', 'b', 'c', 'd', 'f'],
+                y: ['A', 'B', 'C']
+            });
+            expect(out.z).toBeCloseTo2DArray([
+                [1, 20, 30, 50, 1],
+                [20, 1, 60, 80, 30],
+                [30, 60, 1, -10, 20]
+            ]);
+        });
+
+        it('- with extra x items', function() {
+            var out = _calc({
+                z: z,
+                x: ['a', 'b', 'c', 'd', 'f', ''],
+                y: ['A', 'B', 'C']
+            });
+            expect(out.z).toBeCloseTo2DArray([
+                [1, 20, 30, 50, 1, undefined],
+                [20, 1, 60, 80, 30, undefined],
+                [30, 60, 1, -10, 20, undefined]
+            ]);
+        });
+
+        it('- with extra y items', function() {
+            var out = _calc({
+                z: z,
+                x: ['a', 'b', 'c', 'd', 'f'],
+                y: ['A', 'B', 'C', '']
+            });
+            expect(out.z).toBeCloseTo2DArray([
+                [1, 20, 30, 50, 1],
+                [20, 1, 60, 80, 30],
+                [30, 60, 1, -10, 20],
+                new Array(5)
+            ]);
+        });
+
+        it('- with extra x and y items', function() {
+            var out = _calc({
+                z: z,
+                x: ['a', 'b', 'c', 'd', 'f', ''],
+                y: ['A', 'B', 'C', '']
+            });
+            expect(out.z).toBeCloseTo2DArray([
+                [1, 20, 30, 50, 1, undefined],
+                [20, 1, 60, 80, 30, undefined],
+                [30, 60, 1, -10, 20, undefined],
+                new Array(6)
+            ]);
+        });
+
+        it('- transposed, with extra x and y items', function() {
+            var out = _calc({
+                transpose: true,
+                z: z,
+                x: ['a', 'b', 'c', 'd', 'f', ''],
+                y: ['A', 'B', 'C', '']
+            });
+            expect(out.z).toBeCloseTo2DArray([
+                [1, 20, 30, undefined, undefined, undefined],
+                [20, 1, 60, undefined, undefined, undefined],
+                [30, 60, 1, undefined, undefined, undefined],
+                [50, 80, -10, undefined, undefined, undefined]
+            ]);
+        });
+    });
 });
 
 describe('heatmap plot', function() {
@@ -862,6 +974,36 @@ describe('heatmap hover', function() {
             .then(checkData)
             .catch(failTest)
             .then(done);
+        });
+    });
+
+    describe('missing data', function() {
+        beforeAll(function(done) {
+            gd = createGraphDiv();
+
+            Plotly.plot(gd, {
+                data: [{
+                    type: 'heatmap',
+                    x: [10, 11, 10, 11],
+                    y: [100, 100, 101, 101],
+                    z: [null, 1, 2, 3],
+                    connectgaps: false,
+                    hoverongaps: false
+                }]
+            }).then(done);
+        });
+        afterAll(destroyGraphDiv);
+
+        it('should not display hover on missing data and hoverongaps is disabled', function() {
+            var pt = _hover(gd, 10, 100)[0];
+
+            var hoverData;
+            gd.on('plotly_hover', function(data) {
+                hoverData = data;
+            });
+
+            expect(hoverData).toEqual(undefined);
+            expect(pt).toEqual(undefined);
         });
     });
 });

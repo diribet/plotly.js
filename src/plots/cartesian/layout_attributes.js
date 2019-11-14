@@ -14,8 +14,10 @@ var dash = require('../../components/drawing/attributes').dash;
 var extendFlat = require('../../lib/extend').extendFlat;
 var templatedArray = require('../../plot_api/plot_template').templatedArray;
 
-var constants = require('./constants');
+var FORMAT_LINK = require('../../constants/docs').FORMAT_LINK;
+var DATE_FORMAT_LINK = require('../../constants/docs').DATE_FORMAT_LINK;
 
+var constants = require('./constants');
 
 module.exports = {
     visible: {
@@ -60,6 +62,21 @@ module.exports = {
                 'by the now deprecated `titlefont` attribute.'
             ].join(' ')
         }),
+        standoff: {
+            valType: 'number',
+            role: 'info',
+            min: 0,
+            editType: 'ticks',
+            description: [
+                'Sets the standoff distance (in px) between the axis labels and the title text',
+                'The default value is a function of the axis tick labels, the title `font.size`',
+                'and the axis `linewidth`.',
+                'Note that the axis title position is always constrained within the margins,',
+                'so the actual standoff distance is always less than the set or default value.',
+                'By setting `standoff` and turning on `automargin`, plotly.js will push the',
+                'margins to fit the axis title at given standoff distance.'
+            ].join(' ')
+        },
         editType: 'ticks'
     },
     type: {
@@ -557,9 +574,9 @@ module.exports = {
         description: [
             'Sets the tick label formatting rule using d3 formatting mini-languages',
             'which are very similar to those in Python. For numbers, see:',
-            'https://github.com/d3/d3-format/blob/master/README.md#locale_format',
+            FORMAT_LINK,
             'And for dates see:',
-            'https://github.com/d3/d3-time-format/blob/master/README.md#locale_format',
+            DATE_FORMAT_LINK,
             'We add one item to d3\'s date formatter: *%{n}f* for fractional seconds',
             'with n digits. For example, *2016-10-13 09:15:23.456* with tickformat',
             '*%H~%M~%S.%2f* would display *09~15~23.46*'
@@ -609,9 +626,9 @@ module.exports = {
         description: [
             'Sets the hover text formatting rule using d3 formatting mini-languages',
             'which are very similar to those in Python. For numbers, see:',
-            'https://github.com/d3/d3-format/blob/master/README.md#locale_format',
+            FORMAT_LINK,
             'And for dates see:',
-            'https://github.com/d3/d3-time-format/blob/master/README.md#locale_format',
+            DATE_FORMAT_LINK,
             'We add one item to d3\'s date formatter: *%{n}f* for fractional seconds',
             'with n digits. For example, *2016-10-13 09:15:23.456* with tickformat',
             '*%H~%M~%S.%2f* would display *09~15~23.46*'

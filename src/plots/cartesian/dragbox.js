@@ -51,9 +51,9 @@ var SHOWZOOMOUTTIP = true;
 //      ew - same for horizontal axis
 function makeDragBox(gd, plotinfo, x, y, w, h, ns, ew) {
     // mouseDown stores ms of first mousedown event in the last
-    // DBLCLICKDELAY ms on the drag bars
+    // `gd._context.doubleClickDelay` ms on the drag bars
     // numClicks stores how many mousedowns have been seen
-    // within DBLCLICKDELAY so we can check for click or doubleclick events
+    // within `gd._context.doubleClickDelay` so we can check for click or doubleclick events
     // dragged stores whether a drag has occurred, so we don't have to
     // redraw unnecessarily, ie if no move bigger than MINDRAG or MINZOOM px
     var zoomlayer = gd._fullLayout._zoomlayer;
@@ -429,14 +429,7 @@ function makeDragBox(gd, plotinfo, x, y, w, h, ns, ew) {
     }
 
     function zoomDone() {
-        // more strict than dragged, which allows you to come back to where you started
-        // and still count as dragged
-        if(Math.min(box.h, box.w) < MINDRAG * 2) {
-            return removeZoombox(gd);
-        }
-
         computeZoomUpdates();
-
         removeZoombox(gd);
         dragTail();
         showDoubleClickNotifier(gd);

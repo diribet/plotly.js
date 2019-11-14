@@ -106,20 +106,16 @@ module.exports = function(gd) {
 
         // update range slider dimensions
 
-        var margin = fullLayout.margin;
-        var graphSize = fullLayout._size;
+        var gs = fullLayout._size;
         var domain = axisOpts.domain;
-        var tickHeight = opts._tickHeight;
 
-        var oppBottom = opts._oppBottom;
+        opts._width = gs.w * (domain[1] - domain[0]);
 
-        opts._width = graphSize.w * (domain[1] - domain[0]);
-
-        var x = Math.round(margin.l + (graphSize.w * domain[0]));
+        var x = Math.round(gs.l + (gs.w * domain[0]));
 
         var y = Math.round(
-            graphSize.t + graphSize.h * (1 - oppBottom) +
-            tickHeight +
+            gs.t + gs.h * (1 - axisOpts._counterDomainMin) +
+            (axisOpts.side === 'bottom' ? axisOpts._depth : 0) +
             opts._offsetShift + constants.extraPad
         );
 

@@ -15,9 +15,10 @@ var handleText = require('../bar/defaults').handleText;
 var handleXYDefaults = require('../scatter/xy_defaults');
 var attributes = require('./attributes');
 var Color = require('../../components/color');
+var delta = require('../../constants/delta.js');
 
-var INCREASING_COLOR = '#3D9970';
-var DECREASING_COLOR = '#FF4136';
+var INCREASING_COLOR = delta.INCREASING.COLOR;
+var DECREASING_COLOR = delta.DECREASING.COLOR;
 var TOTALS_COLOR = '#4499FF';
 
 function handleDirection(coerce, direction, defaultColor) {
@@ -61,7 +62,8 @@ function supplyDefaults(traceIn, traceOut, defaultColor, layout) {
 
 
     if(traceOut.textposition !== 'none') {
-        coerce('textinfo');
+        coerce('texttemplate');
+        if(!traceOut.texttemplate) coerce('textinfo');
     }
 
     handleDirection(coerce, 'increasing', INCREASING_COLOR);

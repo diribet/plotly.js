@@ -12,6 +12,7 @@ var mouseEvent = require('../assets/mouse_event');
 var customAssertions = require('../assets/custom_assertions');
 var assertHoverLabelStyle = customAssertions.assertHoverLabelStyle;
 var assertHoverLabelContent = customAssertions.assertHoverLabelContent;
+var checkTextTemplate = require('../assets/check_texttemplate');
 var failTest = require('../assets/fail_test');
 var supplyAllDefaults = require('../assets/supply_defaults');
 
@@ -215,7 +216,7 @@ describe('Test scattergeo calc', function() {
 
         expect(calcTrace).toEqual([
             { lonlat: [10, 20], mc: 0, ms: 10 },
-            { lonlat: [20, 30], mc: null, ms: NaN },
+            { lonlat: [20, 30], mc: null, ms: 0 },
             { lonlat: [BADNUM, BADNUM], mc: 5, ms: 8 },
             { lonlat: [30, 10], mc: 10, ms: 10 }
         ]);
@@ -435,4 +436,25 @@ describe('scattergeo drawing', function() {
         .catch(failTest)
         .then(done);
     });
+});
+
+describe('Test scattergeo texttemplate:', function() {
+    checkTextTemplate([{
+        'type': 'scattergeo',
+        'mode': 'markers+text',
+        'lon': [-73.57, -79.24, -123.06],
+        'lat': [45.5, 43.4, 49.13],
+        'text': ['Montreal', 'Toronto', 'Vancouver']
+    }], '.scattergeo text', [
+        ['%{text}: %{lon}, %{lat}', ['Montreal: -73.57, 45.5', 'Toronto: -79.24, 43.4', 'Vancouver: -123.06, 49.13']]
+    ]);
+
+    checkTextTemplate([{
+        'type': 'scattergeo',
+        'mode': 'markers+text',
+        'locations': ['Canada'],
+        'locationmode': 'country names'
+    }], '.scattergeo text', [
+        ['%{location}', ['Canada']]
+    ]);
 });

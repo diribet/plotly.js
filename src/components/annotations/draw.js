@@ -139,26 +139,26 @@ function drawRaw(gd, options, index, subplotId, xa, ya) {
     var editTextPosition = edits[options.showarrow ? 'annotationTail' : 'annotationPosition'];
     var textEvents = options.captureevents || edits.annotationText || editTextPosition;
 
+    function makeEventData(initialEvent) {
+        var eventData = {
+            index: index,
+            annotation: options._input,
+            fullAnnotation: options,
+            event: initialEvent
+        };
+        if(subplotId) {
+            eventData.subplotId = subplotId;
+        }
+        return eventData;
+    }
+
     var annTextGroupInner = annTextGroup.append('g')
         .style('pointer-events', textEvents ? 'all' : null)
         .call(setCursor, 'pointer')
         .on('click', function() {
             gd._dragging = false;
-
-            var eventData = {
-                index: index,
-                annotation: options._input,
-                fullAnnotation: options,
-                event: d3.event
-            };
-
-            if(subplotId) {
-                eventData.subplotId = subplotId;
-            }
-
-            gd.emit('plotly_clickannotation', eventData);
-        })
-        .on('mouseover', function() {
+            gd.emit('plotly_clickannotation', makeEventData(d3.event));
+        }).on('mouseover', function() {
             var eventData = {
                 index: index,
                 annotation: options._input,
@@ -411,9 +411,7 @@ function drawRaw(gd, options, index, subplotId, xa, ya) {
             options['_' + axLetter + 'shift'] = textShift;
         }
 
-        // We have everything we need for calcAutorange at this point,
-        // we can safely exit - unless we're currently dragging the plot
-        if(!gd._dragging && annotationIsOffscreen) {
+        if(annotationIsOffscreen) {
             annTextGroupInner.remove();
             return;
         }
@@ -680,6 +678,11 @@ function drawRaw(gd, options, index, subplotId, xa, ya) {
                     });
 
                     setCursor(annTextGroupInner, csr);
+                },
+                clickFn: function(_, initialEvent) {
+                    if(options.captureevents) {
+                        gd.emit('plotly_clickannotation', makeEventData(initialEvent));
+                    }
                 },
                 doneFn: function() {
                     setCursor(annTextGroupInner);

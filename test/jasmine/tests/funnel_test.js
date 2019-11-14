@@ -16,6 +16,7 @@ var rgb = color.rgb;
 
 var customAssertions = require('../assets/custom_assertions');
 var assertHoverLabelContent = customAssertions.assertHoverLabelContent;
+var checkTextTemplate = require('../assets/check_texttemplate');
 var Fx = require('@src/components/fx');
 
 var d3 = require('d3');
@@ -350,6 +351,20 @@ describe('Funnel.calc', function() {
         var cd = gd.calcdata;
         assertPointField(cd, 'y', [[1, NaN, NaN, 15]]);
         assertPointField(cd, 'x', [[0.5, 1, 5, 15]]);
+    });
+
+    it('should guard against negative marker.line.width values', function() {
+        var gd = mockFunnelPlot([{
+            marker: {
+                line: {
+                    width: [2, 1, 0, -1, false, true, null, [], -Infinity, Infinity, NaN, {}, '12+1', '1e1']
+                }
+            },
+            y: [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14]
+        }], {});
+
+        var cd = gd.calcdata;
+        assertPointField(cd, 'mlw', [[2, 1, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0, 0, 10]]);
     });
 });
 
@@ -1220,6 +1235,17 @@ describe('A funnel plot', function() {
         .catch(failTest)
         .then(done);
     });
+
+    checkTextTemplate([{
+        type: 'funnel',
+        orientation: 'v',
+        x: ['A', 'B', 'C'],
+        y: [3, 2, 1],
+        textinfo: 'value+percent initial+percent previous+percent total',
+    }], 'text.bartext', [
+      ['txt: %{value}', ['txt: 3', 'txt: 2', 'txt: 1']],
+      ['%{value}-%{percentInitial}-%{percentPrevious}-%{percentTotal:0.3f}', ['3-100%-100%-0.500', '2-67%-67%-0.333', '1-33%-50%-0.167']]
+    ]);
 });
 
 describe('funnel hover', function() {

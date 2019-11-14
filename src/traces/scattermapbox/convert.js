@@ -20,7 +20,10 @@ var makeBubbleSizeFn = require('../scatter/make_bubble_size_func');
 var subTypes = require('../scatter/subtypes');
 var convertTextOpts = require('../../plots/mapbox/convert_text_opts');
 
-module.exports = function convert(calcTrace) {
+var NEWLINES = require('../../lib/svg_text_utils').NEWLINES;
+var BR_TAG_ALL = require('../../lib/svg_text_utils').BR_TAG_ALL;
+
+module.exports = function convert(gd, calcTrace) {
     var trace = calcTrace[0].trace;
 
     var isVisible = (trace.visible === true && trace._length !== 0);
@@ -87,7 +90,7 @@ module.exports = function convert(calcTrace) {
     }
 
     if(hasSymbols || hasText) {
-        symbol.geojson = makeSymbolGeoJSON(calcTrace);
+        symbol.geojson = makeSymbolGeoJSON(calcTrace, gd);
 
         Lib.extendFlat(symbol.layout, {
             visibility: 'visible',
@@ -229,19 +232,18 @@ function makeCircleOpts(calcTrace) {
     };
 }
 
-function makeSymbolGeoJSON(calcTrace) {
+function makeSymbolGeoJSON(calcTrace, gd) {
     var trace = calcTrace[0].trace;
 
     var marker = trace.marker || {};
     var symbol = marker.symbol;
-    var text = trace.text;
 
     var fillSymbol = (symbol !== 'circle') ?
         getFillFunc(symbol) :
         blankFillFunc;
 
     var fillText = subTypes.hasText(trace) ?
-        getFillFunc(text) :
+        getFillFunc(trace.text) :
         blankFillFunc;
 
     var features = [];
@@ -251,6 +253,19 @@ function makeSymbolGeoJSON(calcTrace) {
 
         if(isBADNUM(calcPt.lonlat)) continue;
 
+        var txt = trace.texttemplate;
+        if(txt) {
+            var txti = Array.isArray(txt) ? (txt[i] || '') : txt;
+            calcPt.text = calcPt.tx;
+            calcPt.lon = calcPt.lonlat[0];
+            calcPt.lat = calcPt.lonlat[1];
+            calcPt.customdata = calcPt.data;
+            calcPt.txt = Lib.texttemplateString(txti, {}, gd._fullLayout._d3locale, calcPt, trace._meta || {});
+        }
+
+        var text = txt ? calcPt.txt : fillText(calcPt.tx);
+        if(text) text = text.replace(NEWLINES, '').replace(BR_TAG_ALL, '\n');
+
         features.push({
             type: 'Feature',
             geometry: {
@@ -259,7 +274,7 @@ function makeSymbolGeoJSON(calcTrace) {
             },
             properties: {
                 symbol: fillSymbol(calcPt.mx),
-                text: fillText(calcPt.tx)
+                text: text
             }
         });
     }

@@ -15,6 +15,7 @@ var supplyAllDefaults = require('../assets/supply_defaults');
 var mockLists = require('../assets/mock_lists');
 var mouseEvent = require('../assets/mouse_event');
 var drag = require('../assets/drag');
+var delay = require('../assets/delay');
 
 var MAPBOX_ACCESS_TOKEN = require('@build/credentials.json').MAPBOX_ACCESS_TOKEN;
 
@@ -881,7 +882,7 @@ describe('@noCIdep Plotly.react', function() {
     });
 
     mockLists.mapbox.forEach(function(mockSpec) {
-        it('@noCI can redraw "' + mockSpec[0] + '" with no changes as a noop (mapbpox mocks)', function(done) {
+        it('@noCI @gl can redraw "' + mockSpec[0] + '" with no changes as a noop (mapbpox mocks)', function(done) {
             Plotly.setPlotConfig({
                 mapboxAccessToken: MAPBOX_ACCESS_TOKEN
             });
@@ -944,7 +945,10 @@ describe('Plotly.react and uirevision attributes', function() {
         gd = createGraphDiv();
     });
 
-    afterEach(destroyGraphDiv);
+    afterEach(function() {
+        Plotly.purge(gd);
+        destroyGraphDiv();
+    });
 
     function checkCloseIfArray(val1, val2, msg) {
         if(Array.isArray(val1) && Array.isArray(val2)) {
@@ -1805,16 +1809,18 @@ describe('Plotly.react and uirevision attributes', function() {
             .then(function() {
                 return drag({node: axisDragNode(0), dpos: [0, 50], noCover: true});
             })
+            .then(delay(100))
             .then(function() {
                 return drag({node: axisDragNode(0), dpos: [0, -50], noCover: true});
             })
+            .then(delay(100))
             .then(function() {
                 return drag({node: axisDragNode(1), dpos: [0, -50], noCover: true});
             });
         }
 
         _run(fig, editTrace, checkState([attrs(true)]), checkState([attrs()])).then(done);
-    });
+    }, 5 * jasmine.DEFAULT_TIMEOUT_INTERVAL);
 
     it('preserves editable: true axis titles using the axis uirevisions', function(done) {
         function fig(mainRev, axRev) {
@@ -1895,6 +1901,42 @@ describe('Plotly.react and uirevision attributes', function() {
         .catch(failTest)
         .then(done);
     });
+
+    it('preserves treemap level changes', function(done) {
+        function assertLevel(msg, exp) {
+            expect(gd._fullData[0].level).toBe(exp, msg);
+        }
+
+        Plotly.react(gd, [{
+            type: 'treemap',
+            labels: ['Eve', 'Cain', 'Seth', 'Enos', 'Noam', 'Abel', 'Awan', 'Enoch', 'Azura'],
+            parents: ['', 'Eve', 'Eve', 'Seth', 'Seth', 'Eve', 'Eve', 'Awan', 'Eve'],
+            uirevision: 1
+        }])
+        .then(function() {
+            assertLevel('no set level at start', undefined);
+        })
+        .then(function() {
+            var nodeSeth = d3.select('.slice:nth-child(2)').node();
+            mouseEvent('click', 0, 0, {element: nodeSeth});
+        })
+        .then(function() {
+            assertLevel('after clicking on Seth sector', 'Seth');
+        })
+        .then(function() {
+            return Plotly.react(gd, [{
+                type: 'treemap',
+                labels: ['Eve', 'Cain', 'Seth', 'Enos', 'Noam', 'Abel', 'Awan', 'Enoch', 'Azura', 'Joe'],
+                parents: ['', 'Eve', 'Eve', 'Seth', 'Seth', 'Eve', 'Eve', 'Awan', 'Eve', 'Seth'],
+                uirevision: 1
+            }]);
+        })
+        .then(function() {
+            assertLevel('after reacting with new data, but with same uirevision', 'Seth');
+        })
+        .catch(failTest)
+        .then(done);
+    });
 });
 
 describe('Test Plotly.react + interactions under uirevision:', function() {
@@ -1926,11 +1968,14 @@ describe('Test Plotly.react + interactions under uirevision:', function() {
         function _mouseup() {
             var sceneLayout = gd._fullLayout.scene;
             var cameraOld = sceneLayout.camera;
-            sceneLayout._scene.setCamera({
-                projection: {type: 'perspective'},
-                eye: {x: 2, y: 2, z: 2},
-                center: cameraOld.center,
-                up: cameraOld.up
+            sceneLayout._scene.setViewport({
+                camera: {
+                    projection: {type: 'perspective'},
+                    eye: {x: 2, y: 2, z: 2},
+                    center: cameraOld.center,
+                    up: cameraOld.up
+                },
+                aspectratio: gd._fullLayout.scene.aspectratio
             });
 
             var target = gd.querySelector('.svg-container .gl-container #scene canvas');

@@ -10,6 +10,7 @@
 
 var d3 = require('d3');
 
+var Plots = require('../../plots/plots');
 var Fx = require('../../components/fx');
 var Color = require('../../components/color');
 var Drawing = require('../../components/drawing');
@@ -18,12 +19,14 @@ var svgTextUtils = require('../../lib/svg_text_utils');
 
 var helpers = require('./helpers');
 var eventData = require('./event_data');
+var isValidTextValue = require('../../lib').isValidTextValue;
 
 function plot(gd, cdModule) {
     var fullLayout = gd._fullLayout;
+    var gs = fullLayout._size;
 
     prerenderTitles(cdModule, gd);
-    layoutAreas(cdModule, fullLayout._size);
+    layoutAreas(cdModule, gs);
 
     var plotGroups = Lib.makeTraceGroups(fullLayout._pielayer, cdModule, 'trace').each(function(cd) {
         var plotGroup = d3.select(this);
@@ -125,6 +128,7 @@ function plot(gd, cdModule) {
                 }
 
                 // add text
+                formatSliceLabel(gd, pt, cd0);
                 var textPosition = helpers.castOption(trace.textposition, pt.pts);
                 var sliceTextGroup = sliceTop.selectAll('g.slicetext')
                     .data(pt.text && (textPosition !== 'none') ? [0] : []);
@@ -226,7 +230,7 @@ function plot(gd, cdModule) {
                 if(trace.title.position === 'middle center') {
                     transform = positionTitleInside(cd0);
                 } else {
-                    transform = positionTitleOutside(cd0, fullLayout._size);
+                    transform = positionTitleOutside(cd0, gs);
                 }
 
                 titleText.attr('transform',
@@ -239,6 +243,31 @@ function plot(gd, cdModule) {
             if(hasOutsideText) scootLabels(quadrants, trace);
 
             plotTextLines(slices, trace);
+
+            if(hasOutsideText && trace.automargin) {
+                // TODO if we ever want to improve perf,
+                // we could reuse the textBB computed above together
+                // with the sliceText transform info
+                var traceBbox = Drawing.bBox(plotGroup.node());
+
+                var domain = trace.domain;
+                var vpw = gs.w * (domain.x[1] - domain.x[0]);
+                var vph = gs.h * (domain.y[1] - domain.y[0]);
+                var xgap = (0.5 * vpw - cd0.r) / gs.w;
+                var ygap = (0.5 * vph - cd0.r) / gs.h;
+
+                Plots.autoMargin(gd, 'pie.' + trace.uid + '.automargin', {
+                    xl: domain.x[0] - xgap,
+                    xr: domain.x[1] + xgap,
+                    yb: domain.y[0] - ygap,
+                    yt: domain.y[1] + ygap,
+                    l: Math.max(cd0.cx - cd0.r - traceBbox.left, 0),
+                    r: Math.max(traceBbox.right - (cd0.cx + cd0.r), 0),
+                    b: Math.max(traceBbox.bottom - (cd0.cy + cd0.r), 0),
+                    t: Math.max(cd0.cy - cd0.r - traceBbox.top, 0),
+                    pad: 5
+                });
+            }
         });
     });
 
@@ -941,8 +970,63 @@ function setCoords(cd) {
     }
 }
 
+function formatSliceLabel(gd, pt, cd0) {
+    var fullLayout = gd._fullLayout;
+    var trace = cd0.trace;
+    // look for textemplate
+    var texttemplate = trace.texttemplate;
+
+    // now insert text
+    var textinfo = trace.textinfo;
+    if(!texttemplate && textinfo && textinfo !== 'none') {
+        var parts = textinfo.split('+');
+        var hasFlag = function(flag) { return parts.indexOf(flag) !== -1; };
+        var hasLabel = hasFlag('label');
+        var hasText = hasFlag('text');
+        var hasValue = hasFlag('value');
+        var hasPercent = hasFlag('percent');
+
+        var separators = fullLayout.separators;
+        var text;
+
+        text = hasLabel ? [pt.label] : [];
+        if(hasText) {
+            var tx = helpers.getFirstFilled(trace.text, pt.pts);
+            if(isValidTextValue(tx)) text.push(tx);
+        }
+        if(hasValue) text.push(helpers.formatPieValue(pt.v, separators));
+        if(hasPercent) text.push(helpers.formatPiePercent(pt.v / cd0.vTotal, separators));
+        pt.text = text.join('<br>');
+    }
+
+    function makeTemplateVariables(pt) {
+        return {
+            label: pt.label,
+            value: pt.v,
+            valueLabel: helpers.formatPieValue(pt.v, fullLayout.separators),
+            percent: pt.v / cd0.vTotal,
+            percentLabel: helpers.formatPiePercent(pt.v / cd0.vTotal, fullLayout.separators),
+            color: pt.color,
+            text: pt.text,
+            customdata: Lib.castOption(trace, pt.i, 'customdata')
+        };
+    }
+
+    if(texttemplate) {
+        var txt = Lib.castOption(trace, pt.i, 'texttemplate');
+        if(!txt) {
+            pt.text = '';
+        } else {
+            var obj = makeTemplateVariables(pt);
+            var ptTx = helpers.getFirstFilled(trace.text, pt.pts);
+            if(isValidTextValue(ptTx) || ptTx === '') obj.text = ptTx;
+            pt.text = Lib.texttemplateString(txt, obj, gd._fullLayout._d3locale, obj, trace._meta || {});
+        }
+    }
+}
 module.exports = {
     plot: plot,
+    formatSliceLabel: formatSliceLabel,
     transformInsideText: transformInsideText,
     determineInsideTextFont: determineInsideTextFont,
     positionTitleOutside: positionTitleOutside,

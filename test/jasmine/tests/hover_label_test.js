@@ -3,6 +3,8 @@ var d3 = require('d3');
 var Plotly = require('@lib/index');
 var Fx = require('@src/components/fx');
 var Lib = require('@src/lib');
+var Drawing = require('@src/components/drawing');
+
 var HOVERMINTIME = require('@src/components/fx').constants.HOVERMINTIME;
 var MINUS_SIGN = require('@src/constants/numerical').MINUS_SIGN;
 
@@ -14,6 +16,7 @@ var delay = require('../assets/delay');
 var doubleClick = require('../assets/double_click');
 var failTest = require('../assets/fail_test');
 var touchEvent = require('../assets/touch_event');
+var negateIf = require('../assets/negate_if');
 
 var customAssertions = require('../assets/custom_assertions');
 var assertHoverLabelStyle = customAssertions.assertHoverLabelStyle;
@@ -35,6 +38,41 @@ function touch(path, options) {
     touchEvent('touchend', path[len - 1][0], path[len - 1][1], options);
     return;
 }
+
+describe('Fx.hover:', function() {
+    var gd;
+
+    beforeEach(function() { gd = createGraphDiv(); });
+
+    afterEach(destroyGraphDiv);
+
+    it('should warn when passing subplot ids that are not part of the graph', function(done) {
+        spyOn(Lib, 'warn');
+
+        var data = [
+            {y: [1], hoverinfo: 'y'}
+        ];
+
+        var layout = {
+            xaxis: {domain: [0, 0.5]},
+            xaxis2: {anchor: 'y2', domain: [0.5, 1]},
+            yaxis2: {anchor: 'x2'},
+            width: 400,
+            height: 200,
+            margin: {l: 0, t: 0, r: 0, b: 0},
+            showlegend: false
+        };
+
+        Plotly.plot(gd, data, layout)
+        .then(function() {
+            Fx.hover(gd, {xpx: 300, ypx: 100}, 'x2y2');
+            expect(gd._hoverdata).toBe(undefined, 'did not generate hoverdata');
+            expect(Lib.warn).toHaveBeenCalledWith('Unrecognized subplot: x2y2');
+        })
+        .catch(failTest)
+        .then(done);
+    });
+});
 
 describe('hover info', function() {
     'use strict';
@@ -1665,6 +1703,122 @@ describe('hover info', function() {
         });
     });
 
+    describe('constraints info graph viewport', function() {
+        var gd;
+
+        beforeEach(function() { gd = createGraphDiv(); });
+
+        it('hovermode:x common label should fit in the graph div width', function(done) {
+            function _assert(msg, exp) {
+                return function() {
+                    var label = d3.select('g.axistext');
+                    if(label.node()) {
+                        expect(label.text()).toBe(exp.txt, 'common label text| ' + msg);
+                        expect(Drawing.getTranslate(label).x)
+                            .toBeWithin(exp.lx, 5, 'common label translate-x| ' + msg);
+
+                        var startOfPath = label.select('path').attr('d').split('L')[0];
+                        expect(startOfPath).not.toBe('M0,0', 'offset start of label path| ' + msg);
+                    } else {
+                        fail('fail to generate common hover label');
+                    }
+                };
+            }
+
+            function _hoverLeft() { return _hover(gd, 30, 300); }
+
+            function _hoverRight() { return _hover(gd, 370, 300); }
+
+            Plotly.plot(gd, [{
+                type: 'bar',
+                x: ['2019-01-01', '2019-06-01', '2020-01-01'],
+                y: [2, 5, 10]
+            }], {
+                xaxis: {range: ['2019-02-06', '2019-12-01']},
+                margin: {l: 0, r: 0},
+                width: 400,
+                height: 400
+            })
+            .then(_hoverLeft)
+            .then(_assert('left-edge hover', {txt: 'Jan 1, 2019', lx: 37}))
+            .then(_hoverRight)
+            .then(_assert('right-edge hover', {txt: 'Jan 1, 2020', lx: 362}))
+            .then(function() { return Plotly.relayout(gd, 'xaxis.side', 'top'); })
+            .then(_hoverLeft)
+            .then(_assert('left-edge hover (side:top)', {txt: 'Jan 1, 2019', lx: 37}))
+            .then(_hoverRight)
+            .then(_assert('right-edge hover (side:top)', {txt: 'Jan 1, 2020', lx: 362}))
+            .catch(failTest)
+            .then(done);
+        });
+
+        it('hovermode:y common label should shift and clip text start into graph div', function(done) {
+            function _assert(msg, exp) {
+                return function() {
+                    var label = d3.select('g.axistext');
+                    if(label.node()) {
+                        var ltext = label.select('text');
+                        expect(ltext.text()).toBe(exp.txt, 'common label text| ' + msg);
+                        expect(ltext.attr('x')).toBeWithin(exp.ltx, 5, 'common label text x| ' + msg);
+
+                        negateIf(exp.clip, expect(ltext.attr('clip-path'))).toBe(null, 'text clip url| ' + msg);
+
+                        var fullLayout = gd._fullLayout;
+                        var clipId = 'clip' + fullLayout._uid + 'commonlabely';
+                        var clipPath = d3.select('#' + clipId);
+                        negateIf(exp.clip, expect(clipPath.node())).toBe(null, 'text clip path|' + msg);
+
+                        if(exp.tspanX) {
+                            var tspans = label.selectAll('tspan');
+                            if(tspans.size()) {
+                                tspans.each(function(d, i) {
+                                    var s = d3.select(this);
+                                    expect(s.attr('x')).toBeWithin(exp.tspanX[i], 5, i + '- tspan shift| ' + msg);
+                                });
+                            } else {
+                                fail('fail to generate tspans in hover label');
+                            }
+                        }
+                    } else {
+                        fail('fail to generate common hover label');
+                    }
+                };
+            }
+
+            function _hoverWayLong() { return _hover(gd, 135, 100); }
+
+            function _hoverA() { return _hover(gd, 135, 20); }
+
+            Plotly.plot(gd, [{
+                type: 'bar',
+                orientation: 'h',
+                y: ['Looong label', 'Loooooger label', 'Waay loooong label', 'a'],
+                x: [2, 5, 10, 2]
+            }], {
+                width: 400,
+                height: 400
+            })
+            .then(_hoverWayLong)
+            .then(_assert('on way long label', {txt: 'Waay loooong label', clip: true, ltx: 38}))
+            .then(_hoverA)
+            .then(_assert('on "a" label', {txt: 'a', clip: false, ltx: -9}))
+            .then(function() {
+                return Plotly.restyle(gd, {
+                    y: [['Looong label', 'Loooooger label', 'SHORT!<br>Waay loooong label', 'a']]
+                });
+            })
+            .then(_hoverWayLong)
+            .then(_assert('on way long label (multi-line case)', {
+                txt: 'SHORT!Waay loooong label',
+                clip: true,
+                ltx: 38,
+                tspanX: [-11, 38]
+            }))
+            .catch(failTest)
+            .then(done);
+        });
+    });
+
     describe('hovertemplate', function() {
         var mockCopy;
 
@@ -2150,7 +2304,6 @@ describe('hover info on stacked subplots', function() {
     });
 });
 
-
 describe('hover on many lines+bars', function() {
     'use strict';
 
@@ -2605,6 +2758,56 @@ describe('hover updates', function() {
             expect(hoverCnt).toEqual(2);
             expect(unHoverCnt).toEqual(2);
         })
+        .then(done);
+    });
+
+    it('should not attempt to rehover over exiting subplots', function(done) {
+        spyOn(Fx, 'hover').and.callThrough();
+
+        var data = [
+            {y: [1], hoverinfo: 'y'},
+            {y: [2], hoverinfo: 'y', xaxis: 'x2', yaxis: 'y2'}
+        ];
+
+        var data2 = [
+            {y: [1], hoverinfo: 'y'}
+        ];
+
+        var layout = {
+            xaxis: {domain: [0, 0.5]},
+            xaxis2: {anchor: 'y2', domain: [0.5, 1]},
+            yaxis2: {anchor: 'x2'},
+            width: 400,
+            height: 200,
+            margin: {l: 0, t: 0, r: 0, b: 0},
+            showlegend: false
+        };
+
+        var gd = createGraphDiv();
+        var onPt2 = [300, 100];
+        var offPt2 = [250, 100];
+
+        Plotly.react(gd, data, layout)
+        .then(function() {
+            assertLabelsCorrect(onPt2, [303, 100], '2', 'after 1st draw [on-pt]');
+            assertLabelsCorrect(offPt2, null, null, 'after 1st draw [off-pt]');
+            expect(Fx.hover).toHaveBeenCalledTimes(2);
+        })
+        .then(function() {
+            var promise = Plotly.react(gd, data2, layout);
+            assertLabelsCorrect(onPt2, null, null, '2', 'before react() resolves [on-pt]');
+            assertLabelsCorrect(offPt2, null, null, 'before react() resolves [off-pt]');
+            // N.B. no calls from Plots.rehover() as x2y2 subplot got removed!
+            expect(Fx.hover).toHaveBeenCalledTimes(2);
+            return promise;
+        })
+        .then(function() {
+            expect(Fx.hover).toHaveBeenCalledTimes(2);
+            assertLabelsCorrect(onPt2, null, null, '2', 'after react() resolves [on-pt]');
+            assertLabelsCorrect(offPt2, null, null, 'after react() resolves [off-pt]');
+            expect(Fx.hover).toHaveBeenCalledTimes(2);
+        })
+        .catch(failTest)
         .then(done);
     });
 });

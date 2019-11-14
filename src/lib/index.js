@@ -6,7 +6,6 @@
 * LICENSE file in the root directory of this source tree.
 */
 
-
 'use strict';
 
 var d3 = require('d3');
@@ -138,7 +137,13 @@ lib.throttle = throttleModule.throttle;
 lib.throttleDone = throttleModule.done;
 lib.clearThrottle = throttleModule.clear;
 
-lib.getGraphDiv = require('./get_graph_div');
+var domModule = require('./dom');
+lib.getGraphDiv = domModule.getGraphDiv;
+lib.isPlotDiv = domModule.isPlotDiv;
+lib.removeElement = domModule.removeElement;
+lib.addStyleRule = domModule.addStyleRule;
+lib.addRelatedStyleRule = domModule.addRelatedStyleRule;
+lib.deleteRelatedStyleRule = domModule.deleteRelatedStyleRule;
 
 lib.clearResponsive = require('./clear_responsive');
 
@@ -454,11 +459,23 @@ lib.noneOrAll = function(containerIn, containerOut, attrList) {
  * @param {object} cd : calcdata trace
  * @param {string} cdAttr : calcdata key
  */
-lib.mergeArray = function(traceAttr, cd, cdAttr) {
+lib.mergeArray = function(traceAttr, cd, cdAttr, fn) {
+    var hasFn = typeof fn === 'function';
     if(lib.isArrayOrTypedArray(traceAttr)) {
         var imax = Math.min(traceAttr.length, cd.length);
-        for(var i = 0; i < imax; i++) cd[i][cdAttr] = traceAttr[i];
+        for(var i = 0; i < imax; i++) {
+            var v = traceAttr[i];
+            cd[i][cdAttr] = hasFn ? fn(v) : v;
+        }
     }
+};
+
+// cast numbers to positive numbers, returns 0 if not greater than 0
+lib.mergeArrayCastPositive = function(traceAttr, cd, cdAttr) {
+    return lib.mergeArray(traceAttr, cd, cdAttr, function(v) {
+        var w = +v;
+        return !isFinite(w) ? 0 : w > 0 ? w : 0;
+    });
 };
 
 /** fills calcdata field (given by cdAttr) with traceAttr values
@@ -649,6 +666,8 @@ lib.minExtend = function(obj1, obj2) {
             } else {
                 objOut[k] = v.slice(0, arrayLen);
             }
+        } else if(lib.isTypedArray(v)) {
+            objOut[k] = v.subarray(0, arrayLen);
         } else if(v && (typeof v === 'object')) objOut[k] = lib.minExtend(obj1[k], obj2[k]);
         else objOut[k] = v;
     }
@@ -676,61 +695,18 @@ lib.containsAny = function(s, fragments) {
     return false;
 };
 
-lib.isPlotDiv = function(el) {
-    var el3 = d3.select(el);
-    return el3.node() instanceof HTMLElement &&
-        el3.size() &&
-        el3.classed('js-plotly-plot');
-};
-
-lib.removeElement = function(el) {
-    var elParent = el && el.parentNode;
-    if(elParent) elParent.removeChild(el);
-};
-
-/**
- * for dynamically adding style rules
- * makes one stylesheet that contains all rules added
- * by all calls to this function
- */
-lib.addStyleRule = function(selector, styleString) {
-    lib.addRelatedStyleRule('global', selector, styleString);
-};
-
-/**
- * for dynamically adding style rules
- * to a stylesheet uniquely identified by a uid
- */
-lib.addRelatedStyleRule = function(uid, selector, styleString) {
-    var id = 'plotly.js-style-' + uid;
-    var style = document.getElementById(id);
-    if(!style) {
-        style = document.createElement('style');
-        style.setAttribute('id', id);
-        // WebKit hack :(
-        style.appendChild(document.createTextNode(''));
-        document.head.appendChild(style);
-    }
-    var styleSheet = style.sheet;
-
-    if(styleSheet.insertRule) {
-        styleSheet.insertRule(selector + '{' + styleString + '}', 0);
-    } else if(styleSheet.addRule) {
-        styleSheet.addRule(selector, styleString, 0);
-    } else lib.warn('addStyleRule failed');
-};
-
-/**
- * to remove from the page a stylesheet identified by a given uid
- */
-lib.deleteRelatedStyleRule = function(uid) {
-    var id = 'plotly.js-style-' + uid;
-    var style = document.getElementById(id);
-    if(style) lib.removeElement(style);
-};
-
 lib.isIE = function() {
     return typeof window.navigator.msSaveBlob !== 'undefined';
+};
+
+var IS_IE9_OR_BELOW_REGEX = /MSIE [1-9]\./;
+lib.isIE9orBelow = function() {
+    return lib.isIE() && IS_IE9_OR_BELOW_REGEX.test(window.navigator.userAgent);
+};
+
+var IS_SAFARI_REGEX = /Version\/[\d\.]+.*Safari/;
+lib.isSafari = function() {
+    return IS_SAFARI_REGEX.test(window.navigator.userAgent);
 };
 
 /**
@@ -990,7 +966,7 @@ lib.numSeparate = function(value, separators, separatethousands) {
     return x1 + x2;
 };
 
-lib.TEMPLATE_STRING_REGEX = /%{([^\s%{}:]*)(:[^}]*)?}/g;
+lib.TEMPLATE_STRING_REGEX = /%{([^\s%{}:]*)([:|\|][^}]*)?}/g;
 var SIMPLE_PROPERTY_REGEX = /^\w*$/;
 
 /**
@@ -1019,9 +995,25 @@ lib.templateString = function(string, obj) {
     });
 };
 
-var TEMPLATE_STRING_FORMAT_SEPARATOR = /^:/;
-var numberOfHoverTemplateWarnings = 0;
-var maximumNumberOfHoverTemplateWarnings = 10;
+var hovertemplateWarnings = {
+    max: 10,
+    count: 0,
+    name: 'hovertemplate'
+};
+lib.hovertemplateString = function() {
+    return templateFormatString.apply(hovertemplateWarnings, arguments);
+};
+
+var texttemplateWarnings = {
+    max: 10,
+    count: 0,
+    name: 'texttemplate'
+};
+lib.texttemplateString = function() {
+    return templateFormatString.apply(texttemplateWarnings, arguments);
+};
+
+var TEMPLATE_STRING_FORMAT_SEPARATOR = /^[:|\|]/;
 /**
  * Substitute values from an object into a string and optionally formats them using d3-format,
  * or fallback to associated labels.
@@ -1031,15 +1023,17 @@ var maximumNumberOfHoverTemplateWarnings = 10;
  *  Lib.hovertemplateString('name: %{trace[0].name}', {trace: [{name: 'asdf'}]}) --> 'name: asdf'
  *  Lib.hovertemplateString('price: %{y:$.2f}', {y: 1}) --> 'price: $1.00'
  *
- * @param {obj}     d3 locale
  * @param {string}  input string containing %{...:...} template strings
  * @param {obj}     data object containing fallback text when no formatting is specified, ex.: {yLabel: 'formattedYValue'}
+ * @param {obj}     d3 locale
  * @param {obj}     data objects containing substitution values
  *
  * @return {string} templated string
  */
-lib.hovertemplateString = function(string, labels, d3locale) {
+function templateFormatString(string, labels, d3locale) {
+    var opts = this;
     var args = arguments;
+    if(!labels) labels = {};
     // Not all that useful, but cache nestedProperty instantiation
     // just in case it speeds things up *slightly*:
     var getterCache = {};
@@ -1048,6 +1042,7 @@ lib.hovertemplateString = function(string, labels, d3locale) {
         var obj, value, i;
         for(i = 3; i < args.length; i++) {
             obj = args[i];
+            if(!obj) continue;
             if(obj.hasOwnProperty(key)) {
                 value = obj[key];
                 break;
@@ -1060,32 +1055,38 @@ lib.hovertemplateString = function(string, labels, d3locale) {
             if(value !== undefined) break;
         }
 
-        if(value === undefined) {
-            if(numberOfHoverTemplateWarnings < maximumNumberOfHoverTemplateWarnings) {
-                lib.warn('Variable \'' + key + '\' in hovertemplate could not be found!');
+        if(value === undefined && opts) {
+            if(opts.count < opts.max) {
+                lib.warn('Variable \'' + key + '\' in ' + opts.name + ' could not be found!');
                 value = match;
             }
 
-            if(numberOfHoverTemplateWarnings === maximumNumberOfHoverTemplateWarnings) {
-                lib.warn('Too many hovertemplate warnings - additional warnings will be suppressed');
+            if(opts.count === opts.max) {
+                lib.warn('Too many ' + opts.name + ' warnings - additional warnings will be suppressed');
             }
-            numberOfHoverTemplateWarnings++;
+            opts.count++;
+
+            return match;
         }
 
         if(format) {
             var fmt;
-            if(d3locale) {
-                fmt = d3locale.numberFormat;
-            } else {
-                fmt = d3.format;
+            if(format[0] === ':') {
+                fmt = d3locale ? d3locale.numberFormat : d3.format;
+                value = fmt(format.replace(TEMPLATE_STRING_FORMAT_SEPARATOR, ''))(value);
             }
-            value = fmt(format.replace(TEMPLATE_STRING_FORMAT_SEPARATOR, ''))(value);
+
+            if(format[0] === '|') {
+                fmt = d3locale ? d3locale.timeFormat.utc : d3.time.format.utc;
+                var ms = lib.dateTime2ms(value);
+                value = lib.formatDate(ms, format.replace(TEMPLATE_STRING_FORMAT_SEPARATOR, ''), false, fmt);
+            }
         } else {
             if(labels.hasOwnProperty(key + 'Label')) value = labels[key + 'Label'];
         }
         return value;
     });
-};
+}
 
 /*
  * alphanumeric string sort, tailored for subplot IDs like scene2, scene10, x10y13 etc
@@ -1160,6 +1161,10 @@ lib.isValidTextValue = function(v) {
     return v || v === 0;
 };
 
+/**
+ * @param {number} ratio
+ * @param {number} n (number of decimal places)
+ */
 lib.formatPercent = function(ratio, n) {
     n = n || 0;
     var str = (Math.round(100 * ratio * Math.pow(10, n)) * Math.pow(0.1, n)).toFixed(n) + '%';
@@ -1170,4 +1175,38 @@ lib.formatPercent = function(ratio, n) {
         }
     }
     return str;
+};
+
+lib.isHidden = function(gd) {
+    var display = window.getComputedStyle(gd).display;
+    return !display || display === 'none';
+};
+
+lib.getTextTransform = function(opts) {
+    var textX = opts.textX;
+    var textY = opts.textY;
+    var targetX = opts.targetX;
+    var targetY = opts.targetY;
+    var scale = opts.scale;
+    var rotate = opts.rotate;
+
+    var transformScale;
+    var transformRotate;
+    var transformTranslate;
+
+    if(scale < 1) transformScale = 'scale(' + scale + ') ';
+    else {
+        scale = 1;
+        transformScale = '';
+    }
+
+    transformRotate = (rotate) ?
+        'rotate(' + rotate + ' ' + textX + ' ' + textY + ') ' : '';
+
+    // Note that scaling also affects the center of the text box
+    var translateX = (targetX - scale * textX);
+    var translateY = (targetY - scale * textY);
+    transformTranslate = 'translate(' + translateX + ' ' + translateY + ')';
+
+    return transformTranslate + transformScale + transformRotate;
 };

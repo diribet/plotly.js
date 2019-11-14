@@ -8,7 +8,7 @@ var Drawing = require('@src/components/drawing');
 var Axes = require('@src/plots/cartesian/axes');
 
 var click = require('../assets/click');
-var DBLCLICKDELAY = require('../../../src/constants/interactions').DBLCLICKDELAY;
+var DBLCLICKDELAY = require('@src/plot_api/plot_config').dfltConfig.doubleClickDelay;
 var createGraphDiv = require('../assets/create_graph_div');
 var destroyGraphDiv = require('../assets/destroy_graph_div');
 var failTest = require('../assets/fail_test');
@@ -25,6 +25,8 @@ var customAssertions = require('../assets/custom_assertions');
 var assertClip = customAssertions.assertClip;
 var assertNodeDisplay = customAssertions.assertNodeDisplay;
 var assertHoverLabelContent = customAssertions.assertHoverLabelContent;
+var checkTextTemplate = require('../assets/check_texttemplate');
+var checkTransition = require('../assets/check_transitions');
 var Fx = require('@src/components/fx');
 
 var d3 = require('d3');
@@ -406,6 +408,20 @@ describe('Bar.calc', function() {
         var cd = gd.calcdata;
         assertPointField(cd, 'x', [[1, NaN, NaN, 15]]);
         assertPointField(cd, 'y', [[1, 2, 10, 30]]);
+    });
+
+    it('should guard against negative marker.line.width values', function() {
+        var gd = mockBarPlot([{
+            marker: {
+                line: {
+                    width: [2, 1, 0, -1, false, true, null, [], -Infinity, Infinity, NaN, {}, '12+1', '1e1']
+                }
+            },
+            y: [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14]
+        }], {});
+
+        var cd = gd.calcdata;
+        assertPointField(cd, 'mlw', [[2, 1, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0, 0, 10]]);
     });
 });
 
@@ -1095,6 +1111,28 @@ describe('A bar plot', function() {
             });
         };
     }
+
+    checkTextTemplate([{
+        type: 'bar',
+        y: [1, 5, 3, 2],
+        text: ['A', 'B', 'C', 'D'],
+        textposition: 'inside',
+        hovertemplate: '%{text}'
+    }], 'text.bartext', [
+      ['%{text} - %{value}', ['A - 1', 'B - 5', 'C - 3', 'D - 2']],
+      [['%{y}', '%{value}', '%{text}'], ['1', '5', 'C']]
+    ]);
+
+    checkTextTemplate([{
+        type: 'bar',
+        textposition: 'outside',
+        x: ['2019-01-01', '2019-02-01'],
+        y: [1, 2],
+        hovertemplate: '%{x}',
+        texttemplate: '%{x}'
+    }], 'text.bartext', [
+      ['%{x}', ['2019-01-01', '2019-02-01']]
+    ]);
 
     it('should show bar texts (inside case)', function(done) {
         var data = [{
@@ -2511,3 +2549,179 @@ function assertTraceField(calcData, prop, expectation) {
 
     expect(values).toBeCloseToArray(expectation, undefined, '(field ' + prop + ')');
 }
+
+describe('bar tweening', function() {
+    var gd;
+    var mock = {
+        'data': [{
+            'type': 'bar',
+            'x': ['A', 'B', 'C'],
+            'text': ['A', 'B', 'C'],
+            'textposition': 'inside',
+            'y': [24, 5, 8],
+            'error_y': {'array': [3, 2, 1]}
+        }]
+    };
+    var transitionOpts = false; // use default
+
+    beforeEach(function() {
+        gd = createGraphDiv();
+    });
+
+    afterEach(function() {
+        Plotly.purge(gd);
+        destroyGraphDiv();
+    });
+
+    it('for bar fill color', function(done) {
+        var tests = [
+            [0, '.point path', 'style', 'fill', ['rgb(31, 119, 180)', 'rgb(31, 119, 180)', 'rgb(31, 119, 180)']],
+            [100, '.point path', 'style', 'fill', ['rgb(76, 95, 144)', 'rgb(25, 146, 144)', 'rgb(25, 95, 195)']],
+            [300, '.point path', 'style', 'fill', ['rgb(165, 48, 72)', 'rgb(12, 201, 72)', 'rgb(12, 48, 225)']],
+            [500, '.point path', 'style', 'fill', ['rgb(255, 0, 0)', 'rgb(0, 255, 0)', 'rgb(0, 0, 255)']]
+        ];
+        var animateOpts = {'data': [{'marker': {'color': ['rgb(255, 0, 0)', 'rgb(0, 255, 0)', 'rgb(0, 0, 255)']}}]};
+
+        checkTransition(gd, mock, animateOpts, transitionOpts, tests)
+          .catch(failTest)
+          .then(done);
+    });
+
+    it('for vertical bar height and text position', function(done) {
+        var tests = [
+            [0, '.point path', 'attr', 'd', ['M18,270V42H162V270Z', 'M198,270V222.5H342V270Z', 'M378,270V194H522V270Z']],
+            [0, 'text.bartext', 'attr', 'transform', ['translate(90 56)', 'translate(270 236.5)', 'translate(450 208)']],
+            [100, '.point path', 'attr', 'd', ['M18,270V78.1H162V270Z', 'M198,270V186.4H342V270Z', 'M378,270V186.40000000000003H522V270Z']],
+            [300, '.point path', 'attr', 'd', ['M18,270V150.3H162V270Z', 'M198,270V114.2H342V270Z', 'M378,270V171.2H522V270Z']],
+            [300, 'text.bartext', 'attr', 'transform', ['translate(90,164.3)', 'translate(270,128.20000000000002)', 'translate(450,185.2)']],
+            [500, '.point path', 'attr', 'd', ['M18,270V222.5H162V270Z', 'M198,270V42H342V270Z', 'M378,270V156H522V270Z']],
+            [600, '.point path', 'attr', 'd', ['M18,270V222.5H162V270Z', 'M198,270V42H342V270Z', 'M378,270V156H522V270Z']],
+            [600, 'text.bartext', 'attr', 'transform', ['translate(90 236.5)', 'translate(270 56)', 'translate(450 170)']],
+        ];
+        var animateOpts = {data: [{y: [5, 24, 12]}]};
+
+        checkTransition(gd, mock, animateOpts, transitionOpts, tests)
+          .catch(failTest)
+          .then(done);
+    });
+
+    it('for vertical bar width', function(done) {
+        var tests = [
+            [0, '.point path', 'attr', 'd', ['M54,270V13.5H486V270Z']],
+            [250, '.point path', 'attr', 'd', ['M94.5,270V13.5H445.5V270Z']],
+            [500, '.point path', 'attr', 'd', ['M135,270V13.5H405V270Z']]
+        ];
+        var animateOpts = {data: [{width: 0.5}]};
+
+        checkTransition(gd, {
+            data: [{
+                type: 'bar',
+                y: [5]
+            }]},
+          animateOpts, transitionOpts, tests)
+          .catch(failTest)
+          .then(done);
+    });
+
+    it('for horizontal bar length and text position', function(done) {
+        var mockCopy = Lib.extendDeep({}, mock);
+        mockCopy.data[0].orientation = 'h';
+        mockCopy.data[0].x = mock.data[0].y.slice();
+        mockCopy.data[0].y = mock.data[0].x.slice();
+        var tests = [
+            [0, '.point path', 'attr', 'd', ['M0,261V189H107V261Z', 'M0,171V99H513V171Z', 'M0,81V9H257V81Z']],
+            [0, 'text.bartext', 'attr', 'transform', ['translate(100 229)', 'translate(506 139)', 'translate(249 49)']],
+            [150, '.point path', 'attr', 'd', ['M0,261V189H171V261Z', 'M0,171V99H455V171Z', 'M0,81V9H276V81Z']],
+            [300, '.point path', 'attr', 'd', ['M0,261V189H235V261Z', 'M0,171V99H398V171Z', 'M0,81V9H295V81Z']],
+            [300, 'text.bartext', 'attr', 'transform', ['translate(228,229)', 'translate(391,139)', 'translate(287,49)']],
+            [450, '.point path', 'attr', 'd', ['M0,261V189H299V261Z', 'M0,171V99H340V171Z', 'M0,81V9H314V81Z']],
+            [600, '.point path', 'attr', 'd', ['M0,261V189H321V261Z', 'M0,171V99H321V171Z', 'M0,81V9H321V81Z']],
+            [600, 'text.bartext', 'attr', 'transform', ['translate(314 229)', 'translate(314 139)', 'translate(313 49)']]
+        ];
+        var animateOpts = {data: [{x: [15, 15, 15]}]};
+
+        checkTransition(gd, mockCopy, animateOpts, transitionOpts, tests)
+          .catch(failTest)
+          .then(done);
+    });
+
+    it('for bar line width and color', function(done) {
+        var tests = [
+            [0, '.point path', 'style', 'stroke', ['', '', '']],
+            [0, '.point path', 'style', 'stroke-width', ['0px', '0px', '0px']],
+            [150, '.point path', 'style', 'stroke', ['rgb(77, 0, 0)', 'rgb(0, 77, 0)', 'rgb(0, 0, 77)']],
+            [150, '.point path', 'style', 'stroke-width', ['6px', '6px', '6px']],
+            [300, '.point path', 'style', 'stroke', ['rgb(153, 0, 0)', 'rgb(0, 153, 0)', 'rgb(0, 0, 153)']],
+            [300, '.point path', 'style', 'stroke-width', ['12px', '12px', '12px']],
+            [450, '.point path', 'style', 'stroke', ['rgb(230, 0, 0)', 'rgb(0, 230, 0)', 'rgb(0, 0, 230)']],
+            [450, '.point path', 'style', 'stroke-width', ['18px', '18px', '18px']],
+            [600, '.point path', 'style', 'stroke', ['rgb(255, 0, 0)', 'rgb(0, 255, 0)', 'rgb(0, 0, 255)']],
+            [600, '.point path', 'style', 'stroke-width', ['20px', '20px', '20px']]
+        ];
+        var animateOpts = {'data': [{'marker': {'line': {'width': 20, 'color': ['rgb(255, 0, 0)', 'rgb(0, 255, 0)', 'rgb(0, 0, 255)']}}}]};
+
+        checkTransition(gd, mock, animateOpts, transitionOpts, tests)
+          .catch(failTest)
+          .then(done);
+    });
+
+    it('for error bars', function(done) {
+        var tests = [
+          [0, 'path.yerror', 'attr', 'd', ['M266,13.5h8m-4,0V99m-4,0h8']],
+          [250, 'path.yerror', 'attr', 'd', ['M266,-18.56h8m-4,0V131.065m-4,0h8']],
+          [500, 'path.yerror', 'attr', 'd', ['M266,-50.62h8m-4,0V163.13m-4,0h8']]
+        ];
+        var animateOpts = {data: [{error_y: {value: 50}}]};
+
+        checkTransition(gd, {
+            data: [{
+                type: 'bar',
+                y: [2],
+                error_y: {value: 20}
+            }]},
+          animateOpts, transitionOpts, tests)
+          .catch(failTest)
+          .then(done);
+    });
+
+    it('for bar positions during object-constancy transitions', function(done) {
+        var _mock = {
+            data: [{
+                type: 'bar',
+                ids: ['A', 'B', 'C'],
+                x: ['A', 'B', 'C'],
+                text: ['A', 'B', 'C'],
+                textposition: 'inside',
+                y: [24, 5, 8],
+                error_y: {'array': [3, 2, 1]},
+                marker: {color: ['red', 'green', 'blue']}
+            }]
+        };
+
+        var nextFrame = { data: [{ ids: ['B', 'C', 'A'] }] };
+
+        var tests = [
+            [0, '.point path', 'datum', 'id', ['A', 'B', 'C']],
+            [0, '.point path', 'style', 'fill', ['rgb(255, 0, 0)', 'rgb(0, 128, 0)', 'rgb(0, 0, 255)']],
+            [0, '.point path', 'attr', 'd', ['M18,270V42H162V270Z', 'M198,270V222.5H342V270Z', 'M378,270V194H522V270Z']],
+            [0, 'text.bartext', 'attr', 'transform', ['translate(90 56)', 'translate(270 236.5)', 'translate(450 208)']],
+            [0, 'path.yerror', 'attr', 'd', ['M86,14h8m-4,0V71m-4,0h8', 'M266,204h8m-4,0V242m-4,0h8', 'M446,185h8m-4,0V204m-4,0h8']],
+
+            [250, '.point path', 'datum', 'id', ['A', 'B', 'C']],
+            [250, '.point path', 'style', 'fill', ['rgb(128, 0, 128)', 'rgb(128, 64, 0)', 'rgb(0, 64, 128)']],
+            [250, '.point path', 'attr', 'd', ['M198,270V118H342V270Z', 'M108,270V132H252V270Z', 'M288,270V208H432V270Z']],
+            [250, 'text.bartext', 'attr', 'transform', ['translate(269.7890625 134)', 'translate(179.5859375 148.25)', 'translate(359.578125 224.25)']],
+            [250, 'path.yerror', 'attr', 'd', ['M266,99h8m-4,0V137m-4,0h8', 'M176,109h8m-4,0V156m-4,0h8', 'M356,194h8m-4,0V223m-4,0h8']],
+
+            [500, '.point path', 'datum', 'id', ['A', 'B', 'C']],
+            [500, '.point path', 'style', 'fill', ['rgb(0, 0, 255)', 'rgb(255, 0, 0)', 'rgb(0, 128, 0)']],
+            [500, '.point path', 'attr', 'd', ['M378,270V194H522V270Z', 'M18,270V42H162V270Z', 'M198,270V223H342V270Z']],
+            [500, 'text.bartext', 'attr', 'transform', ['translate(450 208)', 'translate(90 56)', 'translate(270 236.5)']],
+            [500, 'path.yerror', 'attr', 'd', ['M446,185h8m-4,0V204m-4,0h8', 'M86,14h8m-4,0V71m-4,0h8', 'M266,204h8m-4,0V242m-4,0h8']]
+        ];
+
+        checkTransition(gd, _mock, nextFrame, transitionOpts, tests)
+            .catch(failTest)
+            .then(done);
+    });
+});

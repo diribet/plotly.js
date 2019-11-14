@@ -60,7 +60,7 @@ function hoverOnBoxes(pointData, xval, yval, hovermode) {
     var boxDelta = t.bdPos;
     var boxDeltaPos, boxDeltaNeg;
     var posAcceptance = t.wHover;
-    var shiftPos = function(di) { return di.pos + t.bPos - pVal; };
+    var shiftPos = function(di) { return pAxis.c2l(di.pos) + t.bPos - pAxis.c2l(pVal); };
 
     if(isViolin && trace.side !== 'both') {
         if(trace.side === 'positive') {
@@ -151,7 +151,7 @@ function hoverOnBoxes(pointData, xval, yval, hovermode) {
 
     // box plots: each "point" gets many labels
     var usedVals = {};
-    var attrs = ['med', 'min', 'q1', 'q3', 'max'];
+    var attrs = ['med', 'q1', 'q3', 'min', 'max'];
 
     if(trace.boxmean || (trace.meanline || {}).visible) {
         attrs.push('mean');
@@ -171,6 +171,7 @@ function hoverOnBoxes(pointData, xval, yval, hovermode) {
         var valPx = vAxis.c2p(val, true);
         var pointData2 = Lib.extendFlat({}, pointData);
 
+        pointData2.attr = attr;
         pointData2[vLetter + '0'] = pointData2[vLetter + '1'] = valPx;
         pointData2[vLetter + 'LabelVal'] = val;
         pointData2[vLetter + 'Label'] = (t.labels ? t.labels[attr] + ' ' : '') + Axes.hoverLabelText(vAxis, val);

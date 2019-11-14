@@ -8,7 +8,8 @@
 
 'use strict';
 
-var hovertemplateAttrs = require('../../components/fx/hovertemplate_attributes');
+var hovertemplateAttrs = require('../../plots/template_attributes').hovertemplateAttrs;
+var texttemplateAttrs = require('../../plots/template_attributes').texttemplateAttrs;
 var scatterGeoAttrs = require('../scattergeo/attributes');
 var scatterAttrs = require('../scatter/attributes');
 var mapboxAttrs = require('../../plots/mapbox/layout_attributes');
@@ -48,6 +49,9 @@ module.exports = overrideAll({
             'If trace `hoverinfo` contains a *text* flag and *hovertext* is not set,',
             'these elements will be seen in the hover labels.'
         ].join(' ')
+    }),
+    texttemplate: texttemplateAttrs({editType: 'plot'}, {
+        keys: ['lat', 'lon', 'text']
     }),
     hovertext: extendFlat({}, scatterAttrs.hovertext, {
         description: [
@@ -98,6 +102,18 @@ module.exports = overrideAll({
 
     textfont: mapboxAttrs.layers.symbol.textfont,
     textposition: mapboxAttrs.layers.symbol.textposition,
+
+    below: {
+        valType: 'string',
+        role: 'info',
+        description: [
+            'Determines if this scattermapbox trace\'s layers are to be inserted',
+            'before the layer with the specified ID.',
+            'By default, scattermapbox layers are inserted',
+            'above all the base layers.',
+            'To place the scattermapbox layers above every other layer, set `below` to *\'\'*.'
+        ].join(' ')
+    },
 
     selected: {
         marker: scatterAttrs.selected.marker

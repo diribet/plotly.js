@@ -47,11 +47,14 @@ module.exports = function supplyDefaults(traceIn, traceOut, defaultColor, layout
     // TODO: hole needs to be coerced to the same value within a scaleegroup
 
     var textData = coerce('text');
-    var textInfo = coerce('textinfo', Array.isArray(textData) ? 'text+percent' : 'percent');
+    var textTemplate = coerce('texttemplate');
+    var textInfo;
+    if(!textTemplate) textInfo = coerce('textinfo', Array.isArray(textData) ? 'text+percent' : 'percent');
+
     coerce('hovertext');
     coerce('hovertemplate');
 
-    if(textInfo && textInfo !== 'none') {
+    if(textTemplate || (textInfo && textInfo !== 'none')) {
         var textposition = coerce('textposition');
         handleText(traceIn, traceOut, layout, coerce, textposition, {
             moduleHasSelected: false,
@@ -61,6 +64,12 @@ module.exports = function supplyDefaults(traceIn, traceOut, defaultColor, layout
             moduleHasTextangle: false,
             moduleHasInsideanchor: false
         });
+
+        var hasBoth = Array.isArray(textposition) || textposition === 'auto';
+        var hasOutside = hasBoth || textposition === 'outside';
+        if(hasOutside) {
+            coerce('automargin');
+        }
     }
 
     handleDomainDefaults(traceOut, layout, coerce);

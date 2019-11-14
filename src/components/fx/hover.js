@@ -224,24 +224,20 @@ function _hover(gd, evt, subplot, noHoverEvent) {
     for(var i = 0; i < len; i++) {
         var spId = subplots[i];
 
-        // 'cartesian' case
-        var plotObj = plots[spId];
-        if(plotObj) {
+        if(plots[spId]) {
+            // 'cartesian' case
             supportsCompare = true;
-
-            // TODO make sure that fullLayout_plots axis refs
-            // get updated properly so that we don't have
-            // to use Axes.getFromId in general.
-
-            xaArray[i] = Axes.getFromId(gd, plotObj.xaxis._id);
-            yaArray[i] = Axes.getFromId(gd, plotObj.yaxis._id);
-            continue;
+            xaArray[i] = plots[spId].xaxis;
+            yaArray[i] = plots[spId].yaxis;
+        } else if(fullLayout[spId] && fullLayout[spId]._subplot) {
+            // other subplot types
+            var _subplot = fullLayout[spId]._subplot;
+            xaArray[i] = _subplot.xaxis;
+            yaArray[i] = _subplot.yaxis;
+        } else {
+            Lib.warn('Unrecognized subplot: ' + spId);
+            return;
         }
-
-        // other subplot types
-        var _subplot = fullLayout[spId]._subplot;
-        xaArray[i] = _subplot.xaxis;
-        yaArray[i] = _subplot.yaxis;
     }
 
     var hovermode = evt.hovermode || fullLayout.hovermode;
@@ -608,7 +604,7 @@ function _hover(gd, evt, subplot, noHoverEvent) {
         var result = dragElement.unhoverRaw(gd, evt);
         if(hasCartesian && ((spikePoints.hLinePoint !== null) || (spikePoints.vLinePoint !== null))) {
             if(spikesChanged(oldspikepoints)) {
-                createSpikelines(spikePoints, spikelineOpts);
+                createSpikelines(gd, spikePoints, spikelineOpts);
             }
         }
         return result;
@@ -616,7 +612,7 @@ function _hover(gd, evt, subplot, noHoverEvent) {
 
     if(hasCartesian) {
         if(spikesChanged(oldspikepoints)) {
-            createSpikelines(spikePoints, spikelineOpts);
+            createSpikelines(gd, spikePoints, spikelineOpts);
         }
     }
 
@@ -779,6 +775,11 @@ function createHoverText(hoverData, opts, gd) {
         var commonBgColor = commonLabelOpts.bgcolor || Color.defaultLine;
         var commonStroke = commonLabelOpts.bordercolor || Color.contrast(commonBgColor);
         var contrastColor = Color.contrast(commonBgColor);
+        var commonLabelFont = {
+            family: commonLabelOpts.font.family || fontFamily,
+            size: commonLabelOpts.font.size || fontSize,
+            color: commonLabelOpts.font.color || contrastColor
+        };
 
         lpath.style({
             fill: commonBgColor,
@@ -786,41 +787,76 @@ function createHoverText(hoverData, opts, gd) {
         });
 
         ltext.text(t0)
-            .call(Drawing.font,
-                commonLabelOpts.font.family || fontFamily,
-                commonLabelOpts.font.size || fontSize,
-                commonLabelOpts.font.color || contrastColor
-             )
+            .call(Drawing.font, commonLabelFont)
             .call(svgTextUtils.positionText, 0, 0)
             .call(svgTextUtils.convertToTspans, gd);
 
         label.attr('transform', '');
 
         var tbb = ltext.node().getBoundingClientRect();
+        var lx, ly;
+
         if(hovermode === 'x') {
+            var topsign = xa.side === 'top' ? '-' : '';
+
             ltext.attr('text-anchor', 'middle')
                 .call(svgTextUtils.positionText, 0, (xa.side === 'top' ?
                     (outerTop - tbb.bottom - HOVERARROWSIZE - HOVERTEXTPAD) :
                     (outerTop - tbb.top + HOVERARROWSIZE + HOVERTEXTPAD)));
 
-            var topsign = xa.side === 'top' ? '-' : '';
-            lpath.attr('d', 'M0,0' +
-                'L' + HOVERARROWSIZE + ',' + topsign + HOVERARROWSIZE +
-                'H' + (HOVERTEXTPAD + tbb.width / 2) +
-                'v' + topsign + (HOVERTEXTPAD * 2 + tbb.height) +
-                'H-' + (HOVERTEXTPAD + tbb.width / 2) +
-                'V' + topsign + HOVERARROWSIZE + 'H-' + HOVERARROWSIZE + 'Z');
+            lx = xa._offset + (c0.x0 + c0.x1) / 2;
+            ly = ya._offset + (xa.side === 'top' ? 0 : ya._length);
 
-            label.attr('transform', 'translate(' +
-                (xa._offset + (c0.x0 + c0.x1) / 2) + ',' +
-                (ya._offset + (xa.side === 'top' ? 0 : ya._length)) + ')');
+            var halfWidth = tbb.width / 2 + HOVERTEXTPAD;
+
+            if(lx < halfWidth) {
+                lx = halfWidth;
+
+                lpath.attr('d', 'M-' + (halfWidth - HOVERARROWSIZE) + ',0' +
+                    'L-' + (halfWidth - HOVERARROWSIZE * 2) + ',' + topsign + HOVERARROWSIZE +
+                    'H' + (HOVERTEXTPAD + tbb.width / 2) +
+                    'v' + topsign + (HOVERTEXTPAD * 2 + tbb.height) +
+                    'H-' + halfWidth +
+                    'V' + topsign + HOVERARROWSIZE +
+                    'Z');
+            } else if(lx > (fullLayout.width - halfWidth)) {
+                lx = fullLayout.width - halfWidth;
+
+                lpath.attr('d', 'M' + (halfWidth - HOVERARROWSIZE) + ',0' +
+                    'L' + halfWidth + ',' + topsign + HOVERARROWSIZE +
+                    'v' + topsign + (HOVERTEXTPAD * 2 + tbb.height) +
+                    'H-' + halfWidth +
+                    'V' + topsign + HOVERARROWSIZE +
+                    'H' + (halfWidth - HOVERARROWSIZE * 2) + 'Z');
+            } else {
+                lpath.attr('d', 'M0,0' +
+                    'L' + HOVERARROWSIZE + ',' + topsign + HOVERARROWSIZE +
+                    'H' + (HOVERTEXTPAD + tbb.width / 2) +
+                    'v' + topsign + (HOVERTEXTPAD * 2 + tbb.height) +
+                    'H-' + (HOVERTEXTPAD + tbb.width / 2) +
+                    'V' + topsign + HOVERARROWSIZE +
+                    'H-' + HOVERARROWSIZE + 'Z');
+            }
         } else {
-            ltext.attr('text-anchor', ya.side === 'right' ? 'start' : 'end')
-                .call(svgTextUtils.positionText,
-                    (ya.side === 'right' ? 1 : -1) * (HOVERTEXTPAD + HOVERARROWSIZE),
-                    outerTop - tbb.top - tbb.height / 2);
+            var anchor;
+            var sgn;
+            var leftsign;
+            if(ya.side === 'right') {
+                anchor = 'start';
+                sgn = 1;
+                leftsign = '';
+                lx = xa._offset + xa._length;
+            } else {
+                anchor = 'end';
+                sgn = -1;
+                leftsign = '-';
+                lx = xa._offset;
+            }
 
-            var leftsign = ya.side === 'right' ? '' : '-';
+            ly = ya._offset + (c0.y0 + c0.y1) / 2;
+
+            ltext.attr('text-anchor', anchor);
+
             lpath.attr('d', 'M0,0' +
                 'L' + leftsign + HOVERARROWSIZE + ',' + HOVERARROWSIZE +
                 'V' + (HOVERTEXTPAD + tbb.height / 2) +
@@ -828,10 +864,49 @@ function createHoverText(hoverData, opts, gd) {
                 'V-' + (HOVERTEXTPAD + tbb.height / 2) +
                 'H' + leftsign + HOVERARROWSIZE + 'V-' + HOVERARROWSIZE + 'Z');
 
-            label.attr('transform', 'translate(' +
-                (xa._offset + (ya.side === 'right' ? xa._length : 0)) + ',' +
-                (ya._offset + (c0.y0 + c0.y1) / 2) + ')');
+            var halfHeight = tbb.height / 2;
+            var lty = outerTop - tbb.top - halfHeight;
+            var clipId = 'clip' + fullLayout._uid + 'commonlabel' + ya._id;
+            var clipPath;
+
+            if(lx < (tbb.width + 2 * HOVERTEXTPAD + HOVERARROWSIZE)) {
+                clipPath = 'M-' + (HOVERARROWSIZE + HOVERTEXTPAD) + '-' + halfHeight +
+                    'h-' + (tbb.width - HOVERTEXTPAD) +
+                    'V' + halfHeight +
+                    'h' + (tbb.width - HOVERTEXTPAD) + 'Z';
+
+                var ltx = tbb.width - lx + HOVERTEXTPAD;
+                svgTextUtils.positionText(ltext, ltx, lty);
+
+                // shift each line (except the longest) so that start-of-line
+                // is always visible
+                if(anchor === 'end') {
+                    ltext.selectAll('tspan').each(function() {
+                        var s = d3.select(this);
+                        var dummy = Drawing.tester.append('text')
+                            .text(s.text())
+                            .call(Drawing.font, commonLabelFont);
+                        var dummyBB = dummy.node().getBoundingClientRect();
+                        if(dummyBB.width < tbb.width) {
+                            s.attr('x', ltx - dummyBB.width);
+                        }
+                        dummy.remove();
+                    });
+                }
+            } else {
+                svgTextUtils.positionText(ltext, sgn * (HOVERTEXTPAD + HOVERARROWSIZE), lty);
+                clipPath = null;
+            }
+
+            var textClip = fullLayout._topclips.selectAll('#' + clipId).data(clipPath ? [0] : []);
+            textClip.enter().append('clipPath').attr('id', clipId).append('path');
+            textClip.exit().remove();
+            textClip.select('path').attr('d', clipPath);
+            Drawing.setClipUrl(ltext, clipPath ? clipId : null, gd);
         }
+
+        label.attr('transform', 'translate(' + lx + ',' + ly + ')');
+
         // remove the "close but not quite" points
         // because of error bars, only take up to a space
         hoverData = hoverData.filter(function(d) {
@@ -842,10 +917,11 @@ function createHoverText(hoverData, opts, gd) {
 
     // show all the individual labels
 
-
     // first create the objects
     var hoverLabels = container.selectAll('g.hovertext')
         .data(hoverData, function(d) {
+            // N.B. when multiple items have the same result key-function value,
+            // only the first of those items in hoverData gets rendered
             return [d.trace.index, d.index, d.x0, d.y0, d.name, d.attr, d.xa, d.ya || ''].join(',');
         });
     hoverLabels.enter().append('g')
@@ -899,7 +975,7 @@ function createHoverText(hoverData, opts, gd) {
         if(d.zLabel !== undefined) {
             if(d.xLabel !== undefined) text += 'x: ' + d.xLabel + '<br>';
             if(d.yLabel !== undefined) text += 'y: ' + d.yLabel + '<br>';
-            if(d.trace.type !== 'choropleth') {
+            if(d.trace.type !== 'choropleth' && d.trace.type !== 'choroplethmapbox') {
                 text += (text ? 'z: ' : '') + d.zLabel;
             }
         } else if(showCommonLabel && d[hovermode + 'Label'] === t0) {
@@ -1062,22 +1138,25 @@ function createHoverText(hoverData, opts, gd) {
 // know what happens if the group spans all the way from one edge to
 // the other, though it hardly matters - there's just too much
 // information then.
-function hoverAvoidOverlaps(hoverLabels, ax, fullLayout) {
+function hoverAvoidOverlaps(hoverLabels, axKey, fullLayout) {
     var nummoves = 0;
     var axSign = 1;
     var nLabels = hoverLabels.size();
 
     // make groups of touching points
     var pointgroups = new Array(nLabels);
+    var k = 0;
 
-    hoverLabels.each(function(d, i) {
-        var axis = d[ax];
-        var axIsX = axis._id.charAt(0) === 'x';
-        var rng = axis.range;
-        if(!i && rng && ((rng[0] > rng[1]) !== axIsX)) axSign = -1;
-        pointgroups[i] = [{
+    hoverLabels.each(function(d) {
+        var ax = d[axKey];
+        var axIsX = ax._id.charAt(0) === 'x';
+        var rng = ax.range;
+
+        if(k === 0 && rng && ((rng[0] > rng[1]) !== axIsX)) {
+            axSign = -1;
+        }
+        pointgroups[k++] = [{
             datum: d,
-            i: i,
             traceIndex: d.trace.index,
             dp: 0,
             pos: d.pos,
@@ -1395,9 +1474,10 @@ function cleanPoint(d, hovermode) {
     return d;
 }
 
-function createSpikelines(closestPoints, opts) {
+function createSpikelines(gd, closestPoints, opts) {
     var container = opts.container;
     var fullLayout = opts.fullLayout;
+    var gs = fullLayout._size;
     var evt = opts.event;
     var showY = !!closestPoints.hLinePoint;
     var showX = !!closestPoints.vLinePoint;
@@ -1432,8 +1512,7 @@ function createSpikelines(closestPoints, opts) {
         var yMode = ya.spikemode;
         var yThickness = ya.spikethickness;
         var yColor = ya.spikecolor || dfltHLineColor;
-        var yBB = ya._boundingBox;
-        var xEdge = ((yBB.left + yBB.right) / 2) < hLinePointX ? yBB.right : yBB.left;
+        var xEdge = Axes.getPxPosition(gd, ya);
         var xBase, xEndSpike;
 
         if(yMode.indexOf('toaxis') !== -1 || yMode.indexOf('across') !== -1) {
@@ -1442,8 +1521,14 @@ function createSpikelines(closestPoints, opts) {
                 xEndSpike = hLinePointX;
             }
             if(yMode.indexOf('across') !== -1) {
-                xBase = ya._counterSpan[0];
-                xEndSpike = ya._counterSpan[1];
+                var xAcross0 = ya._counterDomainMin;
+                var xAcross1 = ya._counterDomainMax;
+                if(ya.anchor === 'free') {
+                    xAcross0 = Math.min(xAcross0, ya.position);
+                    xAcross1 = Math.max(xAcross1, ya.position);
+                }
+                xBase = gs.l + xAcross0 * gs.w;
+                xEndSpike = gs.l + xAcross1 * gs.w;
             }
 
             // Foreground horizontal line (to y-axis)
@@ -1521,8 +1606,7 @@ function createSpikelines(closestPoints, opts) {
         var xMode = xa.spikemode;
         var xThickness = xa.spikethickness;
         var xColor = xa.spikecolor || dfltVLineColor;
-        var xBB = xa._boundingBox;
-        var yEdge = ((xBB.top + xBB.bottom) / 2) < vLinePointY ? xBB.bottom : xBB.top;
+        var yEdge = Axes.getPxPosition(gd, xa);
         var yBase, yEndSpike;
 
         if(xMode.indexOf('toaxis') !== -1 || xMode.indexOf('across') !== -1) {
@@ -1531,8 +1615,14 @@ function createSpikelines(closestPoints, opts) {
                 yEndSpike = vLinePointY;
             }
             if(xMode.indexOf('across') !== -1) {
-                yBase = xa._counterSpan[0];
-                yEndSpike = xa._counterSpan[1];
+                var yAcross0 = xa._counterDomainMin;
+                var yAcross1 = xa._counterDomainMax;
+                if(xa.anchor === 'free') {
+                    yAcross0 = Math.min(yAcross0, xa.position);
+                    yAcross1 = Math.max(yAcross1, xa.position);
+                }
+                yBase = gs.t + (1 - yAcross1) * gs.h;
+                yEndSpike = gs.t + (1 - yAcross0) * gs.h;
             }
 
             // Foreground vertical line (to x-axis)

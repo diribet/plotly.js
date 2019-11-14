@@ -14,6 +14,7 @@ var rgb = require('../../../src/components/color').rgb;
 var customAssertions = require('../assets/custom_assertions');
 var assertHoverLabelStyle = customAssertions.assertHoverLabelStyle;
 var assertHoverLabelContent = customAssertions.assertHoverLabelContent;
+var checkTextTemplate = require('../assets/check_texttemplate');
 
 var SLICES_SELECTOR = '.slice path';
 var SLICES_TEXT_SELECTOR = '.pielayer text.slicetext';
@@ -70,6 +71,20 @@ describe('Pie defaults', function() {
     it('does apply textfont.color to insidetextfont.color if not set', function() {
         var out = _supply({type: 'pie', values: [1, 2], textfont: {color: 'blue'}}, {font: {color: 'red'}});
         expect(out.insidetextfont.color).toBe('blue');
+    });
+
+    it('should only coerce *automargin* if there are outside labels', function() {
+        var out = _supply({type: 'pie', labels: ['A', 'B'], values: [1, 2], automargin: true});
+        expect(out.automargin).toBe(true, 'dflt textposition');
+
+        var out2 = _supply({type: 'pie', labels: ['A', 'B'], values: [1, 2], automargin: true, textposition: 'inside'});
+        expect(out2.automargin).toBe(undefined, 'textposition inside');
+
+        var out3 = _supply({type: 'pie', labels: ['A', 'B'], values: [1, 2], automargin: true, textposition: 'none'});
+        expect(out3.automargin).toBe(undefined, 'textposition none');
+
+        var out4 = _supply({type: 'pie', labels: ['A', 'B'], values: [1, 2], automargin: true, textposition: 'outside'});
+        expect(out4.automargin).toBe(true, 'textposition outside');
     });
 });
 
@@ -862,6 +877,106 @@ describe('Pie traces', function() {
         .catch(failTest)
         .then(done);
     });
+
+    it('should grow and shrink margins under *automargin:true*', function(done) {
+        var data = [{
+            type: 'pie',
+            values: [1, 2, 3, 4, 5],
+            labels: ['apples', 'oranges', 'blueberries', 'lemons', 'watermelon'],
+            textinfo: 'label+text+value+percent',
+            textposition: 'outside',
+            automargin: false
+        }];
+        var layout = {
+            width: 400, height: 400,
+            margin: {t: 0, b: 0, l: 0, r: 0},
+            showlegend: false
+        };
+
+        var previousSize;
+        function assertSize(msg, actual, exp) {
+            for(var k in exp) {
+                var parts = exp[k].split('|');
+                var op = parts[0];
+
+                var method = {
+                    '=': 'toBe',
+                    '~=': 'toBeWithin',
+                    grew: 'toBeGreaterThan',
+                    shrunk: 'toBeLessThan'
+                }[op];
+
+                var val = previousSize[k];
+                var msgk = msg + ' ' + k + (parts[1] ? ' |' + parts[1] : '');
+                var args = op === '~=' ? [val, 1.1, msgk] : [val, msgk, ''];
+
+                expect(actual[k])[method](args[0], args[1], args[2]);
+            }
+        }
+
+        function check(msg, restyleObj, exp) {
+            return function() {
+                return Plotly.restyle(gd, restyleObj).then(function() {
+                    var gs = Lib.extendDeep({}, gd._fullLayout._size);
+                    assertSize(msg, gs, exp);
+                    previousSize = gs;
+                });
+            };
+        }
+
+        Plotly.plot(gd, data, layout)
+        .then(function() {
+            var gs = gd._fullLayout._size;
+            previousSize = Lib.extendDeep({}, gs);
+        })
+        .then(check('automargin:true', {automargin: true}, {
+            t: 'grew', l: 'grew',
+            b: 'grew', r: 'grew'
+        }))
+        .then(check('smaller font size', {'outsidetextfont.size': 8}, {
+            t: 'shrunk', l: 'shrunk',
+            b: 'shrunk', r: 'shrunk'
+        }))
+        .then(check('arrayOk textposition', {
+            textposition: [['outside', 'outside', 'inside', 'inside', 'outside']],
+            'outsidetextfont.size': 12
+        }, {
+            t: '~=', l: 'shrunk',
+            b: 'grew', r: 'grew'
+        }))
+        .then(check('automargin:false', {automargin: false}, {
+            t: 'shrunk', l: 'shrunk',
+            b: 'shrunk', r: 'shrunk'
+        }))
+        .catch(failTest)
+        .then(done);
+    });
+});
+
+describe('Pie texttemplate:', function() {
+    checkTextTemplate([{
+        type: 'pie',
+        values: [1, 5, 3, 2],
+        labels: ['A', 'B', 'C', 'D'],
+        text: ['textA', 'textB', 'textC', 'textD'],
+        textposition: 'inside',
+        hovertemplate: '%{text}'
+    }], 'g.slicetext', [
+        ['%{label} - %{value}', ['A - 1', 'B - 5', 'C - 3', 'D - 2']],
+        [['%{label} - %{value}', '%{text}', '%{value}', '%{percent}'], ['A - 1', 'textB', '3', '18.2%']],
+        ['%{text}-%{color}', ['textA-#d62728', 'textB-#1f77b4', 'textC-#ff7f0e', 'textD-#2ca02c']]
+    ]);
+
+    // Check texttemplate with aggregated values
+    checkTextTemplate([{
+        type: 'pie',
+        values: [1, 1, 1],
+        labels: ['A', 'A', 'B'],
+        text: ['textA1', 'textA2', 'textB'],
+        textposition: 'inside'
+    }], 'g.slicetext', [
+        ['%{text}', ['textA1', 'textB']]
+    ], true);
 });
 
 describe('pie hovering', function() {

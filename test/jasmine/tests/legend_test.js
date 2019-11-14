@@ -1,7 +1,7 @@
 var Plotly = require('@lib/index');
 var Plots = require('@src/plots/plots');
 var Lib = require('@src/lib');
-var DBLCLICKDELAY = require('@src/constants/interactions').DBLCLICKDELAY;
+var DBLCLICKDELAY = require('@src/plot_api/plot_config').dfltConfig.doubleClickDelay;
 
 var Legend = require('@src/components/legend');
 var getLegendData = require('@src/components/legend/get_legend_data');
@@ -591,9 +591,7 @@ describe('legend anchor utils:', function() {
 });
 
 describe('legend relayout update', function() {
-    'use strict';
     var gd;
-    var mock = require('@mocks/0.json');
 
     beforeEach(function() {
         gd = createGraphDiv();
@@ -601,7 +599,7 @@ describe('legend relayout update', function() {
     afterEach(destroyGraphDiv);
 
     it('should hide and show the legend', function(done) {
-        var mockCopy = Lib.extendDeep({}, mock, {layout: {
+        var mockCopy = Lib.extendDeep({}, require('@mocks/0.json'), {layout: {
             legend: {x: 1.1, xanchor: 'left'},
             margin: {l: 50, r: 50, pad: 0},
             width: 500
@@ -633,7 +631,7 @@ describe('legend relayout update', function() {
     });
 
     it('should update border styling', function(done) {
-        var mockCopy = Lib.extendDeep({}, mock);
+        var mockCopy = Lib.extendDeep({}, require('@mocks/0.json'));
 
         function assertLegendStyle(bgColor, borderColor, borderWidth) {
             var node = d3.select('g.legend').select('rect').node();
@@ -670,21 +668,13 @@ describe('legend relayout update', function() {
     });
 
     describe('should update legend valign', function() {
-        var mock = require('@mocks/legend_valign_top.json');
-        var gd;
-
-        beforeEach(function() {
-            gd = createGraphDiv();
-        });
-        afterEach(destroyGraphDiv);
-
         function markerOffsetY() {
             var translate = Drawing.getTranslate(d3.select('.legend .traces .layers'));
             return translate.y;
         }
 
         it('it should translate markers', function(done) {
-            var mockCopy = Lib.extendDeep({}, mock);
+            var mockCopy = Lib.extendDeep({}, require('@mocks/legend_valign_top.json'));
 
             var top, middle, bottom;
             Plotly.plot(gd, mockCopy.data, mockCopy.layout)
@@ -707,31 +697,51 @@ describe('legend relayout update', function() {
     });
 
     describe('with legendgroup', function() {
-        var mock = require('@mocks/legendgroup_horizontal_wrapping.json');
-        var gd;
-
-        beforeEach(function() {
-            gd = createGraphDiv();
-        });
-        afterEach(destroyGraphDiv);
-
         it('changes the margin size to fit tracegroupgap', function(done) {
-            var mockCopy = Lib.extendDeep({}, mock);
+            var mockCopy = Lib.extendDeep({}, require('@mocks/legendgroup_horizontal_wrapping.json'));
             Plotly.newPlot(gd, mockCopy)
             .then(function() {
-                expect(gd._fullLayout._size.b).toBe(130);
+                expect(gd._fullLayout._size.b).toBe(113);
                 return Plotly.relayout(gd, 'legend.tracegroupgap', 70);
             })
             .then(function() {
-                expect(gd._fullLayout._size.b).toBe(185);
+                expect(gd._fullLayout._size.b).toBe(167);
                 return Plotly.relayout(gd, 'legend.tracegroupgap', 10);
             })
             .then(function() {
-                expect(gd._fullLayout._size.b).toBe(130);
+                expect(gd._fullLayout._size.b).toBe(113);
             })
             .catch(failTest)
             .then(done);
         });
+    });
+
+    it('should make legend fit in graph viewport', function(done) {
+        var fig = Lib.extendDeep({}, require('@mocks/legend_negative_x.json'));
+
+        function _assert(msg, xy, wh) {
+            return function() {
+                var fullLayout = gd._fullLayout;
+                var legend3 = d3.select('g.legend');
+                var bg3 = legend3.select('rect.bg');
+                var translate = Drawing.getTranslate(legend3);
+                var x = translate.x;
+                var y = translate.y;
+                var w = +bg3.attr('width');
+                var h = +bg3.attr('height');
+                expect([x, y]).toBeWithinArray(xy, 25, msg + '| legend x,y');
+                expect([w, h]).toBeWithinArray(wh, 25, msg + '| legend w,h');
+                expect(x + w <= fullLayout.width).toBe(true, msg + '| fits in x');
+                expect(y + h <= fullLayout.height).toBe(true, msg + '| fits in y');
+            };
+        }
+
+        Plotly.plot(gd, fig)
+        .then(_assert('base', [5, 4.4], [512, 29]))
+        .then(function() { return Plotly.relayout(gd, 'legend.x', 0.8); })
+        .then(_assert('after relayout almost to right edge', [188, 4.4], [512, 29]))
+        .catch(failTest)
+        .then(done);
     });
 });
 
@@ -788,7 +798,7 @@ describe('legend restyle update', function() {
                 expect(node.attr('height')).toEqual('19');
 
                 var w = +node.attr('width');
-                expect(Math.abs(w - 160)).toBeLessThan(10);
+                expect(w).toBeWithin(113, 10);
             });
         }
 
@@ -1758,4 +1768,72 @@ describe('legend DOM', function() {
         .catch(failTest)
         .then(done);
     });
+});
+
+describe('legend with custom doubleClickDelay', function() {
+    var gd;
+
+    beforeEach(function() {
+        gd = createGraphDiv();
+    });
+
+    afterEach(destroyGraphDiv);
+
+    function click(index) {
+        return function() {
+            var item = d3.selectAll('rect.legendtoggle')[0][index];
+            item.dispatchEvent(new MouseEvent('mousedown'));
+            item.dispatchEvent(new MouseEvent('mouseup'));
+        };
+    }
+
+    it('should differentiate clicks and double-clicks according *doubleClickDelay* config', function(done) {
+        var tLong = 1.5 * DBLCLICKDELAY;
+        var tShort = 0.75 * DBLCLICKDELAY;
+
+        var clickCnt = 0;
+        var dblClickCnt = 0;
+
+        function _assert(msg, _clickCnt, _dblClickCnt) {
+            return function() {
+                expect(clickCnt).toBe(_clickCnt, msg + '| clickCnt');
+                expect(dblClickCnt).toBe(_dblClickCnt, msg + '| dblClickCnt');
+                clickCnt = 0;
+                dblClickCnt = 0;
+            };
+        }
+
+        Plotly.plot(gd, [
+            {y: [1, 2, 1]},
+            {y: [2, 1, 2]}
+        ], {}, {
+            doubleClickDelay: tLong
+        })
+        .then(function() {
+            gd.on('plotly_legendclick', function() { clickCnt++; });
+            gd.on('plotly_legenddoubleclick', function() { dblClickCnt++; });
+        })
+        .then(click(0)).then(delay(tLong / 2))
+        .then(_assert('[long] after click + (t/2) delay', 1, 0))
+        .then(delay(tLong + 10))
+        .then(click(0)).then(delay(DBLCLICKDELAY + 1)).then(click(0))
+        .then(_assert('[long] after click + (DBLCLICKDELAY+1) delay + click', 2, 1))
+        .then(delay(tLong + 10))
+        .then(click(0)).then(delay(1.1 * tLong)).then(click(0))
+        .then(_assert('[long] after click + (1.1*t) delay + click', 2, 0))
+        .then(delay(tLong + 10))
+        .then(function() {
+            return Plotly.plot(gd, [], {}, {doubleClickDelay: tShort});
+        })
+        .then(click(0)).then(delay(tShort / 2))
+        .then(_assert('[short] after click + (t/2) delay', 1, 0))
+        .then(delay(tShort + 10))
+        .then(click(0)).then(delay(DBLCLICKDELAY + 1)).then(click(0))
+        .then(_assert('[short] after click + (DBLCLICKDELAY+1) delay + click', 2, 0))
+        .then(delay(tShort + 10))
+        .then(click(0)).then(delay(1.1 * tShort)).then(click(0))
+        .then(_assert('[short] after click + (1.1*t) delay + click', 2, 0))
+        .catch(failTest)
+        .then(done);
+    }, 3 * jasmine.DEFAULT_TIMEOUT_INTERVAL);
 });

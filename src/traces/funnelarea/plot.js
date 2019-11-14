@@ -15,7 +15,7 @@ var Lib = require('../../lib');
 var svgTextUtils = require('../../lib/svg_text_utils');
 
 var barPlot = require('../bar/plot');
-var getTransformToMoveInsideBar = barPlot.getTransformToMoveInsideBar;
+var toMoveInsideBar = barPlot.toMoveInsideBar;
 
 var pieHelpers = require('../pie/helpers');
 var piePlot = require('../pie/plot');
@@ -78,6 +78,7 @@ module.exports = function plot(gd, cdModule) {
                 slicePath.attr('d', shape);
 
                 // add text
+                piePlot.formatSliceLabel(gd, pt, cd0);
                 var textPosition = pieHelpers.castOption(trace.textposition, pt.pts);
                 var sliceTextGroup = sliceTop.selectAll('g.slicetext')
                     .data(pt.text && (textPosition !== 'none') ? [0] : []);
@@ -113,12 +114,12 @@ module.exports = function plot(gd, cdModule) {
                     x0 = Math.max(pt.TL[0], pt.BL[0]);
                     x1 = Math.min(pt.TR[0], pt.BR[0]);
 
-                    transform = getTransformToMoveInsideBar(x0, x1, y0, y1, textBB, {
+                    transform = Lib.getTextTransform(toMoveInsideBar(x0, x1, y0, y1, textBB, {
                         isHorizontal: true,
                         constrained: true,
                         angle: 0,
                         anchor: 'middle'
-                    });
+                    }));
 
                     sliceText.attr('transform',
                         'translate(' + cx + ',' + cy + ')' + transform

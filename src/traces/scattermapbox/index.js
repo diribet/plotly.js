@@ -18,7 +18,7 @@ module.exports = {
     eventData: require('./event_data'),
     selectPoints: require('./select'),
 
-    style: function(_, cd) {
+    styleOnSelect: function(_, cd) {
         if(cd) {
             var trace = cd[0].trace;
             trace._glTrace.update(cd);
@@ -28,7 +28,7 @@ module.exports = {
     moduleType: 'trace',
     name: 'scattermapbox',
     basePlotModule: require('../../plots/mapbox'),
-    categories: ['mapbox', 'gl', 'symbols', 'showLegend', 'scatterlike'],
+    categories: ['mapbox', 'gl', 'symbols', 'showLegend', 'scatter-like'],
     meta: {
         hrName: 'scatter_mapbox',
         description: [

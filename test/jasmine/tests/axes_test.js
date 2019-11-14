@@ -447,9 +447,9 @@ describe('Test axes', function() {
 
         it('should use \'axis.color\' as default for \'axis.zerolinecolor\'', function() {
             layoutIn = {
-                xaxis: { showzeroline: true, color: 'red' },
+                xaxis: { zeroline: true, color: 'red' },
                 yaxis: { zerolinecolor: 'blue' },
-                yaxis2: { showzeroline: true }
+                yaxis2: { zeroline: true }
             };
             layoutOut._subplots.cartesian.push('xy2');
             layoutOut._subplots.yaxis.push('y2');
@@ -869,6 +869,25 @@ describe('Test axes', function() {
             _assertMatchingAxes(['yaxis', 'yaxis2'], false, [0, 1]);
             _assertMatchingAxes(['xaxis3', 'yaxis3'], true, [-1, 6]);
             _assertMatchingAxes(['xaxis4', 'yaxis4'], false, [-1, 3]);
+        });
+
+        it('should adapt default axis ranges to *rangemode*', function() {
+            layoutIn = {
+                xaxis: {rangemode: 'tozero'},
+                yaxis: {rangemode: 'nonnegative'},
+                xaxis2: {rangemode: 'nonnegative'},
+                yaxis2: {rangemode: 'tozero'}
+            };
+            layoutOut._subplots.cartesian.push('x2y2');
+            layoutOut._subplots.xaxis.push('x2');
+            layoutOut._subplots.yaxis.push('y2');
+
+            supplyLayoutDefaults(layoutIn, layoutOut, fullData);
+
+            expect(layoutOut.xaxis.range).withContext('xaxis range').toEqual([0, 6]);
+            expect(layoutOut.xaxis2.range).withContext('xaxis2 range').toEqual([0, 6]);
+            expect(layoutOut.yaxis.range).withContext('yaxis range').toEqual([0, 4]);
+            expect(layoutOut.yaxis2.range).withContext('yaxis2 range').toEqual([0, 4]);
         });
     });
 
@@ -3449,6 +3468,33 @@ describe('Test axes', function() {
             .catch(failTest)
             .then(done);
         });
+
+        it('should handle cases with free+mirror axes', function(done) {
+            Plotly.plot(gd, [{
+                y: [1, 2, 1]
+            }], {
+                xaxis: {
+                    ticks: 'outside',
+                    mirror: 'ticks',
+                    anchor: 'free',
+                    automargin: true
+                },
+                yaxis: {
+                    showline: true,
+                    linewidth: 2,
+                    mirror: 'all',
+                    anchor: 'free',
+                    automargin: true
+                }
+            })
+            .then(function() {
+                // N.B. no '.automargin.mirror'
+                expect(Object.keys(gd._fullLayout._pushmargin))
+                    .toEqual(['x.automargin', 'y.automargin', 'base']);
+            })
+            .catch(failTest)
+            .then(done);
+        });
     });
 
     describe('zeroline visibility logic', function() {
@@ -3472,8 +3518,8 @@ describe('Test axes', function() {
 
         it('works with a single subplot', function(done) {
             Plotly.newPlot(gd, [{x: [1, 2, 3], y: [1, 2, 3]}], {
-                xaxis: {range: [0, 4], showzeroline: true, showline: true},
-                yaxis: {range: [0, 4], showzeroline: true, showline: true},
+                xaxis: {range: [0, 4], zeroline: true, showline: true},
+                yaxis: {range: [0, 4], zeroline: true, showline: true},
                 width: 600,
                 height: 600
             })
@@ -3511,6 +3557,17 @@ describe('Test axes', function() {
             })
             .then(function() {
                 assertZeroLines(['x', 'y']);
+                return Plotly.relayout(gd, {
+                    'xaxis.showline': false, 'xaxis.nticks': 1, 'xaxis.range': [0, 0.1],
+                    'yaxis.showline': false, 'yaxis.nticks': 2, 'yaxis.range': [0, 0.1]
+                });
+            })
+            .then(function() {
+                // no grid lines, but still should show zeroline in this case
+                // see https://github.com/plotly/plotly.js/issues/4027
+                expect(gd._fullLayout.xaxis._gridVals.length).toBe(0, '# of grid lines');
+                expect(gd._fullLayout.xaxis._gridVals.length).toBe(0, '# of grid lines');
+                assertZeroLines(['x', 'y']);
             })
             .catch(failTest)
             .then(done);
@@ -3522,10 +3579,10 @@ describe('Test axes', function() {
                 {x: [1, 2, 3], y: [1, 2, 3], xaxis: 'x2'},
                 {x: [1, 2, 3], y: [1, 2, 3], yaxis: 'y2'}
             ], {
-                xaxis: {range: [0, 4], showzeroline: true, domain: [0, 0.4]},
-                yaxis: {range: [0, 4], showzeroline: true, domain: [0, 0.4]},
-                xaxis2: {range: [0, 4], showzeroline: true, domain: [0.6, 1]},
-                yaxis2: {range: [0, 4], showzeroline: true, domain: [0.6, 1]},
+                xaxis: {range: [0, 4], zeroline: true, domain: [0, 0.4]},
+                yaxis: {range: [0, 4], zeroline: true, domain: [0, 0.4]},
+                xaxis2: {range: [0, 4], zeroline: true, domain: [0.6, 1]},
+                yaxis2: {range: [0, 4], zeroline: true, domain: [0.6, 1]},
                 width: 600,
                 height: 600
             })
@@ -3556,10 +3613,10 @@ describe('Test axes', function() {
                 {x: [1, 2, 3], y: [1, 2, 3]},
                 {x: [1, 2, 3], y: [1, 2, 3], xaxis: 'x2', yaxis: 'y2'}
             ], {
-                xaxis: {range: [0, 4], showzeroline: true},
-                yaxis: {range: [0, 4], showzeroline: true},
-                xaxis2: {range: [0, 4], showzeroline: true, side: 'top', overlaying: 'x'},
-                yaxis2: {range: [0, 4], showzeroline: true, side: 'right', overlaying: 'y'},
+                xaxis: {range: [0, 4], zeroline: true},
+                yaxis: {range: [0, 4], zeroline: true},
+                xaxis2: {range: [0, 4], zeroline: true, side: 'top', overlaying: 'x'},
+                yaxis2: {range: [0, 4], zeroline: true, side: 'right', overlaying: 'y'},
                 width: 600,
                 height: 600
             })
