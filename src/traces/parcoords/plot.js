@@ -93,7 +93,7 @@ module.exports = function plot(gd, cdparcoords) {
 
     var plotly_axisDrag = function () {
         gd.emit('plotly_axisDrag');
-    }
+    };
 
     var axesMoved = function(i, visibleIndices) {
         // Have updated order data on `gd.data` and raise `Plotly.restyle` event
