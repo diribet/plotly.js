@@ -33,6 +33,7 @@ function sorter(visibleIndices, orig) {
 
 module.exports = function plot(gd, cdModule) {
     var probabilityDensityMode = gd.layout.showProbabilityDensity ? gd.layout.showProbabilityDensity : 'never'; //never
+    var isBrushAllowed = gd.layout.isBrushAllowed === 'false' ? false : true;
 
     var fullLayout = gd._fullLayout;
 
@@ -104,7 +105,11 @@ module.exports = function plot(gd, cdModule) {
     };
 
     var plotly_curveClick = function (eventData) {
-        gd.emit('plotly_curveClick', eventData)
+        gd.emit('plotly_curveClick', eventData);
+    };
+
+    var plotly_axisDrag = function () {
+        gd.emit('plotly_axisDrag');
     };
 
     var axesMoved = function(i, visibleIndices) {
@@ -152,7 +157,8 @@ module.exports = function plot(gd, cdModule) {
                 b: size.b,
                 l: size.l
             },
-            showProbabilityDensity: probabilityDensityMode
+            showProbabilityDensity: probabilityDensityMode,
+            allowBrush: isBrushAllowed
         },
         { // callbacks
             filterChanged: filterChanged,
@@ -160,6 +166,7 @@ module.exports = function plot(gd, cdModule) {
             unhover: unhover,
             axesMoved: axesMoved,
             plotly_axisClick: plotly_axisClick,
-            plotly_curveClick: plotly_curveClick
+            plotly_curveClick: plotly_curveClick,
+            plotly_axisDrag: plotly_axisDrag
         });
 };

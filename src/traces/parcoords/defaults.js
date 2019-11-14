@@ -49,6 +49,8 @@ function dimensionDefaults(dimensionIn, dimensionOut, parentOut, opts) {
         visible = dimensionOut.visible = false;
     }
 
+    coerce('isBrushAllowed');
+
     if(visible) {
         coerce('label');
         coerce('tickvals');

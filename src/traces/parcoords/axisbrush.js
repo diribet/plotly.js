@@ -207,6 +207,13 @@ function getInterval(d, y) {
 }
 
 function dragstart(lThis, d) {
+    // if brush is not allowed
+    if (!d.isBrushAllowed) {
+        d3.selectAll('.' + c.cn.axisBrush)
+            .style('pointer-events', 'none');
+        return
+    }
+
     d3.selectAll('.' + c.cn.yAxis).each(function() {
         d3.select(lThis).node().__data__.prohibitDrawingDensity = true;
     });
@@ -344,6 +351,9 @@ function mousemove(lThis, d) {
     var cursor = 'crosshair';
     if(interval.clickableOrdinalRange) cursor = 'pointer';
     else if(interval.region) cursor = interval.region + '-resize';
+    if (!d.isBrushAllowed) {
+        cursor = 'e-resize';
+    }
     d3.select(document.body)
         .style('cursor', cursor);
 }
