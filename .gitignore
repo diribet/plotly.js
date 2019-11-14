@@ -5,6 +5,8 @@ build/*
 !build/ploticon.js
 !build/README.md
 
+dist
+
 npm-debug.log*
 *.sublime*
 

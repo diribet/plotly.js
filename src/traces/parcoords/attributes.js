@@ -107,6 +107,13 @@ module.exports = {
             editType: 'calc',
             description: 'Do we allow multiple selection ranges or just a single range?'
         },
+        isBrushAllowed: {
+            valType: 'boolean',
+            dflt: true,
+            role: 'info',
+            editType: 'calc',
+            description: 'Allow Brush'
+        },
         values: {
             valType: 'data_array',
             role: 'info',

@@ -314,16 +314,19 @@ function viewModel(state, callbacks, model) {
                 }
             )
         };
-        model.dimensions[i]._input.hover ? transformedDimensions.hover = true : null;
+        dimension._input.hover ? transformedDimensions.hover = true : null;
 
-        var probabilityDensity = model.dimensions[i]._input.probabilityDensity;
+        var probabilityDensity = dimension._input.probabilityDensity;
         probabilityDensity ? transformedDimensions.probabilityDensity = probabilityDensity : null;
 
-        var tolerances = model.dimensions[i]._input.tolerances;
+        var tolerances = dimension._input.tolerances;
         tolerances ? transformedDimensions.tolerances = tolerances : null;
 
-        var isBrushAllowed = model.dimensions[i]._input.isBrushAllowed;
+        var isBrushAllowed = dimension._input.isBrushAllowed;
         isBrushAllowed ? transformedDimensions.isBrushAllowed = true : null;
+
+        var cleanRange = dimension._input.cleanRange;
+        cleanRange ? transformedDimensions.cleanRange = cleanRange : null;
 
         return transformedDimensions
     });
@@ -509,9 +512,6 @@ module.exports = function(gd, root, svg, parcoordsLineLayers, styledData, layout
         .on('click', function(eventData) {
             callbacks.plotly_axisClick(eventData);
         });
-        // FIXME: porad jsou tam mezery mezi g elementy,
-        //  ale pokud bychom tam vlozili velky pruhledny element k emitovani eventu,
-        //  sirka bude zavisla na nadpisu
 
     // draw probability density
     var hoverEnterCallback = function() {
@@ -548,17 +548,61 @@ module.exports = function(gd, root, svg, parcoordsLineLayers, styledData, layout
             .append('g')
             .classed('density', true);
 
+        // clipPath - clip sections of density lines outside of axis range - above / below
+        densityGroup.selectAll('clipPath')
+            .data(function(d) {
+                var obj = {
+                    idx: d.xIndex,
+                    height: d.height,
+                    width: d.model.canvasWidth/d.model.colCount
+                };
+                return [obj]
+            })
+            .enter()
+            .append('clipPath')
+            .attr('id', function(d) {return 'clipID_' + d.idx});
+
+        d3.selectAll('clipPath')
+            .selectAll('rect')
+            .data(function(d) {return [d]})
+            .enter()
+            .append('rect')
+            .attr('x', function(d) {return d.width/-2})
+            .attr('y', 0)
+            .attr('width', function(d) {return d.width})
+            .attr('height', function(d) {return d.height});
+
         // Can't use linePoints like in boxPlot, as in parcoords, there is no plotinfo for axes, which defines c2p, properties and other
         var createDensityPoints = function (d, sideFlip) {
             var outerArray = new Array(d.probabilityDensity.density.length),
-                scaleMax = Math.max.apply(null, d.probabilityDensity.scale),
+                scaleMax = Math.max.apply(null, d.values),
+                scaleMin = Math.min.apply(null, d.values),
+                scaleSpan = scaleMax - scaleMin,
                 densityMax = Math.max.apply(null, d.probabilityDensity.density),
-                scaleFactor = d.height / scaleMax,
-                densityFactor = d.model.canvasWidth / d.model.colCount / densityMax * 0.3;
+                densityFactor = d.model.canvasWidth / d.model.colCount / densityMax * 0.3,
+                scaleFactor, mapFunc;
+
+            var range = d.model.dimensions[d.visibleIndex].range;
+            if (range) {
+                var rangeMin = Math.min(range[0], range[1]),
+                    rangeMax = Math.max(range[0], range[1]),
+                    rangeSpan = rangeMax - rangeMin;
+                scaleFactor = d.height / rangeSpan;
+                mapFunc = d3.scale.linear()
+                    .domain([rangeMin, rangeMax])
+                    .range([rangeSpan * scaleFactor, 0]);
+            } else {
+                scaleFactor = d.height / scaleSpan;
+                mapFunc = d3.scale.linear()
+                    .domain([scaleMin, scaleMax])
+                    .range([scaleSpan*scaleFactor, 0]);
+            }
+
+            // for each density point, map the point coordinates to the axis
             for (var i = 0; i < outerArray.length; i++) {
                 var densityPoint = new Array(2);
                 densityPoint[0] = d.probabilityDensity.density[i] * densityFactor * sideFlip;
-                densityPoint[1] = d.probabilityDensity.scale[i] * scaleFactor;
+                densityPoint[1] = mapFunc(d.probabilityDensity.scale[i]);
                 outerArray[i] = densityPoint;
             }
             return outerArray;
@@ -575,18 +619,19 @@ module.exports = function(gd, root, svg, parcoordsLineLayers, styledData, layout
                 .enter().append('path')
                 .classed('js-line ' + sideClass, true)
                 .style('vector-effect', 'non-scaling-stroke')
-                .call(Drawing.lineGroupStyle, 2, 'blue', '')
+                .call(Drawing.lineGroupStyle, 2, 'rgba(43,110,38,0.78)', '')
                 .each(function(d) {
                     var smoothing = 1,
                         path = Drawing.smoothopen(d, smoothing);
                     d3.select(this)
-                        .attr('d', path);
+                        .attr('d', path)
+                        .attr('clip-path', "url(#clipID_" + this.parentNode.__data__.xIndex + ')');
                         // .call(Drawing.lineGroupStyle);
 
                     // check with parent node if axis is reversed
                     var index = this.parentNode.__data__.crossfilterDimensionIndex,
                         range = this.parentNode.__data__.model.dimensions[index].range,
-                        isAxisReversed = (range && range[0] > range[1]);
+                        isAxisReversed = range && (range[0] > range[1]);
                     if (isAxisReversed) {
                         var rotateString = 'rotate(180 0 ' +  this.parentNode.__data__.height / 2 + ')';
                         d3.select(this)
