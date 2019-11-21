@@ -33,7 +33,6 @@ function sorter(visibleIndices, orig) {
 
 module.exports = function plot(gd, cdModule) {
     var probabilityDensityMode = gd.layout.showProbabilityDensity ? gd.layout.showProbabilityDensity : 'never'; //never
-    var isBrushAllowed = gd.layout.isBrushAllowed === 'false' ? false : true;
 
     var fullLayout = gd._fullLayout;
 
@@ -157,8 +156,7 @@ module.exports = function plot(gd, cdModule) {
                 b: size.b,
                 l: size.l
             },
-            showProbabilityDensity: probabilityDensityMode,
-            allowBrush: isBrushAllowed
+            showProbabilityDensity: probabilityDensityMode
         },
         { // callbacks
             filterChanged: filterChanged,
