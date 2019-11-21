@@ -340,21 +340,18 @@ function viewModel(state, callbacks, model) {
                         callbacks.filterChanged(vm.key, dimension._index, newRanges);
                     }
                 }
-            )
+            ),
+            isBrushAllowed: dimension.isBrushAllowed
         };
-        dimension._input.hover ? transformedDimensions.hover = true : null;
+
+        if (dimension._input.hover) {
+            transformedDimensions.hover = true;
+        }
 
         var probabilityDensity = dimension._input.probabilityDensity;
-        probabilityDensity ? transformedDimensions.probabilityDensity = probabilityDensity : null;
-
-        var tolerances = dimension._input.tolerances;
-        tolerances ? transformedDimensions.tolerances = tolerances : null;
-
-        var isBrushAllowed = dimension._input.isBrushAllowed;
-        isBrushAllowed ? transformedDimensions.isBrushAllowed = true : null;
-
-        var cleanRange = dimension._input.cleanRange;
-        cleanRange ? transformedDimensions.cleanRange = cleanRange : null;
+        if (probabilityDensity) {
+            transformedDimensions.probabilityDensity = probabilityDensity;
+        }
 
         return transformedDimensions;
     });
