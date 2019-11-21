@@ -341,7 +341,8 @@ function viewModel(state, callbacks, model) {
                     }
                 }
             ),
-            isBrushAllowed: dimension.isBrushAllowed
+            isBrushAllowed: dimension.isBrushAllowed,
+            cursor: dimension.cursor
         };
 
         if (dimension._input.hover) {

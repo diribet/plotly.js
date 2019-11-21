@@ -134,6 +134,12 @@ module.exports = {
             editType: 'calc',
             description: 'Allow Brush'
         },
+        cursor: {
+            valType: 'string',
+            role: 'info',
+            editType: 'plot',
+            description: 'Cursor that should be displayed on hover over dimension when brush is not allowed.'
+        },
         values: {
             valType: 'data_array',
             role: 'info',

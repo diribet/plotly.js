@@ -50,6 +50,7 @@ function dimensionDefaults(dimensionIn, dimensionOut, parentOut, opts) {
     }
 
     coerce('isBrushAllowed');
+    coerce('cursor');
 
     if(visible) {
         coerce('label');

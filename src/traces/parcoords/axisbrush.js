@@ -349,10 +349,16 @@ function mousemove(lThis, d) {
     var interval = getInterval(d, y);
 
     var cursor = 'crosshair';
-    if(interval.clickableOrdinalRange) cursor = 'pointer';
-    else if(interval.region) cursor = interval.region + '-resize';
-    if (!d.isBrushAllowed) {
-        cursor = 'e-resize';
+    if (d.isBrushAllowed) {
+        if (interval.clickableOrdinalRange) {
+            cursor = 'pointer';
+        } else if (interval.region) {
+            cursor = interval.region + '-resize';
+        }
+    } else {
+        if (d.cursor != null) {
+            cursor = d.cursor;
+        }
     }
     d3.select(document.body)
         .style('cursor', cursor);
