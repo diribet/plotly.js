@@ -358,6 +358,8 @@ function mousemove(lThis, d) {
     } else {
         if (d.cursor != null) {
             cursor = d.cursor;
+        } else {
+            cursor = 'w-resize';
         }
     }
     d3.select(document.body)
