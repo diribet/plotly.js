@@ -101,6 +101,9 @@ module.exports = function plot(gd, plotinfo, cdbox, boxLayer) {
         	})
         	.enter().append('path').classed('box', true)
             .each(function(d) {
+            	// if setToBackground data property is true, set opacity to highlight other boxes
+            	d3.select(this)
+					.attr('opacity', d.setToBackground ? 0.2 : 1);
                 var posc = posAxis.c2p(d.pos + bPos, true),
                 	boxHalfWidth = bdPos * d.boxwidth,
                     pos0 = posAxis.c2p(d.pos + bPos - boxHalfWidth, true),
@@ -398,6 +401,8 @@ module.exports = function plot(gd, plotinfo, cdbox, boxLayer) {
             .call(Drawing.translatePoints, xa, ya);
     });
 };
+
+
 
 function setHoverIndex(event, setIndex, gd) {
 	var point = event.points[0],

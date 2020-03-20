@@ -83,4 +83,5 @@ module.exports = function supplyDefaults(traceIn, traceOut, defaultColor, layout
     coerce('invalidmarker.line.width');
 
     coerce('hoverindex');
+    coerce('setToBackground');
 };
