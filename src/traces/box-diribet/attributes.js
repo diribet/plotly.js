@@ -213,10 +213,10 @@ module.exports = {
         editType: 'calc',
         description: 'Index of currently hovered box.'
     },
-    setToBackground: {
-        valType: 'boolean',
-        dflt: false,
+    opacity: {
+        valType: 'number',
+        dflt: 1,
         editType: 'style',
-        description: 'Whether box should be highlighted or not.'
+        description: 'Opacity of a box.'
     }
 };
