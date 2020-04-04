@@ -69,5 +69,7 @@ module.exports = function style(gd) {
 function applyLineStyle(select, lineStyle) {
 	select
 	    .style('stroke-width', lineStyle.width + 'px')
+		// Dash style (5,5) specified, of fixed?
+		.style('stroke-dasharray', lineStyle.dash ? '5,5' : '')
 	    .call(Color.stroke, lineStyle.color);
 }
