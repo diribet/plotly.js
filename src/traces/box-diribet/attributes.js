@@ -11,6 +11,7 @@
 var scatterAttrs = require('../scatter/attributes');
 var colorAttrs = require('../../components/color/attributes');
 var extendFlat = require('../../lib/extend').extendFlat;
+var dash = require('../../components/drawing/attributes').dash;
 
 var scatterMarkerAttrs = scatterAttrs.marker,
     scatterMarkerLineAttrs = scatterMarkerAttrs.line;
@@ -151,6 +152,7 @@ module.exports = {
             editType: 'style',
             description: 'Sets the color of the specification limit line.'
         },
+        dash: extendFlat({}, dash),
         width: {
             valType: 'number',
             role: 'style',
@@ -168,6 +170,7 @@ module.exports = {
             editType: 'style',
             description: 'Sets the color of the natural boundary line.'
         },
+        dash: extendFlat({}, dash),
         width: {
             valType: 'number',
             role: 'style',
@@ -185,6 +188,7 @@ module.exports = {
             editType: 'style',
             description: 'Sets the color of the probability density line.'
         },
+        dash: extendFlat({}, dash),
         width: {
             valType: 'number',
             role: 'style',

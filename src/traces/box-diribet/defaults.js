@@ -55,10 +55,13 @@ module.exports = function supplyDefaults(traceIn, traceOut, defaultColor, layout
     coerce('whiskerwidth');
 
     coerce('specificationLimitLine.color');
+    coerce('specificationLimitLine.dash');
     coerce('specificationLimitLine.width');
     coerce('naturalBoundaryLine.color');
+    coerce('naturalBoundaryLine.dash');
     coerce('naturalBoundaryLine.width');
     coerce('probabilityDensityLine.color');
+    coerce('probabilityDensityLine.dash');
     coerce('probabilityDensityLine.width');
 
     coerce('marker.symbol');
