@@ -227,6 +227,7 @@ function normalizeBox(box) {
 	box.lnb = normalize(box.lnb);
 	box.unb = normalize(box.unb);
 	box.points = normalize(box.points);
+	box.outliers = normalize(box.outliers);
 	if (box.probabilityDensity != null) {
 		box.probabilityDensity.scale = normalize(box.probabilityDensity.scale);
 	}

@@ -52,7 +52,12 @@ module.exports = function style(gd) {
 				d3.select(this).selectAll('g.density path.js-line'),
 				trace.probabilityDensityLine);
 
+			// set appropriate color for points / outliers manually
+            trace.marker.color = '#000000';
             d3.select(this).selectAll('g.points path')
+                .call(Drawing.pointStyle, trace);
+            trace.marker.color = '#ff0000';
+            d3.select(this).selectAll('g.outliers path')
                 .call(Drawing.pointStyle, trace);
 
             d3.select(this).selectAll('g.outlierMark text')

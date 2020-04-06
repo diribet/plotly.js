@@ -79,13 +79,13 @@ module.exports = {
     },
     marker: {
         symbol: extendFlat({}, scatterMarkerAttrs.symbol,
-            {arrayOk: false, editType: 'plot'}),
+            {arrayOk: false, dflt: 'x', editType: 'plot'}),
         opacity: extendFlat({}, scatterMarkerAttrs.opacity,
             {arrayOk: false, dflt: 1, editType: 'style'}),
         size: extendFlat({}, scatterMarkerAttrs.size,
-            {arrayOk: false, editType: 'calc'}),
+            {arrayOk: false, dflt: 5, editType: 'calc'}),
         color: extendFlat({}, scatterMarkerAttrs.color,
-            {arrayOk: false, editType: 'style'}),
+            {arrayOk: false, dflt: '#ff0000', editType: 'style'}),
         line: {
             color: extendFlat({}, scatterMarkerLineAttrs.color,
                 {arrayOk: false, dflt: colorAttrs.defaultLine, editType: 'style'}),

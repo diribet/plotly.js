@@ -170,40 +170,45 @@ module.exports = function plot(gd, plotinfo, cdbox, boxLayer) {
         						((hasUsl) ? 'M' + pos0 + ',' + usl + 'H' + pos1 : ''));
 	            	}
 		        });
-        };
+        }
 
         plotLimits.call(this, "specificationlimit", "lsl", "usl");
         plotLimits.call(this, "naturalboundary", "lnb", "unb");
 
-        // draw points, if desired
-        boxGroups.selectAll('g.points')
-            .data(function(d) {
-        		if (d.points && d.points.length > 0) {
-        			return [d];
-        		} else {
-        			return [];
-        		}
-            })
-            .enter().append('g')
-            .classed('points', true)
-          .selectAll('path')
-            .data(function(d) {
-                return d.points.map(function(v, i) {
-                    if(trace.orientation === 'h') {
-                        return {
-                            y: d.pos + bPos,
-                            x: v
-                        };
-                    } else {
-                        return {
-                            x: d.pos + bPos,
-                            y: v
-                        };
-                    }
-                });
-            })
-            .enter().append('path')
-            .call(Drawing.translatePoints, xa, ya);
+        // draw points and outliers, if desired
+		function drawPointType(type) {
+			boxGroups.selectAll('g.' + type)
+				.data(function (d) {
+					if (d[type] && d[type].length > 0) {
+						return [d];
+					} else {
+						return [];
+					}
+				})
+				.enter().append('g')
+				.classed(type, true)
+				.selectAll('path')
+				.data(function (d) {
+					return d[type].map(function (v, i) {
+						if (trace.orientation === 'h') {
+							return {
+								y: d.pos + bPos,
+								x: v
+							};
+						} else {
+							return {
+								x: d.pos + bPos,
+								y: v
+							};
+						}
+					});
+				})
+				.enter().append('path')
+				.call(Drawing.translatePoints, xa, ya);
+		}
+
+		drawPointType('outliers');
+		drawPointType('points');
 
         // draw probability density
         if (fullLayout.showProbabilityDensity != 'never') {
