@@ -1746,12 +1746,29 @@ function createSpikelineLabel(opts) {
                 (xa._offset + opts.point.x) + ',' +
                 (ya._offset + (xa.side === 'top' ? 0 : ya._length)) + ')');
         } else {
-            ltext.attr('text-anchor', ya.side === 'right' ? 'start' : 'end')
+            var totalWidth = tbb.width + HOVERTEXTPAD + HOVERARROWSIZE;
+            var flipOrientation = false;
+            if (ya.side === 'right') {
+                flipOrientation = xa._offset + xa._length + totalWidth > outerContainerBB.width;
+            } else {
+                flipOrientation = totalWidth > xa._offset;
+            }
+
+            var textAnchor = ya.side === 'right' ? 'start' : 'end';
+            var textXMultiplier = ya.side === 'right' ? 1 : -1;
+            var leftsign = ya.side === 'right' ? '' : '-';
+
+            if (flipOrientation) {
+                textAnchor = textAnchor === 'start' ? 'end' : 'start';
+                textXMultiplier = -textXMultiplier;
+                leftsign = leftsign === '' ? '-' : '';
+            }
+
+            ltext.attr('text-anchor', textAnchor)
                 .call(svgTextUtils.positionText,
-                    (ya.side === 'right' ? 1 : -1) * (HOVERTEXTPAD + HOVERARROWSIZE),
+                    textXMultiplier * (HOVERTEXTPAD + HOVERARROWSIZE),
                     outerTop - tbb.top - tbb.height / 2);
 
-            var leftsign = ya.side === 'right' ? '' : '-';
             lpath.attr('d', 'M0,0' +
                 'L' + leftsign + HOVERARROWSIZE + ',' + HOVERARROWSIZE +
                 'V' + (HOVERTEXTPAD + tbb.height / 2) +

@@ -1,0 +1,152 @@
+{
+    "data": [
+        {
+            "x": [
+                1.1011,
+                1.6666666666666667,
+                2.88,
+                3.556
+            ],
+            "y": [
+                4.1101,
+                2.1111111115555,
+                3.88,
+                2
+            ],
+            "name": "trace 0",
+            "type": "scatter",
+            "hoverinfo": "none"
+        }
+    ],
+    "layout": {
+        "title": "Click to enter Plot title",
+        "titlefont": {
+            "color": "",
+            "family": "",
+            "size": 0
+        },
+        "font": {
+            "family": "'Open sans', verdana, arial, sans-serif",
+            "size": 12,
+            "color": "#444"
+        },
+        "showlegend": false,
+        "autosize": true,
+        "xaxis": {
+            "title": "Click to enter X axis title",
+            "titlefont": {
+                "color": "",
+                "family": "",
+                "size": 0
+            },
+            "range": [
+                0.8888888888888888,
+                3.111111111111111
+            ],
+            "domain": [
+                0,
+                1
+            ],
+            "type": "linear",
+            "rangemode": "normal",
+            "showgrid": true,
+            "zeroline": true,
+            "showline": false,
+            "autotick": true,
+            "nticks": 0,
+            "ticks": "",
+            "showticklabels": true,
+            "tick0": 0,
+            "dtick": 0.5,
+            "ticklen": 5,
+            "tickwidth": 1,
+            "tickcolor": "#444",
+            "tickangle": "auto",
+            "tickfont": {
+                "family": "",
+                "size": 0,
+                "color": ""
+            },
+            "exponentformat": "B",
+            "showexponent": "all",
+            "gridcolor": "#eee",
+            "gridwidth": 1,
+            "zerolinecolor": "#444",
+            "zerolinewidth": 1,
+            "linecolor": "#444",
+            "linewidth": 1,
+            "anchor": "y",
+            "position": 0,
+            "mirror": false,
+            "overlaying": false,
+            "autorange": true,
+            "showspikes": true,
+            "spikemode": "toaxis+label",
+            "automargin": true
+        },
+        "yaxis": {
+            "title": "Click to enter Y axis title",
+            "titlefont": {
+                "color": "",
+                "family": "",
+                "size": 0
+            },
+            "range": [
+                1.8888888888888888,
+                4.111111111111111
+            ],
+            "domain": [
+                0,
+                1
+            ],
+            "type": "linear",
+            "rangemode": "normal",
+            "showgrid": true,
+            "zeroline": true,
+            "showline": false,
+            "autotick": true,
+            "nticks": 0,
+            "ticks": "",
+            "showticklabels": true,
+            "tick0": 0,
+            "dtick": 0.5,
+            "ticklen": 5,
+            "tickwidth": 1,
+            "tickcolor": "#444",
+            "tickangle": "auto",
+            "tickfont": {
+                "family": "",
+                "size": 0,
+                "color": ""
+            },
+            "exponentformat": "B",
+            "showexponent": "all",
+            "gridcolor": "#eee",
+            "gridwidth": 1,
+            "zerolinecolor": "#444",
+            "zerolinewidth": 1,
+            "linecolor": "#444",
+            "linewidth": 1,
+            "anchor": "x",
+            "position": 0,
+            "mirror": false,
+            "overlaying": false,
+            "autorange": true,
+            "showspikes": true,
+            "spikemode": "toaxis+label",
+            "automargin": true,
+            "side": "left"
+        },
+        "margin": {
+            "l": 5,
+            "r": 5,
+            "b": 5,
+            "t": 35,
+            "pad": 5
+        },
+        "paper_bgcolor": "#fff",
+        "plot_bgcolor": "#fff",
+        "hovermode": "x",
+        "dragmode": "zoom"
+    }
+}
