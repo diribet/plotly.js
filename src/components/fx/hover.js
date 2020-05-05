@@ -1485,7 +1485,7 @@ function createSpikelines(gd, closestPoints, opts) {
     var xa, ya;
 
     // Remove old spikeline items
-    container.selectAll('.spikeline').remove();
+    container.selectAll('.spikeline, .spikelabelx, .spikelabely').remove();
 
     if(!(showX || showY)) return;
 
