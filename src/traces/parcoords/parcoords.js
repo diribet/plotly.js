@@ -895,7 +895,6 @@ module.exports = function parcoords(gd, cdModule, layout, callbacks) {
         .append('text')
         .classed(c.cn.axisTitle, true)
         .attr('text-anchor', 'middle')
-        .style('cursor', 'ew-resize')
         .style('user-select', 'none')
         .style('pointer-events', 'auto');
 
@@ -905,6 +904,17 @@ module.exports = function parcoords(gd, cdModule, layout, callbacks) {
             var e = d3.select(this);
             Drawing.font(e, d.model.labelFont);
             svgTextUtils.convertToTspans(e, gd);
+
+            if (typeof d.cursor === "string") {
+                e.style('cursor', d.cursor)
+            } else if (typeof d.cursor === "function") {
+                e.on('mouseover', function () {
+                        d3.select(this)
+                            .style('cursor', d.cursor());
+                    })
+            } else {
+                e.style('cursor', 'ew-resize');
+            }
         })
         .attr('transform', function(d) {
             var tilt = calcTilt(d.model.labelAngle, d.model.labelSide);

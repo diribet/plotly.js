@@ -135,7 +135,7 @@ module.exports = {
             description: 'Allow Brush'
         },
         cursor: {
-            valType: 'string',
+            valType: 'any',
             role: 'info',
             editType: 'plot',
             description: 'Cursor that should be displayed on hover over dimension when brush is not allowed.'
