@@ -494,10 +494,33 @@ module.exports = function parcoords(gd, cdModule, layout, callbacks) {
                 if(x < 0 || y < 0 || x >= cw || y >= ch) {
                     return;
                 }
-                var pixel = d.lineLayer.readPixel(x, ch - 1 - y);
-                var found = pixel[3] !== 0;
+
                 // inverse of the calcPickColor in `lines.js`; detailed comment there
-                var curveNumber = found ? pixel[2] + 256 * (pixel[1] + 256 * pixel[0]) : null;
+                // modified to read 5x5 pixels field instead of single pixel
+                var arrayOfPixels = new Array(25),
+                    pixels = d.lineLayer.readPixels(x - 2, ch - 3 - y, 5, 5),
+                    midIndex = 12;
+                for (var i = 0; i < arrayOfPixels.length; i++) {
+                    var red = pixels[i * 4],
+                        green = pixels[i * 4 + 1],
+                        color = pixels[i * 4 + 2],
+                        alpha = pixels[i * 4 + 3];
+                    arrayOfPixels[i] = [red, green, color, alpha];
+                }
+
+                var closestPixel = null,
+                    closestPixelIndex = 0;
+                for (var k = 0; k < arrayOfPixels.length; k++) {
+                    if (arrayOfPixels[k][3] !== 0 && Math.abs(k - midIndex) < Math.abs(closestPixelIndex - midIndex)) {
+                        closestPixelIndex = k.valueOf();
+                        closestPixel = arrayOfPixels[k];
+                    }
+                }
+
+                var found = closestPixel !== null,
+                    pixel = found ? closestPixel : null,
+                    curveNumber = found ? pixel[2] + 256 * (pixel[1] + 256 * pixel[0]) : null;
+
                 var eventData = {
                     x: x,
                     y: y,
