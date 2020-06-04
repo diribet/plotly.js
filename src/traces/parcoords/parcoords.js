@@ -495,31 +495,65 @@ module.exports = function parcoords(gd, cdModule, layout, callbacks) {
                     return;
                 }
 
+                var outwardSpiralPixelSearch = function(size, searchedArray) {
+                    // search in spiral from the inside of the nested array - look for closest pixel
+                    // dx, dy is a direction vector in which we move right now, we move in straight segments
+                    // x, y is current position starting from middle of the square
+                    var dx = 1,
+                        dy = 0,
+                        segment_length = 1,
+                        x = Math.floor(size/2),
+                        y = Math.floor(size/2),
+                        segment_passed = 0;
+
+                    for (let k = 0; k < size*size; k++) {
+                        if (searchedArray[x][y][3] === 255) {
+                            return searchedArray[x][y];
+                        }
+                        // make a step, add 'direction' vector (di, dj) to current position (i, j)
+                        x += dx;
+                        y += dy;
+                        segment_passed++;
+                        if (segment_passed === segment_length) {
+                            // done with current segment
+                            segment_passed = 0;
+
+                            // 'rotate' directions
+                            let buffer = dx;
+                            dx = -dy;
+                            dy = buffer;
+
+                            // increase segment length if necessary
+                            if (dy === 0) {
+                                segment_length++;
+                            }
+                        }
+                    }
+                    return null;
+                };
+
                 // inverse of the calcPickColor in `lines.js`; detailed comment there
                 // modified to read 5x5 pixels field instead of single pixel
-                var arrayOfPixels = new Array(25),
-                    pixels = d.lineLayer.readPixels(x - 2, ch - 3 - y, 5, 5),
-                    midIndex = 12;
-                for (var i = 0; i < arrayOfPixels.length; i++) {
-                    var red = pixels[i * 4],
+                var pixels = d.lineLayer.readPixels(x - 2, ch - 3 - y, 5, 5),
+                    arrayOfPixels = new Array(5);
+                for (var k = 0; k < 5; k++) {
+                    arrayOfPixels[k] = new Array(5);
+                }
+
+                // re-shape flat pixels into nested arrays
+                for (var i = 0; i < 5*5; i++) {
+                    var row = Math.floor(i / 5),
+                        col = i % 5,
+                        red = pixels[i * 4],
                         green = pixels[i * 4 + 1],
                         color = pixels[i * 4 + 2],
                         alpha = pixels[i * 4 + 3];
-                    arrayOfPixels[i] = [red, green, color, alpha];
+                    arrayOfPixels[row][col] = [red, green, color, alpha];
                 }
 
-                var closestPixel = null,
-                    closestPixelIndex = 0;
-                for (var k = 0; k < arrayOfPixels.length; k++) {
-                    if (arrayOfPixels[k][3] !== 0 && Math.abs(k - midIndex) < Math.abs(closestPixelIndex - midIndex)) {
-                        closestPixelIndex = k.valueOf();
-                        closestPixel = arrayOfPixels[k];
-                    }
-                }
-
-                var found = closestPixel !== null,
-                    pixel = found ? closestPixel : null,
-                    curveNumber = found ? pixel[2] + 256 * (pixel[1] + 256 * pixel[0]) : null;
+                var closestPixel = outwardSpiralPixelSearch(5, arrayOfPixels),
+                    found = closestPixel !== null,
+                    curveNumber = found ? closestPixel[2] + 256 * (closestPixel[1] + 256 * closestPixel[0]) : null;
 
                 var eventData = {
                     x: x,
