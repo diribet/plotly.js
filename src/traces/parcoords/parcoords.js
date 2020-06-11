@@ -666,7 +666,7 @@ module.exports = function parcoords(gd, cdModule, layout, callbacks) {
     };
 
     var parcoordsSetHoverIndex = function (setIndex){
-        var hoveredAxisIndex = this.__data__.xIndex; // xIndex reflects hidden axes, visibleIndex does not
+        var hoveredAxisIndex = this.__data__.visibleIndex; // misleading, xIndex doesn't reflect hidden axes, visibleIndex accounts for them
         // reset hover properties for all axes, save it only for currently hovered axis
         gd.data[0].dimensions = gd.data[0].dimensions.map(function(item){item.hover = null; return item});
         gd.data[0].dimensions[hoveredAxisIndex].hover = setIndex;
