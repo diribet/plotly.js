@@ -494,10 +494,67 @@ module.exports = function parcoords(gd, cdModule, layout, callbacks) {
                 if(x < 0 || y < 0 || x >= cw || y >= ch) {
                     return;
                 }
-                var pixel = d.lineLayer.readPixel(x, ch - 1 - y);
-                var found = pixel[3] !== 0;
+
+                var outwardSpiralPixelSearch = function(size, searchedArray) {
+                    // search in spiral from the inside of the nested array - look for closest pixel
+                    // dx, dy is a direction vector in which we move right now, we move in straight segments
+                    // x, y is current position starting from middle of the square
+                    var dx = 1,
+                        dy = 0,
+                        segment_length = 1,
+                        x = Math.floor(size/2),
+                        y = Math.floor(size/2),
+                        segment_passed = 0;
+
+                    for (let k = 0; k < size*size; k++) {
+                        if (searchedArray[x][y][3] === 255) {
+                            return searchedArray[x][y];
+                        }
+                        // make a step, add 'direction' vector (di, dj) to current position (i, j)
+                        x += dx;
+                        y += dy;
+                        segment_passed++;
+                        if (segment_passed === segment_length) {
+                            // done with current segment
+                            segment_passed = 0;
+
+                            // 'rotate' directions
+                            let buffer = dx;
+                            dx = -dy;
+                            dy = buffer;
+
+                            // increase segment length if necessary
+                            if (dy === 0) {
+                                segment_length++;
+                            }
+                        }
+                    }
+                    return null;
+                };
+
                 // inverse of the calcPickColor in `lines.js`; detailed comment there
-                var curveNumber = found ? pixel[2] + 256 * (pixel[1] + 256 * pixel[0]) : null;
+                // modified to read 5x5 pixels field instead of single pixel
+                var pixels = d.lineLayer.readPixels(x - 2, ch - 3 - y, 5, 5),
+                    arrayOfPixels = new Array(5);
+                for (var k = 0; k < 5; k++) {
+                    arrayOfPixels[k] = new Array(5);
+                }
+
+                // re-shape flat pixels into nested arrays
+                for (var i = 0; i < 5*5; i++) {
+                    var row = Math.floor(i / 5),
+                        col = i % 5,
+                        red = pixels[i * 4],
+                        green = pixels[i * 4 + 1],
+                        color = pixels[i * 4 + 2],
+                        alpha = pixels[i * 4 + 3];
+                    arrayOfPixels[row][col] = [red, green, color, alpha];
+                }
+
+                var closestPixel = outwardSpiralPixelSearch(5, arrayOfPixels),
+                    found = closestPixel !== null,
+                    curveNumber = found ? closestPixel[2] + 256 * (closestPixel[1] + 256 * closestPixel[0]) : null;
+
                 var eventData = {
                     x: x,
                     y: y,
@@ -609,7 +666,7 @@ module.exports = function parcoords(gd, cdModule, layout, callbacks) {
     };
 
     var parcoordsSetHoverIndex = function (setIndex){
-        var hoveredAxisIndex = this.__data__.xIndex; // xIndex reflects hidden axes, visibleIndex does not
+        var hoveredAxisIndex = this.__data__.visibleIndex; // misleading, xIndex doesn't reflect hidden axes, visibleIndex accounts for them
         // reset hover properties for all axes, save it only for currently hovered axis
         gd.data[0].dimensions = gd.data[0].dimensions.map(function(item){item.hover = null; return item});
         gd.data[0].dimensions[hoveredAxisIndex].hover = setIndex;
