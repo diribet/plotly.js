@@ -4,9 +4,14 @@ gracefulFs.gracefulify(fs);
 var exec = require('child_process').exec;
 var falafel = require('falafel');
 
+function _throw(err) {
+    console.log(err);
+    throw err;
+}
+
 exports.execCmd = function(cmd, cb, errorCb) {
     cb = cb ? cb : function() {};
-    errorCb = errorCb ? errorCb : function(err) { if(err) throw err; };
+    errorCb = errorCb ? errorCb : function(err) { if(err) _throw(err); };
 
     exec(cmd, function(err) {
         errorCb(err);
@@ -17,7 +22,7 @@ exports.execCmd = function(cmd, cb, errorCb) {
 
 exports.writeFile = function(filePath, content, cb) {
     fs.writeFile(filePath, content, function(err) {
-        if(err) throw err;
+        if(err) _throw(err);
         if(cb) cb();
     });
 };
@@ -65,7 +70,7 @@ exports.touch = function(filePath) {
 };
 
 exports.throwOnError = function(err) {
-    if(err) throw err;
+    if(err) _throw(err);
 };
 
 exports.findModuleList = function(pathToIndex) {

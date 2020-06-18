@@ -1,5 +1,5 @@
 /**
-* Copyright 2012-2019, Plotly, Inc.
+* Copyright 2012-2020, Plotly, Inc.
 * All rights reserved.
 *
 * This source code is licensed under the MIT license found in the
@@ -19,11 +19,15 @@ module.exports = function calc(gd, trace) {
     var ya = Axes.getFromId(gd, trace.yaxis || 'y');
     var size, pos;
 
+    var sizeOpts = {
+        msUTC: !!(trace.base || trace.base === 0)
+    };
+
     if(trace.orientation === 'h') {
-        size = xa.makeCalcdata(trace, 'x');
+        size = xa.makeCalcdata(trace, 'x', sizeOpts);
         pos = ya.makeCalcdata(trace, 'y');
     } else {
-        size = ya.makeCalcdata(trace, 'y');
+        size = ya.makeCalcdata(trace, 'y', sizeOpts);
         pos = xa.makeCalcdata(trace, 'x');
     }
 

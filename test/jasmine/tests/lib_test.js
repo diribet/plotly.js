@@ -778,7 +778,7 @@ describe('Test lib.js:', function() {
                 expect(sizeOut).toBe(outObj.testMarker.testSize);
             });
 
-            it('should set and return the default if the user input is not valid', function() {
+            it('should set the default and return false if the user input is not valid', function() {
                 var colVal = 'r';
                 var sizeVal = 'aaaaah!';
                 var attrs = {
@@ -792,10 +792,78 @@ describe('Test lib.js:', function() {
                 var colOut = coerce2(obj, outObj, attrs, 'testMarker.testColor');
                 var sizeOut = coerce2(obj, outObj, attrs, 'testMarker.testSize');
 
-                expect(colOut).toBe('rgba(0, 0, 0, 0)');
+                expect(colOut).toBe(false);
+                expect(outObj.testMarker.testColor).toBe('rgba(0, 0, 0, 0)');
+                expect(sizeOut).toBe(false);
+                expect(outObj.testMarker.testSize).toBe(20);
+            });
+
+            it('should set the user input', function() {
+                var colVal = 'red';
+                var sizeVal = '1e2';
+                var attrs = {
+                    testMarker: {
+                        testColor: {valType: 'color', dflt: 'rgba(0, 0, 0, 0)'},
+                        testSize: {valType: 'number', dflt: 20}
+                    }
+                };
+                var obj = {testMarker: {testColor: colVal, testSize: sizeVal}};
+                var outObj = {};
+                var colOut = coerce2(obj, outObj, attrs, 'testMarker.testColor');
+                var sizeOut = coerce2(obj, outObj, attrs, 'testMarker.testSize');
+
+                expect(colOut).toBe('red');
+                expect(colOut).toBe(outObj.testMarker.testColor);
+                expect(sizeOut).toBe(100);
                 expect(sizeOut).toBe(outObj.testMarker.testSize);
-                expect(sizeOut).toBe(20);
+            });
+
+            it('should set to template if the container input is not valid', function() {
+                var attrs = {
+                    testMarker: {
+                        testColor: {valType: 'color', dflt: 'rgba(0, 0, 0, 0)'},
+                        testSize: {valType: 'number', dflt: 20}
+                    }
+                };
+                var obj = {
+                    testMarker: {testColor: 'invalid', testSize: 'invalid'}
+                };
+                var outObj = {
+                    _template: {
+                        testMarker: {testColor: 'red', testSize: '1e2'}
+                    }
+                };
+                var colOut = coerce2(obj, outObj, attrs, 'testMarker.testColor');
+                var sizeOut = coerce2(obj, outObj, attrs, 'testMarker.testSize');
+
+                expect(colOut).toBe('red');
+                expect(colOut).toBe(outObj.testMarker.testColor);
+                expect(sizeOut).toBe(100);
                 expect(sizeOut).toBe(outObj.testMarker.testSize);
+            });
+
+            it('should set to default and return false if the both container and template inputs are not valid', function() {
+                var attrs = {
+                    testMarker: {
+                        testColor: {valType: 'color', dflt: 'rgba(0, 0, 0, 0)'},
+                        testSize: {valType: 'number', dflt: 20}
+                    }
+                };
+                var obj = {
+                    testMarker: {testColor: 'invalid', testSize: 'invalid'}
+                };
+                var outObj = {
+                    _template: {
+                        testMarker: {testColor: 'invalid', testSize: 'invalid'}
+                    }
+                };
+                var colOut = coerce2(obj, outObj, attrs, 'testMarker.testColor');
+                var sizeOut = coerce2(obj, outObj, attrs, 'testMarker.testSize');
+
+                expect(colOut).toBe(false);
+                expect(outObj.testMarker.testColor).toBe('rgba(0, 0, 0, 0)');
+                expect(sizeOut).toBe(false);
+                expect(outObj.testMarker.testSize).toBe(20);
             });
 
             it('should return false if there is no user input', function() {
@@ -1671,8 +1739,9 @@ describe('Test lib.js:', function() {
     });
 
     describe('loggers', function() {
-        var stashConsole,
-            stashLogLevel;
+        var stashConsole;
+        var stashLogLevel;
+        var stashOnGraphLogLevel;
 
         function consoleFn(name, hasApply, messages) {
             var out = function() {
@@ -1703,11 +1772,13 @@ describe('Test lib.js:', function() {
         beforeEach(function() {
             stashConsole = window.console;
             stashLogLevel = config.logging;
+            stashOnGraphLogLevel = config.notifyOnLogging;
         });
 
         afterEach(function() {
             window.console = stashConsole;
             config.logging = stashLogLevel;
+            config.notifyOnLogging = stashOnGraphLogLevel;
         });
 
         it('emits one console message if apply is available', function() {
@@ -1806,6 +1877,50 @@ describe('Test lib.js:', function() {
                 ['log', ['who who... are you']],
                 ['log', [{a: 1, b: 2}]]
             ]);
+        });
+
+        describe('should log message in notifier div in accordance notifyOnLogging config option', function() {
+            var query = '.notifier-note';
+
+            beforeEach(function(done) {
+                d3.selectAll(query).each(function() {
+                    d3.select(this).select('button').node().click();
+                });
+                setTimeout(done, 1000);
+            });
+
+            function _run(exp) {
+                config.logging = 0;
+
+                Lib.log('log');
+                Lib.warn('warn');
+                Lib.error('error!');
+
+                var notes = d3.selectAll(query);
+
+                expect(notes.size()).toBe(exp.length, '# of notifier notes');
+
+                var actual = [];
+                notes.each(function() {
+                    actual.push(d3.select(this).select('p').text());
+                });
+                expect(actual).toEqual(exp);
+            }
+
+            it('with level 2', function() {
+                config.notifyOnLogging = 2;
+                _run(['log', 'warn', 'error!']);
+            });
+
+            it('with level 1', function() {
+                config.notifyOnLogging = 1;
+                _run(['warn', 'error!']);
+            });
+
+            it('with level 0', function() {
+                config.notifyOnLogging = 0;
+                _run([]);
+            });
         });
     });
 
@@ -2182,6 +2297,14 @@ describe('Test lib.js:', function() {
         it('replaces empty key with empty string', function() {
             expect(Lib.templateString('foo %{} %{}', {})).toEqual('foo  ');
         });
+
+        it('should work with the number *0*', function() {
+            expect(Lib.templateString('%{group}', {group: 0})).toEqual('0');
+        });
+
+        it('should work with the number *0* (nested case)', function() {
+            expect(Lib.templateString('%{x.y}', {'x': {y: 0}})).toEqual('0');
+        });
     });
 
     describe('hovertemplateString', function() {
@@ -2200,6 +2323,14 @@ describe('Test lib.js:', function() {
 
         it('evaluates array nested properties', function() {
             expect(Lib.hovertemplateString('foo %{bar[0].baz}', {}, locale, {bar: [{baz: 'asdf'}]})).toEqual('foo asdf');
+        });
+
+        it('should work with the number *0*', function() {
+            expect(Lib.hovertemplateString('%{group}', {}, locale, {group: 0})).toEqual('0');
+        });
+
+        it('should work with the number *0* (nested case)', function() {
+            expect(Lib.hovertemplateString('%{x.y}', {}, locale, {'x': {y: 0}})).toEqual('0');
         });
 
         it('subtitutes multiple matches', function() {

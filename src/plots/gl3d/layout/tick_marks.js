@@ -1,5 +1,5 @@
 /**
-* Copyright 2012-2019, Plotly, Inc.
+* Copyright 2012-2020, Plotly, Inc.
 * All rights reserved.
 *
 * This source code is licensed under the MIT license found in the
@@ -69,7 +69,7 @@ function computeTickMarks(scene) {
                 var nticks = axes.nticks || Lib.constrain((axes._length / 40), 4, 9);
                 Axes.autoTicks(axes, Math.abs(axes.range[1] - axes.range[0]) / nticks);
             }
-            var dataTicks = Axes.calcTicks(axes);
+            var dataTicks = Axes.calcTicks(axes, { msUTC: true });
             for(var j = 0; j < dataTicks.length; ++j) {
                 dataTicks[j].x = dataTicks[j].x * scene.dataScale[i];
 

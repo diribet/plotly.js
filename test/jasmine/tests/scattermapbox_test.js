@@ -1,6 +1,7 @@
 var Plotly = require('@lib');
 var Plots = require('@src/plots/plots');
 var Lib = require('@src/lib');
+var Axes = require('@src/plots/cartesian/axes');
 
 var ScatterMapbox = require('@src/traces/scattermapbox');
 var convert = require('@src/traces/scattermapbox/convert');
@@ -139,7 +140,15 @@ describe('scattermapbox convert', function() {
         Plots.doCalcdata(gd, fullTrace);
 
         var calcTrace = gd.calcdata[0];
-        return convert({_fullLayout: {_d3locale: false}}, calcTrace);
+
+        var mockAxis = {type: 'linear'};
+        Axes.setConvert(mockAxis, gd._fullLayout);
+
+        gd._fullLayout.mapbox._subplot = {
+            mockAxis: mockAxis
+        };
+
+        return convert(gd, calcTrace);
     }
 
     function assertVisibility(opts, expectations) {
@@ -456,6 +465,30 @@ describe('scattermapbox convert', function() {
         expect(symbolProps).toEqual(expected, 'geojson properties');
     });
 
+
+    it('should allow symbols to be rotated and overlapped', function() {
+        var opts = _convert(Lib.extendFlat({}, base, {
+            mode: 'markers',
+            marker: {
+                symbol: ['monument', 'music', 'harbor'],
+                angle: [0, 90, 45],
+                allowoverlap: true
+            },
+        }));
+
+        var symbolAngle = opts.symbol.geojson.features.map(function(f) {
+            return f.properties.angle;
+        });
+
+        var expected = [0, 90, 45, 0, 0];
+        expect(symbolAngle).toEqual(expected, 'geojson properties');
+
+
+        expect(opts.symbol.layout['icon-rotate'].property).toEqual('angle', 'symbol.layout.icon-rotate');
+        expect(opts.symbol.layout['icon-allow-overlap']).toEqual(true, 'symbol.layout.icon-allow-overlap');
+    });
+
+
     it('should generate correct output for text + lines traces', function() {
         var opts = _convert(Lib.extendFlat({}, base, {
             mode: 'lines+text',
@@ -536,9 +569,9 @@ describe('scattermapbox convert', function() {
         });
 
         expect(actualText).toEqual([
-            'Montreal (-73.57, 45.5): 1.8M',
-            'Toronto (-79.24, 43.4): 2.9M',
-            'Vancouver (-123.06, 49.13): 680k'
+            'Montreal (−73.57, 45.5): 1.8M',
+            'Toronto (−79.24, 43.4): 2.9M',
+            'Vancouver (−123.06, 49.13): 680k'
         ]);
     });
 

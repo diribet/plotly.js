@@ -1,5 +1,5 @@
 /**
-* Copyright 2012-2019, Plotly, Inc.
+* Copyright 2012-2020, Plotly, Inc.
 * All rights reserved.
 *
 * This source code is licensed under the MIT license found in the
@@ -31,7 +31,7 @@ exports.name2id = function name2id(name) {
 };
 
 exports.cleanId = function cleanId(id, axLetter) {
-    if(!id.match(constants.AX_ID_PATTERN)) return;
+    if(typeof id !== 'string' || !id.match(constants.AX_ID_PATTERN)) return;
     if(axLetter && id.charAt(0) !== axLetter) return;
 
     var axNum = id.substr(1).replace(/^0+/, '');

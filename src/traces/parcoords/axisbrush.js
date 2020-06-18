@@ -1,5 +1,5 @@
 /**
-* Copyright 2012-2019, Plotly, Inc.
+* Copyright 2012-2020, Plotly, Inc.
 * All rights reserved.
 *
 * This source code is licensed under the MIT license found in the
@@ -479,6 +479,15 @@ function dedupeRealRanges(intervals) {
         }
         result.push(currentInterval);
     }
+
+    if(
+        result.length === 1 &&
+        result[0][0] > result[0][1]
+    ) {
+        // discard result
+        result = [];
+    }
+
     return result;
 }
 

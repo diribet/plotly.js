@@ -193,6 +193,33 @@ describe('config argument', function() {
 
             testAutosize(autosize, config, layoutHeight, relayoutHeight, done);
         });
+
+        [
+            {display: 'none', dflt: true},
+            {display: '', dflt: false}
+        ].forEach(function(spec) {
+            it('ignores percent sizes when container is hidden', function(done) {
+                gd.style.width = '100%';
+                gd.style.height = '100%';
+                gd.style.display = spec.display;
+
+                var dfltWidth = Plots.layoutAttributes.width.dflt;
+                var dfltHeight = Plots.layoutAttributes.height.dflt;
+
+                Plotly.plot(gd, data, {autosize: true})
+                .then(function() {
+                    if(spec.dflt) {
+                        expect(gd._fullLayout.width).toBe(dfltWidth);
+                        expect(gd._fullLayout.height).toBe(dfltHeight);
+                    } else {
+                        expect(gd._fullLayout.width).not.toBe(dfltWidth);
+                        expect(gd._fullLayout.height).not.toBe(dfltHeight);
+                    }
+                })
+                .catch(failTest)
+                .then(done);
+            });
+        });
     });
 
     describe('showLink attribute', function() {
@@ -501,13 +528,29 @@ describe('config argument', function() {
 
         afterEach(destroyGraphDiv);
 
-        it('should default to plotly cloud', function(done) {
+        it('should not default to an external plotly cloud', function(done) {
             Plotly.plot(gd, [], {})
             .then(function() {
-                expect(gd._context.plotlyServerURL).toBe('https://plot.ly');
+                expect(gd._context.plotlyServerURL).not.toBe('https://plot.ly');
+                expect(gd._context.plotlyServerURL).not.toBe('https://chart-studio.plotly.com');
+                expect(gd._context.plotlyServerURL).toBe('');
 
                 Plotly.Plots.sendDataToCloud(gd);
-                expect(form.action).toBe('https://plot.ly/external');
+                expect(form).toBe(undefined);
+            })
+            .catch(failTest)
+            .then(done);
+        });
+
+        it('should be able to connect to Chart Studio Cloud when set to https://chart-studio.plotly.com', function(done) {
+            Plotly.plot(gd, [], {}, {
+                plotlyServerURL: 'https://chart-studio.plotly.com'
+            })
+            .then(function() {
+                expect(gd._context.plotlyServerURL).toBe('https://chart-studio.plotly.com');
+
+                Plotly.Plots.sendDataToCloud(gd);
+                expect(form.action).toBe('https://chart-studio.plotly.com/external');
                 expect(form.method).toBe('post');
             })
             .catch(failTest)
