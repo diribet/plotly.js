@@ -651,10 +651,7 @@ module.exports = function parcoords(gd, cdModule, layout, callbacks) {
     yAxis.enter()
         .append('g')
         .classed(c.cn.yAxis, true)
-        .style('pointer-events', 'none')
-        .on('click', function(eventData) {
-            callbacks.plotly_axisClick(eventData);
-        });
+        .style('pointer-events', 'none');
 
     // draw probability density
     var hoverEnterCallback = function() {
@@ -831,7 +828,8 @@ module.exports = function parcoords(gd, cdModule, layout, callbacks) {
     // drag column for reordering columns
     yAxis.call(d3.behavior.drag()
         .origin(function(d) { return d; })
-        .on('dragstart', function() {
+        .on('dragstart', function(d) {
+            d.startX = d.x;
             callbacks.plotly_axisDrag();
             // add dragged property to axis
             d3.selectAll('.' + c.cn.yAxis).each(function() {
@@ -862,6 +860,7 @@ module.exports = function parcoords(gd, cdModule, layout, callbacks) {
             p.focusLayer.render && p.focusLayer.render(p.panels);
         })
         .on('dragend', function(d) {
+            var travelledXdistance = Math.abs(d.startX - d.x);
             var p = d.parent;
             d.x = d.xScale(d.xIndex);
             d.canvasX = d.x * d.model.canvasPixelRatio;
@@ -873,7 +872,10 @@ module.exports = function parcoords(gd, cdModule, layout, callbacks) {
             p.pickLayer && p.pickLayer.render(p.panels, true);
             state.linePickActive(true);
 
-            if(callbacks && callbacks.axesMoved) {
+            // if didn't move the axis, emit axisClick, otherwise emit restyle through axesMoved
+            if (travelledXdistance <= 1 && callbacks && callbacks.plotly_axisClick) {
+                callbacks.plotly_axisClick(d.visibleIndex);
+            } else if (callbacks && callbacks.axesMoved) {
                 callbacks.axesMoved(p.key, p.dimensions.map(function(e) {return e.crossfilterDimensionIndex;}));
             }
 
