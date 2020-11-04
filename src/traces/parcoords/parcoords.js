@@ -573,7 +573,7 @@ module.exports = function parcoords(gd, cdModule, layout, callbacks) {
             }
         });
 
-    // emit plotly_curveClick event
+    // emit plotly_curveclick event
     pickLayer
         .style('pointer-events', 'auto')
         .on('click', function(d) {
@@ -610,7 +610,7 @@ module.exports = function parcoords(gd, cdModule, layout, callbacks) {
                     curveNumber: curveNumber
                 };
                 if(found) {
-                    callbacks.plotly_curveClick(eventData);
+                    callbacks.plotly_curveclick(eventData);
                 }
             }
         });
@@ -830,7 +830,7 @@ module.exports = function parcoords(gd, cdModule, layout, callbacks) {
         .origin(function(d) { return d; })
         .on('dragstart', function(d) {
             d.startX = d.x;
-            callbacks.plotly_axisDrag();
+            callbacks.plotly_axisdrag();
             // add dragged property to axis
             d3.selectAll('.' + c.cn.yAxis).each(function() {
                 d3.select(this).node().__data__.prohibitDrawingDensity = true;
@@ -872,9 +872,9 @@ module.exports = function parcoords(gd, cdModule, layout, callbacks) {
             p.pickLayer && p.pickLayer.render(p.panels, true);
             state.linePickActive(true);
 
-            // if didn't move the axis, emit axisClick, otherwise emit restyle through axesMoved
-            if (travelledXdistance <= 1 && callbacks && callbacks.plotly_axisClick) {
-                callbacks.plotly_axisClick(d.visibleIndex);
+            // if didn't move the axis, emit axisclick, otherwise emit restyle through axesMoved
+            if (travelledXdistance <= 1 && callbacks && callbacks.plotly_axisclick) {
+                callbacks.plotly_axisclick(d.visibleIndex);
             } else if (callbacks && callbacks.axesMoved) {
                 callbacks.axesMoved(p.key, p.dimensions.map(function(e) {return e.crossfilterDimensionIndex;}));
             }

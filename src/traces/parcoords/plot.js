@@ -99,16 +99,16 @@ module.exports = function plot(gd, cdModule) {
         gd.emit('plotly_unhover', eventData);
     };
 
-    var plotly_axisClick = function (eventData) {
-        gd.emit('plotly_axisClick', eventData);
+    var plotly_axisclick = function (eventData) {
+        gd.emit('plotly_axisclick', eventData);
     };
 
-    var plotly_curveClick = function (eventData) {
-        gd.emit('plotly_curveClick', eventData);
+    var plotly_curveclick = function (eventData) {
+        gd.emit('plotly_curveclick', eventData);
     };
 
-    var plotly_axisDrag = function () {
-        gd.emit('plotly_axisDrag');
+    var plotly_axisdrag = function () {
+        gd.emit('plotly_axisdrag');
     };
 
     var axesMoved = function(i, visibleIndices) {
@@ -163,8 +163,8 @@ module.exports = function plot(gd, cdModule) {
             hover: hover,
             unhover: unhover,
             axesMoved: axesMoved,
-            plotly_axisClick: plotly_axisClick,
-            plotly_curveClick: plotly_curveClick,
-            plotly_axisDrag: plotly_axisDrag
+            plotly_axisclick: plotly_axisclick,
+            plotly_curveclick: plotly_curveclick,
+            plotly_axisdrag: plotly_axisdrag
         });
 };
