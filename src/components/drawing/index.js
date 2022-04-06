@@ -780,11 +780,13 @@ drawing.selectedTextStyle = function(s, trace) {
  */
 drawing.monotoneSpline = function (pts, independentVar) {
     var lineGenerator = d3Shape.line();
+    var curveGenerator;
     if (independentVar === 'x') {
-        return lineGenerator.curve(d3Shape.curveMonotoneX);
+        curveGenerator = lineGenerator.curve(d3Shape.curveMonotoneX);
     } else {
-        return lineGenerator.curve(d3Shape.curveMonotoneY);
+        curveGenerator = lineGenerator.curve(d3Shape.curveMonotoneY);
     }
+    return curveGenerator(pts);
 }
 
 // generalized Catmull-Rom splines, per
