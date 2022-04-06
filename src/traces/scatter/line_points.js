@@ -234,7 +234,7 @@ module.exports = function linePoints(d, opts) {
     }
 
     var getEdgeIntersections;
-    if(shape === 'linear' || shape === 'spline') {
+    if(shape === 'linear' || shape.includes('spline')) {
         getEdgeIntersections = getLinearEdgeIntersections;
     } else if(shape === 'hv' || shape === 'vh') {
         getEdgeIntersections = getHVEdgeIntersections;
