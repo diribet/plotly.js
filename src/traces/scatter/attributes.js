@@ -236,7 +236,7 @@ module.exports = {
         },
         shape: {
             valType: 'enumerated',
-            values: ['linear', 'spline', 'hv', 'vh', 'hvh', 'vhv'],
+            values: ['linear', 'spline', 'hv', 'vh', 'hvh', 'vhv', 'diribet-spline-monotone-x', 'diribet-spline-monotone-y'],
             dflt: 'linear',
             role: 'style',
             editType: 'plot',

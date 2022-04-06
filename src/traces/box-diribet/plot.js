@@ -285,8 +285,12 @@ module.exports = function plot(gd, plotinfo, cdbox, boxLayer) {
 			        .style('vector-effect', 'non-scaling-stroke')
 			        .call(Drawing.lineGroupStyle)
 			        .each(function(d) {
-			        	var smoothing = 1,
-			        		path = Drawing.smoothopen(d, smoothing);
+						var path;
+						if (trace.orientation === 'v') {
+							path = Drawing.monotoneSpline(d, 'y');
+						} else {
+							path = Drawing.monotoneSpline(d, 'x');
+						}
 
 		        		d3.select(this)
 		        			.attr('d', path)

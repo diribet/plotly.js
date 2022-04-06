@@ -204,6 +204,14 @@ function plotOne(gd, idx, plotinfo, cdscatter, cdscatterAll, element, transition
                     return Drawing.smoothopen(pts, line.smoothing);
                 }
             };
+        } else if (line.shape === 'diribet-spline-monotone-x') {
+            pathfn = revpathbase = function(pts) {
+                return Drawing.monotoneSpline(pts, 'x');
+            }
+        } else if (line.shape === 'diribet-spline-monotone-y') {
+            pathfn = revpathbase = function(pts) {
+                return Drawing.monotoneSpline(pts, 'y');
+            }
         } else {
             pathfn = revpathbase = function(pts) {
                 return 'M' + pts.join('L');

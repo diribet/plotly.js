@@ -9,7 +9,9 @@
 
 'use strict';
 
+
 var d3 = require('d3');
+var d3Shape = require('d3-shape/dist/d3-shape');
 var isNumeric = require('fast-isnumeric');
 var tinycolor = require('tinycolor2');
 
@@ -769,19 +771,42 @@ drawing.selectedTextStyle = function(s, trace) {
     });
 };
 
+/**
+ * Diribet extra
+ * if trace.line.shape == 'diribet-spline-monotone-x' || 'diribet-spline-monotone-y'
+ * @param pts array of [x,y] pairs corresponding to pixel points
+ * @param independentVar one of ['x', 'y']
+ * @returns {*} svg path
+ */
+drawing.monotoneSpline = function (pts, independentVar) {
+    var lineGenerator = d3Shape.line();
+    if (independentVar === 'x') {
+        return lineGenerator.curve(d3Shape.curveMonotoneX);
+    } else {
+        return lineGenerator.curve(d3Shape.curveMonotoneY);
+    }
+}
+
 // generalized Catmull-Rom splines, per
 // http://www.cemyuksel.com/research/catmullrom_param/catmullrom.pdf
 var CatmullRomExp = 0.5;
 drawing.smoothopen = function(pts, smoothness) {
+    // needs at least 4 control points
+    // otherwise just a line connecting 2 points
     if(pts.length < 3) { return 'M' + pts.join('L');}
-    var path = 'M' + pts[0];
+    var path = 'M' + pts[0]; // move to
+    // all svg paths start with M
     var tangents = [];
     var i;
     for(i = 1; i < pts.length - 1; i++) {
         tangents.push(makeTangent(pts[i - 1], pts[i], pts[i + 1], smoothness));
     }
+    // Q == quadratic bezier curves - start point P0 and end point P2. a single control point P1
+    // determines curvature of the line
+    // arguments: control point + final point being drawn
     path += 'Q' + tangents[0][0] + ' ' + pts[1];
     for(i = 2; i < pts.length - 1; i++) {
+        // C == cubic bezier curve
         path += 'C' + tangents[i - 2][1] + ' ' + tangents[i - 1][0] + ' ' + pts[i];
     }
     path += 'Q' + tangents[pts.length - 3][1] + ' ' + pts[pts.length - 1];
@@ -808,6 +833,7 @@ drawing.smoothclosed = function(pts, smoothness) {
     return path;
 };
 
+// returns [[x,y], [x,y]] = 2 points == 1 line (the tangent line)
 function makeTangent(prevpt, thispt, nextpt, smoothness) {
     var d1x = prevpt[0] - thispt[0];
     var d1y = prevpt[1] - thispt[1];
