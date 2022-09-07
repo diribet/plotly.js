@@ -20,16 +20,42 @@ module.exports = function plot(gd, plotinfo, cdbox, boxLayer) {
         ya = plotinfo.yaxis,
 		posAxis, valAxis;
 
+	// Probability density drawing on hover
+	// We install single hover / unhover event listener for the whole chart. This listener use densityDrawCallback to
+	// redraw density. densityDrawCallbacks are created in d3 drawing logic, so they have access to d3 data joins.
+	plotinfo.densityDrawCallbacks = [];
 	if (!plotinfo._showDensityCallback) {
+		function setProbabilityDensityHoverState(event, hover, gd) {
+			var point = event.points[0],
+				traceNumber = point.curveNumber,
+				pointNumber = point.pointNumber;
+
+			gd.calcdata[traceNumber][pointNumber].hover = hover;
+			gd.data[traceNumber].hoverindex = hover ? pointNumber : null;
+
+			var densityDrawCallback = plotinfo.densityDrawCallbacks[traceNumber];
+			if (densityDrawCallback) {
+				densityDrawCallback();
+			}
+		}
+
 		plotinfo._showDensityCallback = function(event) {
-			setHoverIndex(event, true, gd);
+			setProbabilityDensityHoverState(event, true, gd);
 		};
 
 		plotinfo._hideDensityCallback = function(event) {
-			setHoverIndex(event, false, gd);
+			setProbabilityDensityHoverState(event, false, gd);
 		};
 	}
 
+	gd.removeListener('plotly_hover', plotinfo._showDensityCallback);
+	gd.removeListener('plotly_unhover', plotinfo._hideDensityCallback);
+	if (fullLayout.showProbabilityDensity === 'hover') {
+		gd.on('plotly_hover', plotinfo._showDensityCallback);
+		gd.on('plotly_unhover', plotinfo._hideDensityCallback);
+	}
+
+	// draw boxes
 	boxLayer.selectAll('g.trace.boxes').remove();
     var boxtraces = boxLayer.selectAll('g.trace.boxes')
 							.data(cdbox)
@@ -210,81 +236,73 @@ module.exports = function plot(gd, plotinfo, cdbox, boxLayer) {
 		drawPointType('outliers');
 		drawPointType('points');
 
-        // draw probability density
-        if (fullLayout.showProbabilityDensity != 'never') {
-        	var showDensityOnHover = fullLayout.showProbabilityDensity === 'hover';
+        // probability density
 
-	        var densityGroupJoin = boxGroups.selectAll('g.density')
-	        								.data(function(d) {
-								        		if (showDensityOnHover && !d.hover) {
-								        			return [];
-								        		} else {
-								        			return [d];
-								        		}
-								            });
+		var densitySegments = function(d, side) {
+			if (!d.probabilityDensity) return [];
 
-	        var densityGroup = densityGroupJoin.enter()
-								            	.append('g')
-						            			.classed('density', true);
+			var sideNum = side === "left" ? -1 : 1;
 
-	        densityGroupJoin.exit()
-			            	.remove();
+			var boxOffset = d.pos + bPos,
+				densityPoints = d.probabilityDensity.map(function(v, i) {
+					var scale = bdPos * (1 - fullLayout.probabilityDensityMargin);
+					if(trace.orientation === 'h') {
+						return {
+							x: v.x,
+							y: v.y * scale * sideNum + boxOffset
+						};
+					} else {
+						return {
+							x: v.x * scale * sideNum + boxOffset,
+							y: v.y
+						};
+					}
+				}),
+				segments = linePoints(densityPoints, {
+					xaxis: xa,
+					yaxis: ya,
+					connectGaps: false,
+					simplify: false,
+					shape: 'spline',
+					baseTolerance: 0.75
+				});
 
-	        gd.removeListener('plotly_hover', plotinfo._showDensityCallback);
-	        gd.removeListener('plotly_unhover', plotinfo._hideDensityCallback);
-        	if (showDensityOnHover) {
-        		gd.on('plotly_hover', plotinfo._showDensityCallback);
-        		gd.on('plotly_unhover', plotinfo._hideDensityCallback);
-        	}
+			// set line style to data
+			segments.forEach(function(segment) { segment[0].trace = { line: trace.probabilityDensityLine } });
 
-	        var densitySegments = function(d, side) {
-	        	if (!d.probabilityDensity) return [];
+			return segments.filter(function(s) {
+				return s.length > 1;
+			});
+		};
 
-	        	var boxOffset = d.pos + bPos,
-	        		densityPoints = d.probabilityDensity.map(function(v, i) {
-	        			var scale = bdPos * (1 - fullLayout.probabilityDensityMargin);
-		                if(trace.orientation === 'h') {
-		            		return {
-		            			x: v.x,
-		            			y: v.y * scale * side + boxOffset
-		            		};
-		        		} else {
-		            		return {
-		            			x: v.x * scale * side + boxOffset,
-		            			y: v.y
-		            		};
-		        		}
-		        	}),
-		        	segments = linePoints(densityPoints, {
-		                xaxis: xa,
-		                yaxis: ya,
-		                connectGaps: false,
-		                simplify: false,
-						shape: 'spline',
-						baseTolerance: 0.75
-		            });
+		var drawDensity = function() {
+			var densityGroupJoin = boxGroups.selectAll('g.density')
+											.data(function(d) {
+												if (fullLayout.showProbabilityDensity === 'hover' && !d.hover) {
+													return [];
+												} else {
+													return [d];
+												}
+											});
 
-	        	// set line style to data
-	        	segments.forEach(function(segment) { segment[0].trace = { line: d.probabilityDensity.line } });
+			var densityGroup = densityGroupJoin.enter()
+												.append('g')
+												.classed('density', true);
 
-	        	return segments.filter(function(s) {
-	                return s.length > 1;
-	            });
-	        };
+			densityGroupJoin.exit()
+							.remove();
 
-	        var drawDensity = function(leftSide) {
-	        	var sideClass = leftSide ? "left" : "right";
-
-	        	densityGroup
-		        	.selectAll('path.' + sideClass)
-		            .data(function(d) {
-		            	return densitySegments(d, leftSide ? -1 : 1);
-		            })
-		            .enter().append('path')
-		            .classed('js-line ' + sideClass, true)
-			        .style('vector-effect', 'non-scaling-stroke')
-			        .call(Drawing.lineGroupStyle)
-			        .each(function(d) {
+			["left", "right"].forEach(function(side) {
+				densityGroup
+					.selectAll('path.' + side)
+					.data(function(d) {
+						return densitySegments(d, side);
+					})
+					.enter().append('path')
+					.classed('js-line ' + side, true)
+					.style('vector-effect', 'non-scaling-stroke')
+					.call(Drawing.lineGroupStyle)
+					.each(function(d) {
 						var path;
 						if (trace.orientation === 'v') {
 							path = Drawing.monotoneSpline(d, 'y');
@@ -292,14 +310,19 @@ module.exports = function plot(gd, plotinfo, cdbox, boxLayer) {
 							path = Drawing.monotoneSpline(d, 'x');
 						}
 
-		        		d3.select(this)
-		        			.attr('d', path)
-		        			.call(Drawing.lineGroupStyle);
-			        });
-	        };
-	        drawDensity(true);
-	        drawDensity(false);
-        }
+						d3.select(this)
+							.attr('d', path)
+							.call(Drawing.lineGroupStyle);
+					});
+			});
+		};
+
+		// store the draw function for use from hover listener
+		plotinfo.densityDrawCallbacks[trace.index] = drawDensity;
+
+		if (fullLayout.showProbabilityDensity !== 'never') {
+	        drawDensity();
+		}
 
         // draw mean
 		boxGroups.selectAll('path.mean')
@@ -410,14 +433,3 @@ module.exports = function plot(gd, plotinfo, cdbox, boxLayer) {
             .call(Drawing.translatePoints, xa, ya);
     });
 };
-
-
-
-function setHoverIndex(event, setIndex, gd) {
-	var point = event.points[0],
-		traceNumber = point.curveNumber,
-		pointNumber = point.pointNumber;
-
-	gd.data[traceNumber].hoverindex = setIndex ? pointNumber : null;
-	Plotly.redraw(gd);
-}
