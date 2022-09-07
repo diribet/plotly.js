@@ -27,7 +27,7 @@ module.exports = function hoverPoints(pointData, xval, yval, hovermode) {
         hoverPseudoDistance;
 
     // adjust inbox w.r.t. to calculate box size
-    boxDelta = (hovermode === 'closest') ? 2.5 * t.bdPos : t.bdPos;
+	boxDelta = t.bdPos;
 
     if(trace.orientation === 'h') {
         dx = function(di) {
@@ -60,7 +60,7 @@ module.exports = function hoverPoints(pointData, xval, yval, hovermode) {
     // if two boxes are overlaying, let the narrowest one win
     var pseudoDistance = Math.min(1, boxDelta / Math.abs(posAxis.r2c(posAxis.range[1]) - posAxis.r2c(posAxis.range[0])));
     hoverPseudoDistance = pointData.maxHoverDistance - pseudoDistance;
-    
+
     function dxy(di) { return (dx(di) + dy(di)) / 2; }
     distfn = Fx.getDistanceFunction(hovermode, dx, dy, dxy);
     Fx.getClosest(cd, distfn, pointData);
@@ -84,20 +84,20 @@ module.exports = function hoverPoints(pointData, xval, yval, hovermode) {
     if (di.normalizationFailed) {
     	// tooltip is placed in center of box
     	pointData[posLetter + '0'] = pointData[posLetter + '1'] = posAxis.c2p(di.pos + t.bPos, true);
-    	
+
     	// show normalization failed tooltip
 		pointData[valLetter + '0'] = pointData[valLetter + '1'] = valAxis.c2p(0, true);
 		pointData.text = trace.normalizationFailedText;
 		pointData.attr = 'normalizationFailed';
 		closeData.push(pointData);
-    	
+
     } else if (hoverOutliersMark(xval, yval, di, trace.orientation) && valAxis.autorange == true) {
         var outliersHoverText = pointData.text = di.outliersHoverText;
 
         if (outliersHoverText) {
             // tooltip is placed in center of box
             pointData[posLetter + '0'] = pointData[posLetter + '1'] = posAxis.c2p(di.pos + t.bPos, true);
-                    
+
             // show outliers tooltip
             pointData[valLetter + '0'] = pointData[valLetter + '1'] = valAxis.c2p(val, true);
             pointData.text = outliersHoverText;
@@ -106,7 +106,7 @@ module.exports = function hoverPoints(pointData, xval, yval, hovermode) {
             pointData.color = 'rgba(255, 0, 0, 0.3)';
             closeData.push(pointData);
         }
-    	
+
     } else {
     	// box plots: each "point" gets many labels
     	var usedVals = {},
@@ -119,23 +119,23 @@ module.exports = function hoverPoints(pointData, xval, yval, hovermode) {
     	if (!di.scaleIgnoresOutliers) {
     		attrs.push('min', 'max');
     	}
-    	
+
     	// tooltip is placed on a box side
         pointData[posLetter + '0'] = posAxis.c2p(di.pos + t.bPos - boxHalfWidth, true);
         pointData[posLetter + '1'] = posAxis.c2p(di.pos + t.bPos + boxHalfWidth, true);
 
-    	
+
     	for(var i = 0; i < attrs.length; i++) {
     		attr = attrs[i];
-    		
+
     		if(!(attr in di) || (di[attr] in usedVals)) continue;
     		usedVals[di[attr]] = true;
-    		
+
     		// copy out to a new object for each value to label
     		val = valAxis.c2p(di[attr], true);
     		pointData2 = Lib.extendFlat({}, pointData);
     		pointData2[valLetter + '0'] = pointData2[valLetter + '1'] = val;
-    		
+
     		// if the box is normalized, use non-normalized value as a label
     		if (trace.normalize) {
     			label = di._origBox[attr];
@@ -144,20 +144,20 @@ module.exports = function hoverPoints(pointData, xval, yval, hovermode) {
     		}
     		pointData2[valLetter + 'LabelVal'] = label;
     		pointData2.attr = attr;
-    		
+
     		pointData.name = ''; // only keep name on the first item (median)
     		closeData.push(pointData2);
     	}
     }
-    
+
     return closeData;
 };
 
 function hoverOutliersMark(xval, yval, dataPoint, orientation) {
-	if (!dataPoint.scaleIgnoresOutliers) { 
+	if (!dataPoint.scaleIgnoresOutliers) {
 		return false;
 	}
-	
+
 	var val = orientation === 'h' ? xval : yval;
 	return (dataPoint.loc > 0 && val < dataPoint.lw) || (dataPoint.uoc > 0 && val > dataPoint.uw);
 }

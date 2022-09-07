@@ -126,7 +126,7 @@ module.exports = function calc(gd, trace) {
     	// additional padding for outliers out of scale markers
     	paddingOptions.ppad = 16;
     }
-	
+
 	var extremes = Axes.findExtremes(valAxis, minMaxValues, paddingOptions);
     trace._extremes[valAxis._id] = extremes;
 
@@ -174,12 +174,15 @@ module.exports = function calc(gd, trace) {
 	});
 
     // add numboxes and dPos to cd
-    cd[0].t = {
-    	boxnum: fullLayout._numBoxes,
+	var t = {
+		boxnum: fullLayout._numBoxes,
 		dPos: dPos,
 		posLetter: posLetter,
 		valLetter: valLetter
-    };
+	};
+	cd.forEach(function(e) {
+		e.t = t;
+	})
 	fullLayout._numBoxes++;
     return cd;
 };
