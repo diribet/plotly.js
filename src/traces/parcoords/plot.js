@@ -107,8 +107,8 @@ module.exports = function plot(gd, cdModule) {
         gd.emit('plotly_curveclick', eventData);
     };
 
-    var plotly_axisdrag = function () {
-        gd.emit('plotly_axisdrag');
+    var plotly_axisdrag = function (gd) {
+        gd.emit('plotly_axisdrag', gd);
     };
 
     var axesMoved = function(i, visibleIndices) {

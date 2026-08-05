@@ -831,7 +831,7 @@ module.exports = function parcoords(gd, cdModule, layout, callbacks) {
         .origin(function(d) { return d; })
         .on('dragstart', function(d) {
             d.startX = d.x;
-            callbacks.plotly_axisdrag();
+            callbacks.plotly_axisdrag(gd);
             // add dragged property to axis
             d3.select(gd).selectAll('.' + c.cn.yAxis).each(function() {
                 d3.select(this).node().__data__.prohibitDrawingDensity = true;
