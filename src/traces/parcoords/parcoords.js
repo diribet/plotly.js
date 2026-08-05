@@ -702,7 +702,8 @@ module.exports = function parcoords(gd, cdModule, layout, callbacks) {
             .append('clipPath')
             .attr('id', function(d) {return 'clipID_' + d.idx});
 
-        d3.selectAll('clipPath')
+        d3.select(gd)
+            .selectAll('clipPath')
             .selectAll('rect')
             .data(function(d) {return [d]})
             .enter()
@@ -832,10 +833,10 @@ module.exports = function parcoords(gd, cdModule, layout, callbacks) {
             d.startX = d.x;
             callbacks.plotly_axisdrag();
             // add dragged property to axis
-            d3.selectAll('.' + c.cn.yAxis).each(function() {
+            d3.select(gd).selectAll('.' + c.cn.yAxis).each(function() {
                 d3.select(this).node().__data__.prohibitDrawingDensity = true;
             });
-            d3.selectAll('.density').remove();
+            d3.select(gd).selectAll('.density').remove();
         })
         .on('drag', function(d) {
                         var p = d.parent;
@@ -880,7 +881,7 @@ module.exports = function parcoords(gd, cdModule, layout, callbacks) {
             }
 
             // remove dragged property when dragging ends
-            d3.selectAll('.' + c.cn.yAxis).each(function(datum, index) {
+            d3.select(gd).selectAll('.' + c.cn.yAxis).each(function(datum, index) {
                 // d3.select(this).node().__data__.prohibitDrawingDensity = null;
                 gd.data[0].dimensions[index].hover = null;
             });
